@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.env
+.env.prod
+*.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.db
+tests/evals/results/
+.DS_Store
+
+# Business / internal — not for public repo
+business-plan-4-8-weeks.md
+poc-for-devs.md
+poc-for-nondevs.md
+prompt-for-deploy.md
+prompt-for-docs.md
+prompt-for-lending-page.md
+.claude/

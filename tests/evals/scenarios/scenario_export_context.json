@@ -1,0 +1,15 @@
+{
+  "name": "export_context",
+  "description": "Agent should call get_agent_context when asked to export context",
+  "system_prompt_file": "packages/agent-prompts/export-agent-context.md",
+  "user_message": "Export my context. user_id: user-abc. topic: JavaScript Closures.",
+  "template_vars": {
+    "user_id": "user-abc",
+    "topic": "JavaScript Closures"
+  },
+  "expected_tool_calls": ["get_agent_context"],
+  "required_args_present": {
+    "get_agent_context": ["user_id"]
+  },
+  "pass_criteria": "get_agent_context called with correct user_id"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "progress",
+  "description": "When the user asks how far they are to expert, the agent fetches mastery progress",
+  "system_prompt_file": "packages/skills/progress.md",
+  "user_message": "Сколько я уже отработал по теме closures и далеко ли мне до эксперта?",
+  "expected_tool_calls": ["get_mastery_progress"],
+  "pass_criteria": "get_mastery_progress called to show badges and what blocks expert"
+}

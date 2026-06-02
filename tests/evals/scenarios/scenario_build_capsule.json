@@ -1,0 +1,19 @@
+{
+  "name": "build_capsule",
+  "description": "Agent should call store_capsule with all required fields when asked to build a capsule",
+  "system_prompt_file": "packages/agent-prompts/build-capsule.md",
+  "user_message": "Build a capsule for topic topic-xyz-123. user_id is user-abc. Events: [{\"type\":\"note_added\",\"text\":\"Closures capture outer scope\"}]. Artifacts: [{\"filename\":\"counter.js\",\"language\":\"javascript\"}]. Weak spots: [].",
+  "template_vars": {
+    "user_id": "user-abc",
+    "topic_id": "topic-xyz-123",
+    "topic": "JavaScript Closures",
+    "events": "[{\"type\":\"note_added\",\"text\":\"Closures capture outer scope\"}]",
+    "artifacts": "[{\"filename\":\"counter.js\",\"language\":\"javascript\"}]",
+    "weak_spots": "[]"
+  },
+  "expected_tool_calls": ["store_capsule"],
+  "required_args_present": {
+    "store_capsule": ["user_id", "topic_id", "content_md", "summary", "review_questions"]
+  },
+  "pass_criteria": "store_capsule called with non-empty content_md, summary, and at least 1 review_question"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "diagram",
+  "description": "When explaining a process/data flow, the agent includes a diagram (mermaid or ASCII), not just text",
+  "system_prompt_file": "packages/skills/study-mentor-v2.md",
+  "user_message": "Вот что я уже знаю: топик в Kafka делится на партиции, консьюмеры объединяются в consumer group, и каждая партиция читается ровно одним консьюмером группы. Ресурс не нужен — объясни прямо на этом и обязательно покажи схему распределения партиций по консьюмерам. topic_id: topic-eval-001.",
+  "expected_text_contains_any": ["mermaid", "```", "──", "-->", "──▶", "│", "->"],
+  "pass_criteria": "Agent includes a visual diagram for the data-flow process"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "record_mastery",
+  "description": "After a learner completes a practice task, the mentor records mastery with difficulty and quality",
+  "system_prompt_file": "packages/skills/study-mentor-v2.md",
+  "user_message": "Я выполнил практическое задание по closures: написал counter через замыкание, всё работает, вывод 1 2 3. topic_id: topic-eval-001. Оцени и зафиксируй прогресс.",
+  "expected_tool_calls": ["record_mastery"],
+  "required_args_present": {
+    "record_mastery": ["topic_id", "concept", "kind"]
+  },
+  "expected_arg_values": {
+    "record_mastery": {"kind": "practice"}
+  },
+  "pass_criteria": "record_mastery called with kind=practice and concept/difficulty/quality"
+}

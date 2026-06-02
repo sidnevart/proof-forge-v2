@@ -1,0 +1,23 @@
+{
+  "name": "review_answer_evaluation",
+  "description": "Agent should call store_review_answer with score, feedback, and is_weak_spot",
+  "system_prompt_file": "packages/agent-prompts/evaluate-answer.md",
+  "user_message": "Evaluate this answer. question_id: q-111. user_id: user-abc. Question: What is a closure? Correct answer: A function that captures its lexical environment. User's answer: I don't know.",
+  "template_vars": {
+    "user_id": "user-abc",
+    "question_id": "q-111",
+    "question": "What is a closure?",
+    "correct_answer": "A function that captures its lexical environment.",
+    "user_answer": "I don't know."
+  },
+  "expected_tool_calls": ["store_review_answer"],
+  "required_args_present": {
+    "store_review_answer": ["user_id", "question_id", "user_answer", "score", "feedback", "is_weak_spot"]
+  },
+  "expected_arg_values": {
+    "store_review_answer": {
+      "is_weak_spot": true
+    }
+  },
+  "pass_criteria": "store_review_answer called with is_weak_spot=true and score < 0.6 for clearly wrong answer"
+}

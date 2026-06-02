@@ -1,0 +1,16 @@
+{
+  "name": "start_topic_basic",
+  "description": "Agent should call get_profile then start_topic when user says to start a topic",
+  "system_prompt_file": "packages/agent-prompts/start-topic.md",
+  "user_message": "Start topic: JavaScript Closures. My user_id is test-user-abc.",
+  "template_vars": {
+    "user_id": "test-user-abc",
+    "topic_name": "JavaScript Closures"
+  },
+  "expected_tool_calls": ["get_profile", "start_topic"],
+  "expected_tool_args": {
+    "get_profile": {"user_id": "test-user-abc"},
+    "start_topic": {"user_id": "test-user-abc", "topic_name": "JavaScript Closures"}
+  },
+  "pass_criteria": "Both tools called in order with correct user_id and topic_name"
+}

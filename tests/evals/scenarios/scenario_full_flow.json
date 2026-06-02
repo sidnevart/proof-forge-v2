@@ -1,0 +1,34 @@
+{
+  "name": "full_flow",
+  "description": "Multi-turn: user starts topic, logs note, then asks to build capsule",
+  "turns": [
+    {
+      "system_prompt_file": "packages/agent-prompts/start-topic.md",
+      "user_message": "Start topic: Async/Await. user_id: user-full.",
+      "expected_tool_calls": ["get_profile", "start_topic"]
+    },
+    {
+      "system_prompt_file": "packages/agent-prompts/collect-learning-context.md",
+      "user_message": "I learned that async/await is syntactic sugar over Promises.",
+      "template_vars": {
+        "user_id": "user-full",
+        "topic_id": "topic-eval-001"
+      },
+      "expected_tool_calls": ["log_event"]
+    },
+    {
+      "system_prompt_file": "packages/agent-prompts/build-capsule.md",
+      "user_message": "Build capsule.",
+      "template_vars": {
+        "user_id": "user-full",
+        "topic_id": "topic-eval-001",
+        "topic": "Async/Await",
+        "events": "[{\"event_type\": \"note_added\", \"payload\": {\"text\": \"async/await is syntactic sugar over Promises\"}}]",
+        "artifacts": "[]",
+        "weak_spots": "[]"
+      },
+      "expected_tool_calls": ["store_capsule"]
+    }
+  ],
+  "pass_criteria": "All 3 turns call the expected tools in order"
+}

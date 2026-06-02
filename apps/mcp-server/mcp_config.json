@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "proof-forge": {
+      "command": "proof-forge-mcp",
+      "env": {
+        "BACKEND_URL": "https://api.proof-forge.ru"
+      }
+    }
+  }
+}

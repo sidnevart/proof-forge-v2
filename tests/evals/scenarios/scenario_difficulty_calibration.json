@@ -1,0 +1,8 @@
+{
+  "name": "difficulty_calibration",
+  "description": "When a learner solves a hard task instantly and passes the struggle-check, the mentor raises the bar instead of repeating the same level",
+  "system_prompt_file": "packages/skills/study-mentor-v2.md",
+  "user_message": "Я мгновенно решил твоё сложное задание по coroutines, всё заработало с первого раза, и на твой follow-up про отмену ответил сразу правильно. Дай следующее задание. topic_id: topic-eval-001.",
+  "expected_text_contains_any": ["сложнее", "усложн", "подним", "выше уровн", "harder", "edge", "ограничени", "thread", "race", "10m", "масштаб", "trade-off", "без использования", "без stdlib", "конкурент"],
+  "pass_criteria": "Next task is harder (adds a constraint / edge-case / scale), not the same level"
+}

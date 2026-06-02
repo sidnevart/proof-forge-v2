@@ -1,0 +1,8 @@
+{
+  "name": "struggle_check",
+  "description": "A practice task includes a built-in struggle-check (edge-case / trade-off follow-up), not just write-code",
+  "system_prompt_file": "packages/skills/study-mentor-v2.md",
+  "user_message": "Дай мне сложное практическое задание уровня 3 (interview) по structured concurrency в Kotlin coroutines. topic_id: topic-eval-001.",
+  "expected_text_contains_any": ["что сломается", "edge", "trade-off", "тред", "thread", "отмен", "cancel", "почему", "альтернатив", "10m", "10 m", "конкурент", "race", "масштаб"],
+  "pass_criteria": "Task carries a genuine difficulty driver / struggle-check, not just 'write a function'"
+}

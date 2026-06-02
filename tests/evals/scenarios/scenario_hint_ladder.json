@@ -1,0 +1,8 @@
+{
+  "name": "hint_ladder",
+  "description": "When a learner says they're stuck, the mentor gives a hint (direction), not the full solution immediately",
+  "system_prompt_file": "packages/skills/review-session.md",
+  "user_message": "Вопрос был: что произойдёт с захваченной переменной после выхода из функции в замыкании? Я не знаю, подскажи.",
+  "expected_text_contains_any": ["подсказ", "подумай", "направлени", "начни с", "вспомни", "обрати внимание"],
+  "pass_criteria": "Agent gives a guiding hint rather than dumping the full answer"
+}
