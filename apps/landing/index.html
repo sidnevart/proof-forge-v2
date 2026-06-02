@@ -1,317 +1,513 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Proof-Forge — куй навык, а не читай туториалы</title>
-<meta name="description" content="AI-агент учит тебя как ментор: объясняет, даёт честно сложную практику, кует карточки и капсулы знаний — пока ты не сможешь объяснить тему другому.">
+<title>Grasp — учись так, чтобы помнить</title>
+<meta name="description" content="Grasp — AI-native ментор внутри Claude. Объясняет тему простым языком, даёт практику под твой уровень и сам возвращает к ней, пока ты не разберёшься по-настоящему.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config = { theme: { extend: {
   fontFamily: {
-    display: ['"Space Grotesk"','system-ui','sans-serif'],
-    sans: ['Inter','system-ui','sans-serif'],
+    display: ['"Playfair Display"','Georgia','serif'],
+    sans: ['Manrope','system-ui','sans-serif'],
     mono: ['"JetBrains Mono"','ui-monospace','monospace'],
   },
   colors: {
-    coal: '#0c0a09', soot: '#15110f', ash: '#1d1815', edge: '#2a2320',
-    ember: '#ff6b1a', flame: '#ff3d2e', gold: '#ffb347', acid: '#c8f04a', steel: '#7d8aa0',
+    paper:'rgb(var(--paper) / <alpha-value>)',
+    card:'rgb(var(--card) / <alpha-value>)',
+    sand:'rgb(var(--sand) / <alpha-value>)',
+    ink:'rgb(var(--ink) / <alpha-value>)',
+    mute:'rgb(var(--mute) / <alpha-value>)',
+    line:'rgb(var(--line) / <alpha-value>)',
+    accent:'rgb(var(--accent) / <alpha-value>)',
+    accentdk:'rgb(var(--accentdk) / <alpha-value>)',
+    accentsoft:'rgb(var(--accentsoft) / <alpha-value>)',
   },
 }}}
 </script>
 <style>
+  /* ---------- THEME TOKENS (raw RGB channels) ---------- */
+  :root, [data-theme="dark"]{
+    --paper:19 18 16; --card:28 26 21; --sand:34 31 24; --ink:239 233 218;
+    --mute:150 143 127; --line:44 41 33; --accent:61 220 145; --accentdk:43 185 120;
+    --accentsoft:24 46 35; --code:13 12 9; --codeline:42 40 33;
+    --sel-bg:61 220 145; --sel-fg:13 12 9;
+    --shadow:0 40px 90px -50px rgba(0,0,0,.85);
+    --noise-op:.04; --noise-blend:overlay;
+  }
+  [data-theme="light"]{
+    --paper:245 241 232; --card:255 253 248; --sand:239 233 219; --ink:27 26 22;
+    --mute:111 105 92; --line:230 223 208; --accent:15 122 82; --accentdk:11 94 63;
+    --accentsoft:231 240 234; --code:28 27 22; --codeline:51 49 42;
+    --sel-bg:15 122 82; --sel-fg:245 241 232;
+    --shadow:0 30px 70px -40px rgba(40,33,20,.45);
+    --noise-op:.025; --noise-blend:multiply;
+  }
   html{scroll-behavior:smooth}
-  body{background:#0c0a09;color:#f2ede9;overflow-x:hidden}
-  /* film grain */
-  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.035;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
-  /* cursor ember */
-  #ember{position:fixed;width:520px;height:520px;border-radius:50%;pointer-events:none;z-index:0;transform:translate(-50%,-50%);
-    background:radial-gradient(circle,rgba(255,107,26,.13),rgba(255,61,46,.05) 40%,transparent 70%);transition:opacity .4s;will-change:transform}
-  .hl{background:linear-gradient(100deg,#ffb347,#ff6b1a 45%,#ff3d2e);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .card{background:linear-gradient(180deg,#15110f,#120e0c);border:1px solid #2a2320}
-  .card:hover{border-color:#3a302b}
-  ::selection{background:#ff6b1a;color:#0c0a09}
-  .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+  body{background:rgb(var(--paper));color:rgb(var(--ink));overflow-x:hidden;
+    transition:background .5s ease,color .5s ease}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:var(--noise-op);mix-blend-mode:var(--noise-blend);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  ::selection{background:rgb(var(--sel-bg));color:rgb(var(--sel-fg))}
+  .ital{font-style:italic;color:rgb(var(--accent))}
+  .card{background:rgb(var(--card));border:1px solid rgb(var(--line));transition:border-color .25s}
+  .card:hover{border-color:rgb(var(--accent) / .45)}
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
   .reveal.in{opacity:1;transform:none}
-  /* flip card */
+  @media (prefers-reduced-motion:reduce){.reveal{opacity:1!important;transform:none!important}}
+  .marquee{display:flex;gap:2.5rem;animation:slide 48s linear infinite;white-space:nowrap}
+  @keyframes slide{to{transform:translateX(-50%)}}
+  @media (prefers-reduced-motion:reduce){.marquee{animation:none}}
+  .progfill{transition:width 1.3s cubic-bezier(.2,.7,.2,1)}
+  details>summary{list-style:none;cursor:pointer}
+  details>summary::-webkit-details-marker{display:none}
+  .btn-press:active{transform:translateY(1px)}
+  #progress{position:fixed;top:0;left:0;height:2px;z-index:60;width:0;background:rgb(var(--accent))}
+  nav a.nav-active{color:rgb(var(--accent))}
+  .navbar{background:color-mix(in srgb, rgb(var(--paper)) 78%, transparent)}
+  /* code surface — always dark */
+  .codecard{background:rgb(var(--code));border:1px solid rgb(var(--codeline));color:#e9e5d8}
+  .codecard ::selection{background:rgb(var(--accent));color:#0b0a08}
+  /* CTA panel — deep, consistent across themes */
+  .cta-panel{background:#0e2018;color:#eef4f0;border:1px solid rgba(61,220,145,.18)}
+
+  /* ---------- LEARN SURFACE: always-light educational cards ---------- */
+  .learn-surface{
+    --paper:245 241 232; --card:255 253 248; --sand:239 233 219; --ink:27 26 22;
+    --mute:111 105 92; --line:230 223 208; --accent:15 122 82; --accentdk:11 94 63;
+    --accentsoft:231 240 234;
+    color:rgb(var(--ink));
+  }
+
+  /* ---------- DEMO / DEVICE (MacBook + iPhone) ---------- */
+  .frame-stage{display:flex;flex-direction:column;align-items:center}
+  .device{position:relative;display:flex;flex-direction:column;align-items:center;width:100%}
+
+  /* bezel — the physical body */
+  .bezel{position:relative;background:#0b0a09;
+    box-shadow:0 50px 95px -45px rgba(0,0,0,.85), inset 0 0 0 1px rgba(255,255,255,.05)}
+  .device[data-mode="desktop"] .bezel{width:min(980px,100%);padding:15px 14px;border-radius:16px 16px 4px 4px}
+  .device[data-mode="desktop"] .bezel::before{content:"";position:absolute;top:6px;left:50%;transform:translateX(-50%);
+    width:6px;height:6px;border-radius:50%;background:#23211d;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+  .device[data-mode="mobile"] .bezel{width:386px;max-width:94vw;padding:13px;border-radius:60px;
+    box-shadow:0 45px 85px -35px rgba(0,0,0,.8), inset 0 0 0 2px rgba(255,255,255,.05)}
+
+  /* screen */
+  .screen{position:relative;overflow:hidden;background:rgb(var(--paper));transition:background .4s ease}
+  .device[data-mode="desktop"] .screen{border-radius:5px}
+  .device[data-mode="mobile"] .screen{border-radius:46px}
+
+  /* MacBook base */
+  .macbase{display:none}
+  .device[data-mode="desktop"] .macbase{display:block;position:relative;width:min(1100px,calc(100% + 96px));max-width:100vw;height:15px;
+    background:linear-gradient(#cfd2d7,#aeb2b9 52%,#888d95);border-radius:0 0 13px 13px;
+    box-shadow:0 26px 34px -20px rgba(0,0,0,.55)}
+  .device[data-mode="desktop"] .macbase::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
+    width:128px;height:9px;background:#9498a0;border-radius:0 0 9px 9px;box-shadow:inset 0 2px 3px rgba(0,0,0,.25)}
+  .device[data-mode="desktop"] .macbase::after{content:"";position:absolute;bottom:-3px;left:5%;right:5%;height:3px;
+    background:#73777f;border-radius:0 0 5px 5px}
+
+  /* iPhone side buttons */
+  .btn-side{display:none}
+  .device[data-mode="mobile"] .btn-side{display:block;position:absolute;background:#16140f;border-radius:2px;z-index:5}
+  .bside-mute{left:-2px;top:118px;width:3px;height:24px}
+  .bside-vu{left:-2px;top:160px;width:3px;height:48px}
+  .bside-vd{left:-2px;top:220px;width:3px;height:48px}
+  .bside-pw{right:-2px;top:172px;width:3px;height:78px}
+
+  /* Dynamic Island */
+  .island{display:none}
+  .device[data-mode="mobile"] .island{display:block;position:absolute;z-index:20;top:11px;left:50%;transform:translateX(-50%);
+    width:112px;height:31px;background:#000;border-radius:18px}
+
+  /* macOS title bar (desktop only) */
+  .os-bar{display:flex;align-items:center;gap:.6rem;padding:.6rem .9rem;border-bottom:1px solid rgb(var(--line));background:rgb(var(--sand))}
+  .device[data-mode="mobile"] .os-bar{display:none}
+  .light-dot{width:11px;height:11px;border-radius:50%}
+
+  /* iOS status bar (mobile only) */
+  .ios-status{display:none}
+  .device[data-mode="mobile"] .ios-status{display:flex;align-items:center;justify-content:space-between;height:46px;padding:0 28px 0 30px}
+  .ios-time{font:600 15px/1 Manrope;color:rgb(var(--ink));letter-spacing:.01em}
+  .ios-ind{display:flex;align-items:center;gap:6px;color:rgb(var(--ink))}
+
+  /* app layout */
+  .appwrap{display:grid;grid-template-columns:232px 1fr}
+  .device[data-mode="mobile"] .appwrap{grid-template-columns:1fr}
+  .sidebar{border-right:1px solid rgb(var(--line));background:rgb(var(--sand));padding:1.1rem .9rem;display:flex;flex-direction:column;gap:1.1rem}
+  .device[data-mode="mobile"] .sidebar{display:none}
+  .chatcol{display:flex;flex-direction:column;min-width:0;height:560px}
+  .device[data-mode="mobile"] .chatcol{height:662px}
+
+  .cap-item{display:block;width:100%;text-align:left;border-radius:10px;padding:.5rem .6rem;border:1px solid transparent;transition:.2s}
+  .cap-item:hover{background:rgb(var(--card))}
+  .cap-item.active{background:rgb(var(--card));border-color:rgb(var(--accent) / .42)}
+  .cap-item .cap-title{font:600 13px/1.25 Manrope;color:rgb(var(--mute));transition:color .2s}
+  .cap-item.active .cap-title{color:rgb(var(--ink))}
+  .cap-bar{height:4px;border-radius:4px;background:rgb(var(--sand));margin-top:6px;overflow:hidden}
+  .cap-bar>div{height:100%;border-radius:4px;background:rgb(var(--accent))}
+
+  .mobtop{display:none;align-items:center;gap:.6rem;padding:.7rem 1rem;border-bottom:1px solid rgb(var(--line));background:rgb(var(--paper))}
+  .device[data-mode="mobile"] .mobtop{display:flex}
+
+  .chatlog{flex:1;min-height:0;overflow-y:auto;padding:1.4rem 1.4rem 1rem;display:flex;flex-direction:column;gap:1.15rem;scroll-behavior:smooth;
+    background:radial-gradient(120% 60% at 50% 0%, rgb(var(--accent) / .05), transparent 60%)}
+  .device[data-mode="mobile"] .chatlog{padding:1.1rem 1rem .8rem}
+  .chatlog::-webkit-scrollbar{width:8px}
+  .chatlog::-webkit-scrollbar-thumb{background:rgb(var(--line));border-radius:8px}
+
+  .inputbar{display:flex;align-items:center;gap:.6rem;padding:.75rem .9rem;border-top:1px solid rgb(var(--line));background:rgb(var(--card))}
+  .inputfield{flex:1;min-width:0;font:500 14px/1.3 Manrope;color:rgb(var(--ink));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .inputfield.placeholder{color:rgb(var(--mute))}
+  .caret{display:inline-block;width:1px;height:1.05em;background:rgb(var(--accent));vertical-align:-2px;margin-left:1px;animation:blink 1s steps(2) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .sendbtn{flex:none;width:34px;height:34px;border-radius:10px;background:rgb(var(--accent));color:#06140d;display:flex;align-items:center;justify-content:center}
+
+  /* messages */
+  .msg{display:flex;gap:.7rem;max-width:100%}
+  .msg.user{justify-content:flex-end}
+  .bubble-user{background:rgb(var(--accent));color:#06140d;border-radius:16px 16px 4px 16px;padding:.6rem .85rem;max-width:82%;font-weight:500;line-height:1.45}
+  .ava{flex:none;width:28px;height:28px;border-radius:9px;background:rgb(var(--accentsoft));display:flex;align-items:center;justify-content:center;margin-top:2px}
+  .turn{min-width:0;flex:1}
+  .turn .who{font:700 12px/1 Manrope;color:rgb(var(--mute));margin-bottom:.4rem;letter-spacing:.02em}
+  .prose-a{color:rgb(var(--ink));line-height:1.6;font-size:15px}
+  .frame[data-mode="mobile"] .prose-a{font-size:14px}
+  .filechip{display:inline-flex;align-items:center;gap:.45rem;background:rgb(var(--card));border:1px solid rgb(var(--line));
+    border-radius:10px;padding:.35rem .6rem;font:500 12.5px/1 'JetBrains Mono';color:rgb(var(--ink));margin-bottom:.45rem}
+  /* agent action lines */
+  .actline{display:flex;align-items:center;gap:.55rem;font:500 13px/1.3 'JetBrains Mono';color:rgb(var(--mute));margin:.15rem 0}
+  .actline .spin{width:13px;height:13px;border-radius:50%;border:2px solid rgb(var(--line));border-top-color:rgb(var(--accent));animation:sp .7s linear infinite}
+  .actline.done .spin{border:none;animation:none;color:rgb(var(--accent))}
+  .actline.done{color:rgb(var(--ink))}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .art{margin-top:.7rem;animation:pop .45s cubic-bezier(.2,.8,.2,1)}
+  @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+
+  /* artifact: flip card */
   .flip{perspective:1200px}
   .flip-inner{transition:transform .6s cubic-bezier(.2,.7,.2,1);transform-style:preserve-3d;position:relative}
   .flip.flipped .flip-inner{transform:rotateY(180deg)}
   .flip-face{backface-visibility:hidden;position:absolute;inset:0}
   .flip-back{transform:rotateY(180deg)}
-  /* marquee */
-  .marquee{display:flex;gap:3rem;animation:slide 32s linear infinite;white-space:nowrap}
-  @keyframes slide{to{transform:translateX(-50%)}}
-  /* temperature bar fill */
-  @keyframes heat{from{width:0}}
-  .tempfill{animation:heat 1.4s cubic-bezier(.2,.7,.2,1)}
-  .tab-on{color:#0c0a09;background:#ff6b1a}
-  details>summary{list-style:none;cursor:pointer}
-  details>summary::-webkit-details-marker{display:none}
-  .btn-press:active{transform:translateY(1px)}
+
+  .seg{display:inline-flex;background:rgb(var(--card));border:1px solid rgb(var(--line));border-radius:11px;padding:3px;gap:3px}
+  .seg button{padding:.4rem .85rem;border-radius:8px;font:600 13px/1 Manrope;color:rgb(var(--mute));transition:.18s}
+  .seg button.on{background:rgb(var(--ink));color:rgb(var(--paper))}
+  .chip-sel{padding:.5rem .9rem;border-radius:10px;font:600 13.5px/1 Manrope;border:1px solid rgb(var(--line));background:rgb(var(--card));color:rgb(var(--mute));transition:.18s;white-space:nowrap}
+  .chip-sel.on{border-color:rgb(var(--accent) / .5);background:rgb(var(--accentsoft));color:rgb(var(--accent))}
+  .chip-sel:hover{color:rgb(var(--ink))}
 </style>
 </head>
 <body class="font-sans antialiased">
-<div id="ember"></div>
+<div id="progress"></div>
 
 <!-- NAV -->
-<header class="sticky top-0 z-50 backdrop-blur-md bg-coal/70 border-b border-edge/70">
+<header class="sticky top-0 z-50 backdrop-blur-md navbar border-b border-line">
   <div class="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
-    <a href="#top" class="flex items-center gap-2.5 font-display font-bold tracking-tight">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 16h11l4-4-4-4H3" stroke="#ff6b1a" stroke-width="2" stroke-linejoin="round"/><path d="M14 16l5 5M19 8l2-2" stroke="#ffb347" stroke-width="2" stroke-linecap="round"/></svg>
-      proof<span class="text-ember">·</span>forge
+    <a href="#top" class="flex items-center gap-2.5 font-display text-2xl font-bold tracking-tight">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="rgb(var(--accent))" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/></svg>
+      Grasp
     </a>
-    <nav class="flex items-center gap-1 sm:gap-2 text-sm">
-      <a href="#play" data-en="Try it" class="px-3 py-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-ash transition">Попробовать</a>
-      <a href="#how" data-en="How" class="px-3 py-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-ash transition hidden sm:block">Как это</a>
-      <a href="#start" data-en="Install" class="px-3 py-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-ash transition">Установить</a>
-      <button id="lang" class="ml-1 px-2.5 py-1.5 rounded-lg border border-edge font-mono text-xs text-stone-400 hover:text-white hover:border-stone-500 transition btn-press">EN</button>
-      <a href="https://github.com/sidnevart/proof-forge-v2" class="ml-1 px-3 py-1.5 rounded-lg bg-ash border border-edge hover:border-stone-500 transition hidden sm:block">GitHub ↗</a>
+    <nav class="flex items-center gap-1 sm:gap-3 text-sm font-medium">
+      <a href="#play" data-en="Demo" class="px-2 py-1.5 text-mute hover:text-ink transition">Демо</a>
+      <a href="#how" data-en="How it works" class="px-2 py-1.5 text-mute hover:text-ink transition hidden sm:block">Как работает</a>
+      <a href="#start" data-en="Install" class="px-2 py-1.5 text-mute hover:text-ink transition">Установить</a>
+      <button id="theme" aria-label="theme" class="ml-1 w-9 h-9 grid place-items-center rounded-lg border border-line text-mute hover:text-ink hover:border-mute transition btn-press">
+        <svg class="ic-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/></svg>
+        <svg class="ic-sun hidden" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+      </button>
+      <button id="lang" class="ml-1 px-2.5 py-1.5 rounded-lg border border-line font-mono text-xs text-mute hover:text-ink hover:border-mute transition btn-press">EN</button>
+      <a href="https://github.com/sidnevart/proof-forge-v2" class="ml-1 px-3 py-1.5 rounded-lg bg-ink text-paper hover:bg-accent hover:text-[#06140d] transition hidden sm:block">GitHub ↗</a>
     </nav>
   </div>
 </header>
 
-<main id="top" class="relative z-10">
+<main id="top">
 
 <!-- HERO -->
-<section class="relative max-w-6xl mx-auto px-5 pt-20 pb-12">
-  <div class="inline-flex items-center gap-2 text-[13px] font-mono text-acid/90 border border-acid/25 rounded-full px-3 py-1 mb-8 reveal">
-    <span class="w-1.5 h-1.5 rounded-full bg-acid animate-pulse"></span>
-    <span data-en="lives inside Claude — Desktop & Code">живёт внутри Claude — Desktop и Code</span>
+<section class="max-w-6xl mx-auto px-5 pt-20 pb-14">
+  <div class="inline-flex items-center gap-2 text-[13px] font-mono text-accent bg-accentsoft border border-accent/20 rounded-full px-3 py-1 mb-9 reveal">
+    <span class="w-1.5 h-1.5 rounded-full bg-accent"></span>
+    <span data-en="Works right inside Claude — Desktop &amp; Code">Работает прямо в Claude — Desktop и Code</span>
   </div>
 
-  <h1 class="font-display font-bold tracking-tight text-[13vw] leading-[0.92] sm:text-7xl md:text-8xl reveal">
-    <span data-en="Don't skim tutorials.">Не читай туториалы.</span><br>
-    <span class="hl" data-en="Forge the skill.">Куй навык.</span>
+  <h1 class="font-display font-bold tracking-tight text-[15vw] leading-[0.95] sm:text-7xl md:text-8xl reveal max-w-4xl">
+    <span data-en="Learn it so it ">Учись так, чтобы </span><span class="ital" data-en="sticks.">помнить.</span>
   </h1>
 
-  <p class="mt-7 max-w-xl text-lg text-stone-400 reveal" data-en="An AI mentor explains the topic, hands you genuinely hard practice, and forges cards and knowledge capsules — until you can teach it back. Knowledge that won't evaporate by Friday.">
-    AI-ментор объясняет тему, даёт по-настоящему сложную практику и кует карточки с капсулами знаний — пока ты не сможешь объяснить её другому. Знание, которое не выветрится к пятнице.
-  </p>
+  <p class="mt-8 max-w-xl text-lg sm:text-xl text-mute leading-relaxed reveal" data-en="Grasp is an AI-native mentor. It explains any topic in plain language, gives practice at your level, and brings it back until you really get it.">Grasp — AI-native ментор. Объясняет тему простым языком, даёт практику под твой уровень и сам возвращает к ней, пока ты не разберёшься по-настоящему.</p>
 
   <div class="mt-9 flex flex-wrap items-center gap-3 reveal">
-    <a href="#start" class="group px-5 py-3 rounded-xl bg-ember text-coal font-semibold btn-press hover:bg-gold transition shadow-[0_0_50px_-12px_rgba(255,107,26,.7)]">
-      <span data-en="Start forging">Начать ковать</span> <span class="inline-block group-hover:translate-x-0.5 transition">→</span>
+    <a href="#start" class="group px-6 py-3.5 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition shadow-[0_14px_40px_-12px_rgba(61,220,145,.5)]">
+      <span data-en="Start learning">Начать учиться</span> <span class="inline-block group-hover:translate-x-0.5 transition">→</span>
     </a>
-    <a href="#play" class="px-5 py-3 rounded-xl border border-edge text-stone-200 hover:border-stone-500 hover:bg-ash transition btn-press" data-en="Touch the demos">Пощупать вживую</a>
+    <a href="#play" class="px-6 py-3.5 rounded-xl border border-line text-ink font-semibold hover:border-mute hover:bg-card transition btn-press" data-en="See the demo">Посмотреть демо</a>
   </div>
 
-  <!-- hero stat strip -->
-  <div class="mt-14 grid grid-cols-2 sm:grid-cols-4 gap-px bg-edge rounded-2xl overflow-hidden border border-edge reveal">
-    <div class="bg-soot p-5"><div class="font-display text-3xl font-bold text-gold">7</div><div class="text-xs text-stone-500 mt-1" data-en="ways to drill: code, design, debug, prove…">типов практики — код, дизайн, дебаг…</div></div>
-    <div class="bg-soot p-5"><div class="font-display text-3xl font-bold text-ember">∞</div><div class="text-xs text-stone-500 mt-1" data-en="cross-device — your forge follows you">с любого устройства — кузница с тобой</div></div>
-    <div class="bg-soot p-5"><div class="font-display text-3xl font-bold text-acid">0</div><div class="text-xs text-stone-500 mt-1" data-en="apps to install — it's in your chat">новых приложений — всё в чате</div></div>
-    <div class="bg-soot p-5"><div class="font-display text-3xl font-bold text-flame">100%</div><div class="text-xs text-stone-500 mt-1" data-en="open source — MIT">открытый код — MIT</div></div>
+  <div class="mt-12 flex flex-wrap gap-2.5 reveal">
+    <span class="px-4 py-2 rounded-full bg-card border border-line text-sm font-medium" data-en="Learn on your phone">Учись с телефона</span>
+    <span class="px-4 py-2 rounded-full bg-card border border-line text-sm font-medium" data-en="Right inside the chat">Прямо в чате Claude</span>
+    <span class="px-4 py-2 rounded-full bg-card border border-line text-sm font-medium" data-en="Nothing to install">Ничего не скачивать</span>
+    <span class="px-4 py-2 rounded-full bg-card border border-line text-sm font-medium" data-en="Open source · MIT">Открытый код · MIT</span>
   </div>
+
+  <p class="mt-7 text-sm text-mute reveal" data-en="For developers, analysts, PMs, ML &amp; DS engineers, and researchers.">
+    Для разработчиков, аналитиков, продактов, ML- и DS-инженеров и исследователей.
+  </p>
 </section>
 
 <!-- MARQUEE -->
-<div class="py-4 border-y border-edge bg-soot/50 overflow-hidden">
-  <div class="marquee font-display text-sm uppercase tracking-[0.2em] text-stone-600">
-    <span>объясни · &nbsp; куй · &nbsp; проверь · &nbsp; повтори · &nbsp; объясни другому · &nbsp; куй · &nbsp; проверь · &nbsp; повтори · &nbsp;</span>
-    <span>объясни · &nbsp; куй · &nbsp; проверь · &nbsp; повтори · &nbsp; объясни другому · &nbsp; куй · &nbsp; проверь · &nbsp; повтори · &nbsp;</span>
+<div class="py-4 border-y border-line bg-sand/50 overflow-hidden">
+  <div class="marquee font-mono text-sm tracking-wide text-mute/70">
+    <span data-marq>Архитектура проекта&nbsp; · &nbsp;Алгоритмы&nbsp; · &nbsp;Разработка&nbsp; · &nbsp;Аналитика&nbsp; · &nbsp;Наука&nbsp; · &nbsp;ML&nbsp; · &nbsp;Системный дизайн&nbsp; · &nbsp;Продукт&nbsp; · &nbsp;</span>
+    <span data-marq>Архитектура проекта&nbsp; · &nbsp;Алгоритмы&nbsp; · &nbsp;Разработка&nbsp; · &nbsp;Аналитика&nbsp; · &nbsp;Наука&nbsp; · &nbsp;ML&nbsp; · &nbsp;Системный дизайн&nbsp; · &nbsp;Продукт&nbsp; · &nbsp;</span>
   </div>
 </div>
 
-<!-- PLAYGROUND -->
+<!-- DEMO -->
 <section id="play" class="max-w-6xl mx-auto px-5 py-24">
-  <div class="flex items-end justify-between flex-wrap gap-4 mb-10">
+  <div class="flex items-end justify-between flex-wrap gap-5 mb-9">
     <div>
-      <div class="font-mono text-xs text-ember tracking-widest">/ 01 — <span data-en="THE WORKBENCH">ВЕРСТАК</span></div>
-      <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3" data-en="Touch the system">Потрогай систему</h2>
-      <p class="text-stone-400 mt-3 max-w-md" data-en="Not screenshots — real interactive pieces. Click around.">Не скриншоты — живые блоки. Кликай.</p>
+      <div class="font-mono text-xs text-accent tracking-widest">01 — <span data-en="LIVE DEMO">ДЕМО</span></div>
+      <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3" data-en="Watch the agent work">Смотри, как работает агент</h2>
+      <p class="text-mute mt-3 max-w-md" data-en="A real session, streaming. Pick a scenario — or switch desktop and phone.">Живая сессия в потоке. Выбери сценарий — или переключи десктоп и телефон.</p>
     </div>
-    <div id="pgtabs" class="flex flex-wrap gap-1.5 font-mono text-sm">
-      <button data-tab="card" class="tab-on px-4 py-2 rounded-lg transition btn-press" data-en="Card">Карточка</button>
-      <button data-tab="capsule" class="bg-ash px-4 py-2 rounded-lg text-stone-300 hover:text-white transition btn-press" data-en="Capsule">Капсула</button>
-      <button data-tab="task" class="bg-ash px-4 py-2 rounded-lg text-stone-300 hover:text-white transition btn-press" data-en="Practice">Практика</button>
-      <button data-tab="note" class="bg-ash px-4 py-2 rounded-lg text-stone-300 hover:text-white transition btn-press" data-en="Notes">Конспект</button>
+    <div class="seg" id="devtoggle">
+      <button data-mode="desktop" class="on" data-en="Desktop">Десктоп</button>
+      <button data-mode="mobile" data-en="Phone">Телефон</button>
     </div>
   </div>
 
-  <!-- PANEL: CARD -->
-  <div data-panel="card" class="pg-panel">
-    <div class="grid md:grid-cols-[1.1fr_.9fr] gap-6 items-center">
-      <div class="flip cursor-pointer select-none" id="flipcard">
-        <div class="flip-inner h-64">
-          <div class="flip-face card rounded-2xl p-7 flex flex-col">
-            <div class="flex items-center justify-between text-xs font-mono text-stone-500">
-              <span id="cardmeta">coroutines · 1/4</span><span data-en="tap to flip">нажми чтобы перевернуть</span>
+  <div class="flex flex-wrap gap-2 mb-7" id="scenarios">
+    <button data-sc="codebase" class="chip-sel on" data-en="Codebase → architecture">Кодовая база → архитектура</button>
+    <button data-sc="youtube" class="chip-sel" data-en="YouTube → learning path">YouTube → план обучения</button>
+    <button data-sc="topic" class="chip-sel" data-en="Learn a topic">Изучить тему</button>
+    <button data-sc="review" class="chip-sel" data-en="Spaced review">Повторение по расписанию</button>
+  </div>
+
+  <div class="frame-stage">
+    <div class="device" id="device" data-mode="desktop">
+      <div class="bezel">
+        <span class="btn-side bside-mute"></span>
+        <span class="btn-side bside-vu"></span>
+        <span class="btn-side bside-vd"></span>
+        <span class="btn-side bside-pw"></span>
+        <div class="island"></div>
+        <div class="screen">
+          <!-- macOS title bar -->
+          <div class="os-bar">
+            <span class="light-dot" style="background:#ec6a5e"></span>
+            <span class="light-dot" style="background:#f3bf4f"></span>
+            <span class="light-dot" style="background:#61c454"></span>
+            <div class="ml-2 flex items-center gap-2 font-mono text-xs text-mute">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="rgb(var(--accent))" stroke-width="2.4"/><circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/></svg>
+              grasp · <span data-en="learning session">сессия обучения</span>
             </div>
-            <div class="flex-1 flex items-center">
-              <p id="cardq" class="font-display text-2xl font-semibold leading-snug"></p>
-            </div>
-            <div class="text-xs text-stone-600 font-mono" data-en="question">вопрос</div>
           </div>
-          <div class="flip-face flip-back rounded-2xl p-7 flex flex-col" style="background:linear-gradient(180deg,#1c1410,#160f0c);border:1px solid #3a2a1f">
-            <div class="text-xs font-mono text-ember" data-en="answer">ответ</div>
-            <div class="flex-1 flex items-center">
-              <p id="carda" class="text-lg text-stone-200 leading-relaxed"></p>
+          <!-- iOS status bar -->
+          <div class="ios-status">
+            <span class="ios-time">9:41</span>
+            <span class="ios-ind">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+              <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M1 4.2A10 10 0 0115 4.2M3.4 6.8a6.4 6.4 0 019.2 0M6 9.3a2.8 2.8 0 014 0"/></svg>
+              <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.6" y="0.6" width="20" height="10.8" rx="3" stroke="currentColor" stroke-opacity=".5" stroke-width="1.1"/><rect x="2.2" y="2.2" width="16" height="7.6" rx="1.6" fill="currentColor"/><rect x="22" y="3.6" width="1.8" height="4.8" rx=".9" fill="currentColor" fill-opacity=".5"/></svg>
+            </span>
+          </div>
+          <div class="appwrap">
+            <!-- sidebar (desktop) -->
+            <aside class="sidebar">
+              <div class="flex items-center gap-2 font-display text-lg font-bold">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="rgb(var(--accent))" stroke-width="2.4"/><circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/></svg>
+                Grasp
+              </div>
+              <div>
+                <div class="font-mono text-[10px] tracking-widest text-mute mb-2" data-en="MY CAPSULES">МОИ КАПСУЛЫ</div>
+                <div class="space-y-1">
+                  <button class="cap-item" data-cap="review">
+                    <div class="cap-title">Kotlin Coroutines</div>
+                    <div class="cap-bar"><div style="width:64%"></div></div>
+                  </button>
+                  <button class="cap-item" data-cap="codebase">
+                    <div class="cap-title" data-en="Project architecture">Архитектура проекта</div>
+                    <div class="cap-bar"><div style="width:18%"></div></div>
+                  </button>
+                  <button class="cap-item" data-cap="topic">
+                    <div class="cap-title">JS Closures</div>
+                    <div class="cap-bar"><div style="width:28%"></div></div>
+                  </button>
+                  <button class="cap-item" data-cap="youtube">
+                    <div class="cap-title" data-en="Transformers">Трансформеры</div>
+                    <div class="cap-bar"><div style="width:8%"></div></div>
+                  </button>
+                </div>
+              </div>
+              <div class="mt-auto rounded-lg px-2.5 py-2.5 bg-accentsoft">
+                <div class="font-mono text-[10px] text-accent" data-en="DUE TODAY">К ПОВТОРЕНИЮ</div>
+                <div class="text-[13px] font-semibold mt-0.5"><span class="text-accent">3</span> <span data-en="cards">карточки</span> · 5 <span data-en="min">мин</span></div>
+              </div>
+            </aside>
+
+            <!-- chat column -->
+            <div class="chatcol">
+              <div class="mobtop">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--mute))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+                <div class="flex items-center gap-2 font-display text-base font-bold">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="rgb(var(--accent))" stroke-width="2.4"/><circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/></svg>
+                  Grasp
+                </div>
+                <div class="ml-auto w-7 h-7 rounded-full bg-accentsoft grid place-items-center font-mono text-[10px] text-accent">ты</div>
+              </div>
+
+              <div class="chatlog" id="chatlog"></div>
+
+              <div class="inputbar">
+                <div class="inputfield placeholder" id="inputfield" data-en="Ask, paste a link, or drop a repo…">Спроси, вставь ссылку или репозиторий…</div>
+                <div class="sendbtn btn-press">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-      <div>
-        <p class="text-stone-400 mb-4" data-en="Cards come back right before you'd forget — the interval stretches as you recall with confidence. No streaks to babysit.">Карточки возвращаются ровно перед тем, как ты бы забыл — интервал растягивается, когда вспоминаешь увереннее. Никаких стриков, которые надо нянчить.</p>
-        <div class="text-xs font-mono text-stone-500 mb-2" data-en="how easily did it come back?">насколько легко вспомнил?</div>
-        <div class="flex gap-2">
-          <button data-rate="again" class="flex-1 px-3 py-2.5 rounded-lg bg-ash border border-edge hover:border-flame text-sm btn-press transition" data-en="Again">Снова</button>
-          <button data-rate="hard" class="flex-1 px-3 py-2.5 rounded-lg bg-ash border border-edge hover:border-gold text-sm btn-press transition" data-en="Hard">Трудно</button>
-          <button data-rate="good" class="flex-1 px-3 py-2.5 rounded-lg bg-ash border border-edge hover:border-acid text-sm btn-press transition" data-en="Easy">Легко</button>
-        </div>
-        <div id="cardnext" class="mt-4 text-sm font-mono text-acid h-5"></div>
-      </div>
+      <div class="macbase"></div>
     </div>
   </div>
 
-  <!-- PANEL: CAPSULE -->
-  <div data-panel="capsule" class="pg-panel hidden">
-    <div class="card rounded-2xl overflow-hidden">
-      <div class="flex items-center gap-2 px-5 py-3 border-b border-edge">
-        <span class="w-3 h-3 rounded-full bg-flame/70"></span><span class="w-3 h-3 rounded-full bg-gold/70"></span><span class="w-3 h-3 rounded-full bg-acid/70"></span>
-        <span class="ml-2 font-mono text-xs text-stone-500">capsule · kotlin-coroutines.md</span>
-      </div>
-      <div class="grid sm:grid-cols-[180px_1fr]">
-        <div id="captabs" class="border-b sm:border-b-0 sm:border-r border-edge p-3 flex sm:flex-col gap-1 font-mono text-sm overflow-x-auto">
-          <button data-cap="sum" class="text-left px-3 py-2 rounded-lg tab-on whitespace-nowrap" data-en="Summary">Суть</button>
-          <button data-cap="map" class="text-left px-3 py-2 rounded-lg text-stone-400 hover:text-white whitespace-nowrap" data-en="Concept map">Карта</button>
-          <button data-cap="weak" class="text-left px-3 py-2 rounded-lg text-stone-400 hover:text-white whitespace-nowrap" data-en="Weak spots">Слабые места</button>
-          <button data-cap="rev" class="text-left px-3 py-2 rounded-lg text-stone-400 hover:text-white whitespace-nowrap" data-en="Review">Вопросы</button>
-        </div>
-        <div id="capbody" class="p-6 min-h-[230px] text-[15px] leading-relaxed"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- PANEL: TASK -->
-  <div data-panel="task" class="pg-panel hidden">
-    <div class="card rounded-2xl p-7">
-      <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
-        <div class="font-mono text-xs text-stone-500" data-en="difficulty — watch it adapt">сложность — смотри как подстраивается</div>
-        <div id="diffbtns" class="flex gap-1.5 font-mono text-xs">
-          <button data-diff="0" class="tab-on px-3 py-1.5 rounded-md btn-press" data-en="Warm-up">Разминка</button>
-          <button data-diff="1" class="bg-ash px-3 py-1.5 rounded-md text-stone-400 hover:text-white btn-press" data-en="Real">Боевая</button>
-          <button data-diff="2" class="bg-ash px-3 py-1.5 rounded-md text-stone-400 hover:text-white btn-press" data-en="Interview">Собес</button>
-        </div>
-      </div>
-      <p id="tasktitle" class="font-display text-xl font-semibold mb-2"></p>
-      <p id="taskbody" class="text-stone-300 mb-5"></p>
-      <div id="taskstruggle" class="hidden mb-5 pl-4 border-l-2 border-flame text-sm text-stone-400">
-        <span class="text-flame font-mono text-xs" data-en="struggle-check ▸ ">проверка на прочность ▸ </span><span id="strugtext"></span>
-      </div>
-      <details class="group">
-        <summary class="inline-flex items-center gap-2 text-sm font-mono text-acid hover:text-white transition">
-          <span class="transition group-open:rotate-90">▸</span> <span data-en="reveal solution">показать решение</span>
-        </summary>
-        <pre id="tasksol" class="mt-4 p-4 rounded-xl bg-coal border border-edge font-mono text-[13px] text-stone-300 overflow-x-auto whitespace-pre-wrap"></pre>
-      </details>
-    </div>
-  </div>
-
-  <!-- PANEL: NOTE -->
-  <div data-panel="note" class="pg-panel hidden">
-    <div class="card rounded-2xl p-7 md:p-9 max-w-3xl">
-      <div id="notebody" class="space-y-4"></div>
-    </div>
-  </div>
+  <p class="text-center text-xs text-mute mt-5 font-mono" data-en="Pre-recorded interface preview — your real sessions live inside Claude.">Превью интерфейса — настоящие сессии идут внутри Claude.</p>
 </section>
 
 <!-- HOW -->
-<section id="how" class="border-y border-edge bg-soot/40">
+<section id="how" class="border-y border-line bg-sand/40">
   <div class="max-w-6xl mx-auto px-5 py-24">
-    <div class="font-mono text-xs text-ember tracking-widest">/ 02 — <span data-en="THE LOOP">ЦИКЛ</span></div>
-    <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 max-w-2xl" data-en="Four moves from «read it» to «teach it»">Четыре хода от «прочитал» до «объясню сам»</h2>
+    <div class="font-mono text-xs text-accent tracking-widest">02 — <span data-en="HOW IT WORKS">КАК РАБОТАЕТ</span></div>
+    <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 max-w-2xl" data-en="Four steps, one result">Четыре шага, один результат</h2>
+    <p class="text-mute mt-3 max-w-md" data-en="From the first look to explaining it yourself.">От первого знакомства до уверенного объяснения.</p>
     <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
       <div class="card rounded-2xl p-6 reveal">
-        <div class="font-display text-5xl font-bold text-edge">01</div>
-        <h3 class="font-display text-xl font-semibold mt-2" data-en="Learn">Изучай</h3>
-        <p class="text-sm text-stone-400 mt-2" data-en="The mentor explains in plain words, draws diagrams, and gives practice that actually makes you think.">Ментор объясняет простым языком, рисует схемы и даёт практику, которая реально заставляет думать.</p>
+        <div class="font-display text-5xl font-bold text-line">01</div>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Explains">Объясняет</h3>
+        <p class="text-sm text-mute mt-2" data-en="Breaks the topic down in plain language, with diagrams and real examples.">Разбирает тему простым языком, со схемами и живыми примерами.</p>
       </div>
       <div class="card rounded-2xl p-6 reveal">
-        <div class="font-display text-5xl font-bold text-edge">02</div>
-        <h3 class="font-display text-xl font-semibold mt-2" data-en="Forge">Куй</h3>
-        <p class="text-sm text-stone-400 mt-2" data-en="Everything you learned condenses into a capsule: the path, the concept map, your weak spots.">Всё изученное спрессовывается в капсулу: путь, карта концептов, твои слабые места.</p>
+        <div class="font-display text-5xl font-bold text-line">02</div>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Gives practice">Даёт практику</h3>
+        <p class="text-sm text-mute mt-2" data-en="Tasks tuned to your level — the kind that actually make you think.">Задачи под твой уровень — те, что реально заставляют думать.</p>
       </div>
       <div class="card rounded-2xl p-6 reveal">
-        <div class="font-display text-5xl font-bold text-edge">03</div>
-        <h3 class="font-display text-xl font-semibold mt-2" data-en="Repeat">Повторяй</h3>
-        <p class="text-sm text-stone-400 mt-2" data-en="Cards resurface right before you'd forget. Five minutes a day keeps it welded in.">Карточки всплывают перед тем как забудешь. Пять минут в день — и знание приварено намертво.</p>
+        <div class="font-display text-5xl font-bold text-line">03</div>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Brings it back">Возвращает к теме</h3>
+        <p class="text-sm text-mute mt-2" data-en="Cards and the capsule resurface at the right moment — five minutes a day.">Карточки и капсула всплывают в нужный момент. Пять минут в день.</p>
       </div>
       <div class="card rounded-2xl p-6 reveal">
-        <div class="font-display text-5xl font-bold text-edge">04</div>
-        <h3 class="font-display text-xl font-semibold mt-2" data-en="Prove">Докажи</h3>
-        <p class="text-sm text-stone-400 mt-2" data-en="Interactive review with hints instead of spoilers, and trap questions that catch shallow understanding.">Интерактивное ревью с подсказками вместо спойлеров и вопросами-ловушками на поверхностное понимание.</p>
+        <div class="font-display text-5xl font-bold text-line">04</div>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Checks">Проверяет</h3>
+        <p class="text-sm text-mute mt-2" data-en="Interactive review with hints instead of spoilers — until you can explain it yourself.">Интерактивное ревью с подсказками вместо спойлеров — пока не объяснишь сам.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- TEMPERATURE / MASTERY -->
+<!-- SOURCES -->
 <section class="max-w-6xl mx-auto px-5 py-24">
   <div class="grid lg:grid-cols-[1fr_1fr] gap-12 items-center">
     <div>
-      <div class="font-mono text-xs text-ember tracking-widest">/ 03 — <span data-en="HEAT">ЖАР</span></div>
-      <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3" data-en="«Expert» stops being a slogan">«Эксперт» перестаёт быть лозунгом</h2>
-      <p class="text-stone-400 mt-4 max-w-md" data-en="Every concept has a temperature. Cold metal you've only read about. White-hot you can shape and explain. The system measures each one — so you always see what's still cold and what to heat next.">
-        У каждого концепта есть температура. Холодный металл — только прочитал. Раскалённый добела — можешь гнуть и объяснять. Система меряет каждый — и ты всегда видишь, что ещё холодное и что греть дальше.
+      <div class="font-mono text-xs text-accent tracking-widest">03 — <span data-en="MATERIALS">МАТЕРИАЛЫ</span></div>
+      <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3" data-en="Give it any material — the rest is on the agent">Дай любой материал — остальное на агенте</h2>
+      <p class="text-mute mt-4 max-w-md" data-en="A codebase, a link, a book chapter, a YouTube video, or just a description of your problem. The agent builds the path and walks you through it.">
+        Кодовая база, ссылка, глава книги, ролик на YouTube или просто описание проблемы. Агент сам соберёт путь и проведёт за руку.
       </p>
-      <p class="mt-4 text-sm text-stone-500" data-en="Solved a «hard» task on autopilot? The bar rises. The goal is productive struggle, not easy wins.">Решил «сложное» задание на автопилоте? Планка поднимается. Цель — продуктивная борьба, а не лёгкие победы.</p>
+      <p class="mt-4 text-mute max-w-md" data-en="Study the architecture of your own project and become the expert in it. Or a new language, algorithms, product metrics — anything.">
+        Изучай архитектуру своего проекта и становись в ней спецом. Или новый язык, алгоритмы, продуктовые метрики — что угодно.
+      </p>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div class="card rounded-xl p-4 reveal"><div class="font-mono text-xs text-accent mb-1">{ }</div><div class="font-semibold" data-en="Codebase">Кодовая база</div></div>
+      <div class="card rounded-xl p-4 reveal"><div class="font-mono text-xs text-accent mb-1">→</div><div class="font-semibold" data-en="A link">Ссылка</div></div>
+      <div class="card rounded-xl p-4 reveal"><div class="font-mono text-xs text-accent mb-1">▤</div><div class="font-semibold" data-en="Book chapter">Глава книги</div></div>
+      <div class="card rounded-xl p-4 reveal"><div class="font-mono text-xs text-accent mb-1">▶</div><div class="font-semibold" data-en="YouTube video">Видео с YouTube</div></div>
+      <div class="card rounded-xl p-4 reveal"><div class="font-mono text-xs text-accent mb-1">?</div><div class="font-semibold" data-en="A problem">Описание проблемы</div></div>
+      <div class="card rounded-xl p-4 reveal"><div class="font-mono text-xs text-accent mb-1">⌗</div><div class="font-semibold" data-en="Project architecture">Архитектура проекта</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PROGRESS -->
+<section class="border-y border-line bg-sand/40">
+  <div class="max-w-6xl mx-auto px-5 py-24">
+  <div class="grid lg:grid-cols-[1fr_1fr] gap-12 items-center">
+    <div>
+      <div class="font-mono text-xs text-accent tracking-widest">04 — <span data-en="PROGRESS">ПРОГРЕСС</span></div>
+      <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3" data-en="See what you actually know">Видно, что ты реально знаешь</h2>
+      <p class="text-mute mt-4 max-w-md" data-en="The agent measures every concept honestly: read about it, solve it yourself, explain it to someone. Solve a hard task on your own and the progress grows.">
+        Агент честно меряет каждый концепт: прочитал, решаю сам, объясню другому. Решил сложную задачу без подсказок — прогресс растёт.
+      </p>
+      <p class="mt-4 text-sm text-mute max-w-md" data-en="One goal: you can explain the topic to someone else. Not a slogan — a line you can actually cross.">Цель одна: ты можешь объяснить тему другому. Это не лозунг, а планка, которую видно.</p>
     </div>
     <div class="card rounded-2xl p-7">
       <div class="space-y-6">
         <div>
-          <div class="flex justify-between items-baseline mb-2"><span class="font-mono text-sm">launch / async</span><span class="font-mono text-xs text-gold" data-en="white-hot · can explain">раскалён · объясню</span></div>
-          <div class="h-2.5 rounded-full bg-coal overflow-hidden"><div class="tempfill h-full rounded-full" style="width:95%;background:linear-gradient(90deg,#7d8aa0,#ffb347,#fff6e8)"></div></div>
+          <div class="flex justify-between items-baseline mb-2"><span class="font-mono text-sm">structured concurrency</span><span class="font-mono text-xs text-accent" data-en="can explain it">объясню другому</span></div>
+          <div class="h-2.5 rounded-full bg-sand overflow-hidden"><div class="progfill progbar h-full rounded-full bg-accent" data-w="100" style="width:0"></div></div>
         </div>
         <div>
-          <div class="flex justify-between items-baseline mb-2"><span class="font-mono text-sm">CoroutineScope</span><span class="font-mono text-xs text-ember" data-en="hot · can apply">горячо · применяю</span></div>
-          <div class="h-2.5 rounded-full bg-coal overflow-hidden"><div class="tempfill h-full rounded-full" style="width:66%;background:linear-gradient(90deg,#7d8aa0,#ff6b1a)"></div></div>
+          <div class="flex justify-between items-baseline mb-2"><span class="font-mono text-sm">CoroutineScope</span><span class="font-mono text-xs text-ink" data-en="solve it myself">решаю сам</span></div>
+          <div class="h-2.5 rounded-full bg-sand overflow-hidden"><div class="progfill progbar h-full rounded-full bg-accent/60" data-w="64" style="width:0"></div></div>
         </div>
         <div>
-          <div class="flex justify-between items-baseline mb-2"><span class="font-mono text-sm">cancellation</span><span class="font-mono text-xs text-steel" data-en="warm · still reading">тёплый · ещё учу</span></div>
-          <div class="h-2.5 rounded-full bg-coal overflow-hidden"><div class="tempfill h-full rounded-full" style="width:30%;background:linear-gradient(90deg,#5b6678,#7d8aa0)"></div></div>
+          <div class="flex justify-between items-baseline mb-2"><span class="font-mono text-sm">cancellation</span><span class="font-mono text-xs text-mute" data-en="still reading">ещё читаю</span></div>
+          <div class="h-2.5 rounded-full bg-sand overflow-hidden"><div class="progfill progbar h-full rounded-full bg-mute/50" data-w="28" style="width:0"></div></div>
         </div>
       </div>
-      <div class="mt-7 pt-5 border-t border-edge text-sm text-stone-400">
-        <span class="text-acid font-mono" data-en="next ▸ ">дальше ▸ </span>
-        <span data-en="heat up «cancellation» — one interview-grade task + a struggle-check away from white-hot.">раскали «cancellation» — один собесный таск и проверка на прочность до белого каления.</span>
+      <div class="mt-7 pt-5 border-t border-line text-sm text-mute">
+        <span class="text-accent font-mono">дальше ▸ </span>
+        <span data-en="close out cancellation — one interview-grade task and a short review away.">закрой cancellation — одна задача уровня собеса и короткое ревью.</span>
       </div>
     </div>
   </div>
+  </div>
 </section>
 
-<!-- WHY / FEATURES -->
-<section class="border-y border-edge bg-soot/40">
-  <div class="max-w-6xl mx-auto px-5 py-24">
-    <div class="font-mono text-xs text-ember tracking-widest">/ 04 — <span data-en="WHY IT STICKS">ПОЧЕМУ ДЕРЖИТСЯ</span></div>
-    <div class="grid md:grid-cols-3 gap-4 mt-10">
-      <div class="card rounded-2xl p-6 reveal"><div class="font-display text-2xl font-bold text-gold" data-en="Hard, honestly">Честно сложно</div><p class="text-sm text-stone-400 mt-3" data-en="Difficulty isn't more code — it's edge cases, conflicting constraints, defending trade-offs. The kind that actually grows you.">Сложность — не больше кода, а edge-кейсы, конфликтующие требования, защита trade-off. Та, что реально качает.</p></div>
-      <div class="card rounded-2xl p-6 reveal"><div class="font-display text-2xl font-bold text-ember" data-en="The agent is the brain">Агент — это мозг</div><p class="text-sm text-stone-400 mt-3" data-en="All thinking happens in your Claude session. The backend is dumb storage — nobody else's model touches your data.">Всё мышление — в твоей сессии Claude. Бэкенд — тупое хранилище, ничья чужая модель не трогает твои данные.</p></div>
-      <div class="card rounded-2xl p-6 reveal"><div class="font-display text-2xl font-bold text-acid" data-en="Right where you work">Там, где ты работаешь</div><p class="text-sm text-stone-400 mt-3" data-en="Claude Desktop and Claude Code. No new app to babysit — you learn next to your code.">Claude Desktop и Claude Code. Никаких новых приложений — учишься рядом с кодом.</p></div>
+<!-- BENEFITS -->
+<section class="max-w-6xl mx-auto px-5 py-24">
+  <div class="font-mono text-xs text-accent tracking-widest">05 — <span data-en="NO BUSYWORK">БЕЗ РУТИНЫ</span></div>
+  <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 max-w-2xl" data-en="The agent handles everything around learning">Всю рутину вокруг учёбы агент берёт на себя</h2>
+  <div class="grid md:grid-cols-3 gap-4 mt-12">
+    <div class="card rounded-2xl p-6 reveal">
+      <div class="font-display text-2xl font-bold" data-en="Learn on your phone">Учись с телефона</div>
+      <p class="text-sm text-mute mt-3" data-en="Open Claude and pick up exactly where you left off. No setup, no separate app.">Открыл Claude и продолжил с того места, где остановился. Без настройки и отдельных приложений.</p>
+    </div>
+    <div class="card rounded-2xl p-6 reveal">
+      <div class="font-display text-2xl font-bold" data-en="Nothing to plan">Ничего не планируй</div>
+      <p class="text-sm text-mute mt-3" data-en="No filling cards or building a review schedule. The agent knows your progress and decides what to revisit.">Не заполняй карточки и не выстраивай график повторений. Агент знает твой прогресс и сам решает, что повторить.</p>
+    </div>
+    <div class="card rounded-2xl p-6 reveal">
+      <div class="font-display text-2xl font-bold" data-en="No re-searching">Не ищи по новой</div>
+      <p class="text-sm text-mute mt-3" data-en="The capsule keeps the theory and the tasks. Come back, reread, and see your strengths and gaps at a glance.">Капсула хранит теорию и задачи. Вернулся, перечитал и сразу видишь сильные и слабые места.</p>
     </div>
   </div>
 </section>
 
 <!-- INSTALL -->
 <section id="start" class="max-w-3xl mx-auto px-5 py-24">
-  <div class="font-mono text-xs text-ember tracking-widest text-center">/ 05 — <span data-en="LIGHT THE FORGE">РАЗЖЕЧЬ ГОРН</span></div>
+  <div class="font-mono text-xs text-accent tracking-widest text-center">06 — <span data-en="INSTALL">УСТАНОВКА</span></div>
   <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 text-center" data-en="Running in a minute">Запустишь за минуту</h2>
   <div class="mt-12 space-y-4">
     <div class="card rounded-2xl p-5">
-      <div class="flex items-center justify-between mb-3"><span class="font-mono text-xs text-stone-500" data-en="1 · install the plugin">1 · поставь плагин</span>
-        <button class="copy font-mono text-xs text-stone-400 hover:text-acid btn-press" data-copy='uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"' data-en="copy">копировать</button></div>
-      <pre class="font-mono text-[13px] text-acid overflow-x-auto whitespace-pre-wrap">uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"</pre>
+      <div class="flex items-center justify-between mb-3"><span class="font-mono text-xs text-mute" data-en="1 · install the plugin">1 · поставь плагин</span>
+        <button class="copy font-mono text-xs text-mute hover:text-accent btn-press" data-copy='uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"' data-en="copy">копировать</button></div>
+      <pre class="codecard rounded-xl p-4 font-mono text-[13px] overflow-x-auto whitespace-pre-wrap">uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"</pre>
     </div>
     <div class="card rounded-2xl p-5">
-      <div class="flex items-center justify-between mb-3"><span class="font-mono text-xs text-stone-500" data-en="2 · add to Claude Desktop config">2 · добавь в конфиг Claude Desktop</span>
-        <button class="copy font-mono text-xs text-stone-400 hover:text-acid btn-press" data-copy='{"mcpServers":{"proof-forge":{"command":"proof-forge-mcp","env":{"BACKEND_URL":"https://api.proof-forge.ru"}}}}' data-en="copy">копировать</button></div>
-      <pre class="font-mono text-[12px] text-stone-300 overflow-x-auto">{
+      <div class="flex items-center justify-between mb-3"><span class="font-mono text-xs text-mute" data-en="2 · add to your Claude config">2 · добавь в конфиг Claude</span>
+        <button class="copy font-mono text-xs text-mute hover:text-accent btn-press" data-copy='{"mcpServers":{"grasp":{"command":"proof-forge-mcp","env":{"BACKEND_URL":"https://api.proof-forge.ru"}}}}' data-en="copy">копировать</button></div>
+      <pre class="codecard rounded-xl p-4 font-mono text-[12px] overflow-x-auto">{
   "mcpServers": {
-    "proof-forge": {
+    "grasp": {
       "command": "proof-forge-mcp",
       "env": { "BACKEND_URL": "https://api.proof-forge.ru" }
     }
@@ -319,47 +515,53 @@ tailwind.config = { theme: { extend: {
 }</pre>
     </div>
     <div class="card rounded-2xl p-5">
-      <div class="font-mono text-xs text-stone-500 mb-3" data-en="3 · restart Claude and type">3 · перезапусти Claude и напиши</div>
-      <pre class="font-mono text-[15px] text-ember" data-en="help me learn JavaScript closures">помоги изучить JavaScript closures</pre>
-      <p class="text-sm text-stone-500 mt-3" data-en="On first run Claude asks your email and creates a profile. That's it.">При первом запуске Claude спросит email и создаст профиль. Всё.</p>
+      <div class="font-mono text-xs text-mute mb-3" data-en="3 · restart Claude and type">3 · перезапусти Claude и напиши</div>
+      <pre class="codecard rounded-xl p-4 font-mono text-[15px] text-accent" data-en="help me learn JavaScript closures">помоги изучить JavaScript closures</pre>
+      <p class="text-sm text-mute mt-3" data-en="On first run Claude asks your email and creates a profile. That's it.">При первом запуске Claude спросит email и создаст профиль. Всё.</p>
     </div>
   </div>
   <div class="text-center mt-10">
-    <a href="https://github.com/sidnevart/proof-forge-v2#readme" class="text-ember hover:text-gold font-medium transition" data-en="Full guide & self-hosting →">Полная инструкция и self-hosting →</a>
+    <a href="https://github.com/sidnevart/proof-forge-v2#readme" class="text-accent hover:text-accentdk font-medium transition" data-en="Full guide &amp; self-hosting →">Полная инструкция и self-hosting →</a>
   </div>
 </section>
 
 <!-- CTA -->
 <section class="max-w-6xl mx-auto px-5 pb-24">
-  <div class="rounded-3xl p-10 sm:p-16 text-center relative overflow-hidden" style="background:radial-gradient(120% 120% at 50% 0%,#2a1810,#120d0b)">
-    <div class="absolute inset-0 opacity-40" style="background:radial-gradient(60% 80% at 50% 0%,rgba(255,107,26,.25),transparent)"></div>
-    <h2 class="relative font-display text-4xl sm:text-6xl font-bold leading-tight" data-en="Stop forgetting.<br>Start forging.">Хватит забывать.<br>Начни ковать.</h2>
-    <a href="#start" class="relative inline-block mt-8 px-7 py-4 rounded-xl bg-ember text-coal font-semibold btn-press hover:bg-gold transition shadow-[0_0_60px_-10px_rgba(255,107,26,.8)]" data-en="Light the forge →">Разжечь горн →</a>
+  <div class="cta-panel rounded-3xl p-10 sm:p-16 text-center">
+    <h2 class="font-display text-4xl sm:text-6xl font-bold leading-tight">
+      <span data-en="Learn it once.">Учись один раз.</span><br><span class="italic" style="color:rgb(var(--accent))" data-en="Remember it for good.">Помни надолго.</span>
+    </h2>
+    <p class="mt-5 max-w-md mx-auto" style="color:rgba(238,244,240,.6)" data-en="Open source. All you need is Claude.">Открытый код. Нужен только Claude.</p>
+    <a href="#start" class="inline-block mt-8 px-7 py-4 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition" data-en="Start learning →">Начать учиться →</a>
   </div>
 </section>
 
 </main>
 
-<footer class="border-t border-edge">
-  <div class="max-w-6xl mx-auto px-5 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-stone-600">
-    <div class="font-display font-bold">proof<span class="text-ember">·</span>forge <span class="text-stone-700 font-normal font-mono text-xs">· MIT</span></div>
+<footer class="border-t border-line">
+  <div class="max-w-6xl mx-auto px-5 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-mute">
+    <div class="font-display text-xl font-bold">Grasp <span class="text-mute/60 font-normal font-mono text-xs">· MIT</span></div>
     <div class="flex items-center gap-6 font-mono text-xs">
-      <a href="https://github.com/sidnevart/proof-forge-v2" class="hover:text-white transition">GitHub</a>
-      <a href="https://api.proof-forge.ru/docs" class="hover:text-white transition">API</a>
+      <a href="https://github.com/sidnevart/proof-forge-v2" class="hover:text-ink transition">GitHub</a>
+      <a href="https://api.proof-forge.ru/docs" class="hover:text-ink transition">API</a>
     </div>
   </div>
 </footer>
 
 <script>
-// ---------- cursor ember ----------
-const ember = document.getElementById('ember');
-let ex=innerWidth/2, ey=innerHeight/2, cx=ex, cy=ey;
-addEventListener('mousemove',e=>{ex=e.clientX;ey=e.clientY});
-(function loop(){cx+=(ex-cx)*.12;cy+=(ey-cy)*.12;ember.style.transform=`translate(${cx}px,${cy}px) translate(-50%,-50%)`;requestAnimationFrame(loop)})();
+// ---------- theme ----------
+const root=document.documentElement;
+function setTheme(t){root.dataset.theme=t;localStorage.setItem('grasp-theme',t);
+  document.querySelector('.ic-moon').classList.toggle('hidden',t==='light');
+  document.querySelector('.ic-sun').classList.toggle('hidden',t!=='light');}
+setTheme(localStorage.getItem('grasp-theme')||'dark');
+document.getElementById('theme').onclick=()=>setTheme(root.dataset.theme==='dark'?'light':'dark');
 
 // ---------- scroll reveal ----------
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.15});
 document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+function forceShow(el){el.classList.add('in');el.style.transition='none';el.style.opacity='1';el.style.transform='none'}
+setTimeout(()=>document.querySelectorAll('.reveal').forEach(el=>{if(el.getBoundingClientRect().top<innerHeight)forceShow(el)}),350);
 
 // ---------- i18n ----------
 let lang='ru';
@@ -368,110 +570,33 @@ function applyLang(){
   document.querySelectorAll('[data-en]').forEach(el=>el.innerHTML = lang==='en'?el.dataset.en:el.dataset.ru);
   document.getElementById('lang').textContent = lang==='en'?'RU':'EN';
   document.documentElement.lang=lang;
-  renderCard(); renderCap(capState); renderTask(taskDiff); renderNote();
+  if(window.GraspDemo) window.GraspDemo.setLang(lang);
 }
 document.getElementById('lang').onclick=()=>{lang=lang==='en'?'ru':'en';applyLang()};
 
-// ---------- playground tabs ----------
-const pgtabs=document.getElementById('pgtabs');
-pgtabs.onclick=e=>{const b=e.target.closest('[data-tab]');if(!b)return;
-  pgtabs.querySelectorAll('button').forEach(x=>{x.classList.remove('tab-on');x.classList.add('bg-ash','text-stone-300')});
-  b.classList.add('tab-on');b.classList.remove('bg-ash','text-stone-300');
-  document.querySelectorAll('.pg-panel').forEach(p=>p.classList.add('hidden'));
-  document.querySelector(`[data-panel="${b.dataset.tab}"]`).classList.remove('hidden');
-};
-
-// ---------- flashcard ----------
-const deck={ru:[
-  {q:'Чем launch отличается от async?',a:'launch запускает корутину «выстрелил и забыл» и возвращает Job. async возвращает Deferred с результатом, который берёшь через await().'},
-  {q:'Что произойдёт с дочерними корутинами, если отменить родительский Job?',a:'Все дети отменяются автоматически — это и есть structured concurrency: scope владеет иерархией.'},
-  {q:'Почему CancellationException нельзя глушить пустым catch?',a:'Он управляет кооперативной отменой. Проглотишь — корутина продолжит работать после cancel(), и отмена сломается.'},
-  {q:'Зачем suspend-функции нужен CoroutineScope?',a:'Он задаёт время жизни и контекст. Без scope корутина — сирота: её некому отменить, будет утечка.'},
-],en:[
-  {q:'How does launch differ from async?',a:'launch is fire-and-forget and returns a Job. async returns a Deferred whose result you take via await().'},
-  {q:'What happens to child coroutines when you cancel the parent Job?',a:'They all cancel automatically — that\'s structured concurrency: the scope owns the hierarchy.'},
-  {q:'Why can\'t you swallow CancellationException in an empty catch?',a:'It drives cooperative cancellation. Swallow it and the coroutine keeps running after cancel() — cancellation breaks.'},
-  {q:'Why does a suspend function need a CoroutineScope?',a:'It defines lifetime and context. Without a scope the coroutine is an orphan: nothing can cancel it — a leak.'},
-]};
-let ci=0;
-const flip=document.getElementById('flipcard');
-flip.onclick=()=>flip.classList.toggle('flipped');
-function renderCard(){const d=deck[lang][ci];document.getElementById('cardq').textContent=d.q;document.getElementById('carda').textContent=d.a;
-  document.getElementById('cardmeta').textContent=`coroutines · ${ci+1}/${deck[lang].length}`;}
-document.querySelectorAll('[data-rate]').forEach(btn=>btn.onclick=()=>{
-  const r=btn.dataset.rate, days={again:1,hard:3,good:9}[r];
-  const msg=lang==='en'?{again:'↻ back tomorrow',hard:'↗ back in 3 days',good:'✦ back in 9 days'}:{again:'↻ вернётся завтра',hard:'↗ через 3 дня',good:'✦ через 9 дней'};
-  document.getElementById('cardnext').textContent=msg[r];
-  setTimeout(()=>{flip.classList.remove('flipped');ci=(ci+1)%deck[lang].length;renderCard();setTimeout(()=>document.getElementById('cardnext').textContent='',900);},450);
-});
-
-// ---------- capsule ----------
-let capState='sum';
-const caps={
-  ru:{
-    sum:`<p class="text-stone-300">Корутины Kotlin — это лёгкие «потоки», которыми управляет не ОС, а рантайм. Ключевая идея — <b class="text-white">structured concurrency</b>: каждая корутина живёт внутри scope, который владеет её жизнью и отменой.</p><p class="text-stone-500 mt-3 text-sm">3 концепта · 12 минут · 1 практика выполнена</p>`,
-    map:`<div class="font-mono text-sm text-stone-300 leading-7"><span class="text-ember">CoroutineScope</span> ──владеет──▶ <span class="text-gold">Job</span><br>&nbsp;&nbsp;&nbsp;&nbsp;│<br>&nbsp;&nbsp;&nbsp;&nbsp;├─ launch ──▶ Job (fire & forget)<br>&nbsp;&nbsp;&nbsp;&nbsp;└─ async ──▶ Deferred&lt;T&gt; (await)<br><span class="text-steel">cancel()</span> ──каскад──▶ <span class="text-stone-400">все дети</span></div>`,
-    weak:`<p class="text-stone-300 mb-3"><b class="text-flame">cancellation</b> — пока тёплое.</p><p class="text-sm text-stone-400">Ты путаешь отмену scope с отменой отдельного Job, и не ловишь, что CancellationException обязан пробрасываться. Разберём на следующей практике.</p>`,
-    rev:`<ol class="space-y-3 text-sm text-stone-300"><li>1. Что вернёт <code class="text-acid">async{}.await()</code> при отменённом scope?</li><li>2. Почему <code class="text-acid">GlobalScope</code> считается анти-паттерном?</li><li>3. Как отменить одну корутину, не трогая соседок в том же scope?</li></ol>`
-  },
-  en:{
-    sum:`<p class="text-stone-300">Kotlin coroutines are lightweight "threads" managed by the runtime, not the OS. The core idea is <b class="text-white">structured concurrency</b>: every coroutine lives inside a scope that owns its life and cancellation.</p><p class="text-stone-500 mt-3 text-sm">3 concepts · 12 min · 1 practice done</p>`,
-    map:`<div class="font-mono text-sm text-stone-300 leading-7"><span class="text-ember">CoroutineScope</span> ──owns──▶ <span class="text-gold">Job</span><br>&nbsp;&nbsp;&nbsp;&nbsp;│<br>&nbsp;&nbsp;&nbsp;&nbsp;├─ launch ──▶ Job (fire & forget)<br>&nbsp;&nbsp;&nbsp;&nbsp;└─ async ──▶ Deferred&lt;T&gt; (await)<br><span class="text-steel">cancel()</span> ──cascades──▶ <span class="text-stone-400">all children</span></div>`,
-    weak:`<p class="text-stone-300 mb-3"><b class="text-flame">cancellation</b> — still warm.</p><p class="text-sm text-stone-400">You mix up cancelling a scope vs a single Job, and miss that CancellationException must be rethrown. We'll drill it next.</p>`,
-    rev:`<ol class="space-y-3 text-sm text-stone-300"><li>1. What does <code class="text-acid">async{}.await()</code> return on a cancelled scope?</li><li>2. Why is <code class="text-acid">GlobalScope</code> an anti-pattern?</li><li>3. How do you cancel one coroutine without touching its siblings in the same scope?</li></ol>`
-  }
-};
-const captabs=document.getElementById('captabs');
-captabs.onclick=e=>{const b=e.target.closest('[data-cap]');if(!b)return;capState=b.dataset.cap;
-  captabs.querySelectorAll('button').forEach(x=>{x.classList.remove('tab-on');x.classList.add('text-stone-400')});
-  b.classList.add('tab-on');b.classList.remove('text-stone-400');renderCap(capState)};
-function renderCap(s){document.getElementById('capbody').innerHTML=caps[lang][s]}
-
-// ---------- task (difficulty calibration) ----------
-let taskDiff=0;
-const tasks={ru:[
-  {t:'Разминка',title:'Запусти две корутины параллельно',body:'Используя launch, запусти две корутины, каждая печатает своё число через delay. Дождись обеих.',strug:null,sol:'runBlocking {\n  val a = launch { delay(100); println(1) }\n  val b = launch { delay(50); println(2) }\n  joinAll(a, b)   // вывод: 2, затем 1\n}'},
-  {t:'Боевая',title:'Параллельный загрузчик с лимитом',body:'Напиши функцию, которая качает список URL параллельно, но не более 5 одновременно. Верни map url→статус.',strug:'А что произойдёт, если один запрос зависнет навсегда? Где здесь нужен withTimeout и почему именно на этом уровне?',sol:'suspend fun fetchAll(urls: List<String>) = coroutineScope {\n  val gate = Semaphore(5)\n  urls.associateWith { url ->\n    async { gate.withPermit { withTimeout(3000){ fetch(url) } } }\n  }.mapValues { it.value.await() }\n}'},
-  {t:'Собес',title:'Реализуй bounded channel с backpressure',body:'Без kotlinx Channel: свой канал поверх корутин, capacity в конструкторе, стратегия DROP_OLDEST при переполнении. API: send()/receive().',strug:'Докажи, что твой send() не теряет элементы под гонкой двух продюсеров. Какой примитив синхронизации и почему не обычный Mutex на всю операцию?',sol:'class Bounded<T>(cap: Int) {\n  private val buf = ArrayDeque<T>()\n  private val lock = Mutex()\n  private val items = Semaphore(0)\n  suspend fun send(x: T) = lock.withLock {\n    if (buf.size == cap) buf.removeFirst()  // DROP_OLDEST\n    buf.addLast(x); items.release()\n  }\n  suspend fun receive(): T { items.acquire(); return lock.withLock { buf.removeFirst() } }\n}'},
-],en:[
-  {t:'Warm-up',title:'Run two coroutines in parallel',body:'Using launch, start two coroutines that each print a number after a delay. Wait for both.',strug:null,sol:'runBlocking {\n  val a = launch { delay(100); println(1) }\n  val b = launch { delay(50); println(2) }\n  joinAll(a, b)   // prints: 2, then 1\n}'},
-  {t:'Real',title:'Concurrent fetcher with a cap',body:'Write a function that downloads a list of URLs in parallel, but at most 5 at once. Return a map url→status.',strug:'What happens if one request hangs forever? Where does withTimeout belong and why at exactly this level?',sol:'suspend fun fetchAll(urls: List<String>) = coroutineScope {\n  val gate = Semaphore(5)\n  urls.associateWith { url ->\n    async { gate.withPermit { withTimeout(3000){ fetch(url) } } }\n  }.mapValues { it.value.await() }\n}'},
-  {t:'Interview',title:'Build a bounded channel with backpressure',body:'No kotlinx Channel: your own over coroutines, capacity in the constructor, DROP_OLDEST on overflow. API: send()/receive().',strug:'Prove your send() loses no items under two racing producers. Which sync primitive, and why not a plain Mutex over the whole op?',sol:'class Bounded<T>(cap: Int) {\n  private val buf = ArrayDeque<T>()\n  private val lock = Mutex()\n  private val items = Semaphore(0)\n  suspend fun send(x: T) = lock.withLock {\n    if (buf.size == cap) buf.removeFirst()  // DROP_OLDEST\n    buf.addLast(x); items.release()\n  }\n  suspend fun receive(): T { items.acquire(); return lock.withLock { buf.removeFirst() } }\n}'},
-]};
-const diffbtns=document.getElementById('diffbtns');
-diffbtns.onclick=e=>{const b=e.target.closest('[data-diff]');if(!b)return;taskDiff=+b.dataset.diff;
-  diffbtns.querySelectorAll('button').forEach(x=>{x.classList.remove('tab-on');x.classList.add('bg-ash','text-stone-400')});
-  b.classList.add('tab-on');b.classList.remove('bg-ash','text-stone-400');renderTask(taskDiff)};
-function renderTask(d){const t=tasks[lang][d];
-  document.getElementById('tasktitle').textContent=t.title;
-  document.getElementById('taskbody').textContent=t.body;
-  document.getElementById('tasksol').textContent=t.sol;
-  const sw=document.getElementById('taskstruggle');
-  if(t.strug){sw.classList.remove('hidden');document.getElementById('strugtext').textContent=t.strug}else{sw.classList.add('hidden')}}
-
-// ---------- note ----------
-function renderNote(){
-  const ru=`<h3 class="font-display text-2xl font-bold">Конспект: Kotlin Coroutines</h3>
-    <p class="text-stone-400 italic border-l-2 border-ember pl-4">Лёгкие потоки рантайма, где scope владеет жизнью и отменой своих корутин.</p>
-    <div><div class="font-mono text-xs text-ember mb-2">КЛЮЧЕВОЕ</div>
-    <ul class="space-y-1.5 text-stone-300 text-sm"><li>• <b>structured concurrency</b> — scope владеет иерархией, отмена каскадом</li><li>• <b>launch</b> → Job, <b>async</b> → Deferred&lt;T&gt;</li><li>• <b>CancellationException</b> кооперативен — всегда пробрасывай</li></ul></div>
-    <div class="rounded-xl bg-coal border border-edge p-4 font-mono text-[13px] text-stone-300">scope.launch { <span class="text-stone-500">// дитя scope</span><br>&nbsp;&nbsp;val r = async { load() }.await()<br>}</div>
-    <p class="text-sm"><span class="text-flame font-mono">⚠ ловушка:</span> <span class="text-stone-400">пустой catch на CancellationException ломает отмену.</span></p>`;
-  const en=`<h3 class="font-display text-2xl font-bold">Notes: Kotlin Coroutines</h3>
-    <p class="text-stone-400 italic border-l-2 border-ember pl-4">Lightweight runtime threads where a scope owns the life and cancellation of its coroutines.</p>
-    <div><div class="font-mono text-xs text-ember mb-2">KEY</div>
-    <ul class="space-y-1.5 text-stone-300 text-sm"><li>• <b>structured concurrency</b> — scope owns the hierarchy, cancellation cascades</li><li>• <b>launch</b> → Job, <b>async</b> → Deferred&lt;T&gt;</li><li>• <b>CancellationException</b> is cooperative — always rethrow</li></ul></div>
-    <div class="rounded-xl bg-coal border border-edge p-4 font-mono text-[13px] text-stone-300">scope.launch { <span class="text-stone-500">// child of scope</span><br>&nbsp;&nbsp;val r = async { load() }.await()<br>}</div>
-    <p class="text-sm"><span class="text-flame font-mono">⚠ trap:</span> <span class="text-stone-400">an empty catch on CancellationException breaks cancellation.</span></p>`;
-  document.getElementById('notebody').innerHTML = lang==='en'?en:ru;
-}
-
 // ---------- copy buttons ----------
-document.querySelectorAll('.copy').forEach(b=>b.onclick=()=>{navigator.clipboard.writeText(b.dataset.copy);
+document.querySelectorAll('.copy').forEach(b=>b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(b.dataset.copy);
   const o=b.textContent;b.textContent=lang==='en'?'copied ✓':'скопировано ✓';setTimeout(()=>b.textContent=o,1400)});
 
-// ---------- init ----------
-renderCard(); renderCap('sum'); renderTask(0); renderNote();
+// ---------- scroll progress ----------
+const prog=document.getElementById('progress');
+addEventListener('scroll',()=>{const h=document.documentElement;const sc=h.scrollTop/(h.scrollHeight-h.clientHeight);prog.style.width=(sc*100)+'%'},{passive:true});
+
+// ---------- nav active ----------
+const navLinks=[...document.querySelectorAll('header nav a[href^="#"]')];
+const secMap=navLinks.map(a=>({a,sec:document.querySelector(a.getAttribute('href'))})).filter(x=>x.sec);
+const navIO=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){
+  navLinks.forEach(a=>a.classList.remove('nav-active'));
+  const m=secMap.find(x=>x.sec===e.target);if(m)m.a.classList.add('nav-active');
+}}),{rootMargin:'-45% 0px -50% 0px'});
+secMap.forEach(x=>navIO.observe(x.sec));
+
+// ---------- progress bars ----------
+const progIO=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){
+  const b=e.target;setTimeout(()=>b.style.width=b.dataset.w+'%',120);progIO.unobserve(b);
+}}),{threshold:.4});
+document.querySelectorAll('.progbar').forEach(b=>progIO.observe(b));
 </script>
+<script src="demo.js"></script>
 </body>
 </html>

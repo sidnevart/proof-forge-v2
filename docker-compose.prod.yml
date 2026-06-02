@@ -37,6 +37,7 @@ services:
       - "443:443"
     volumes:
       - ./infra/nginx/proof-forge.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./apps/landing:/var/www/proof-forge-landing:ro
       - certbot_www:/var/www/certbot:ro
       - certbot_certs:/etc/letsencrypt:ro
     depends_on:
