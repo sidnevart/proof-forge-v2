@@ -3,161 +3,313 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Proof-Forge — учись с агентом до уровня эксперта</title>
-<meta name="description" content="Agent-native learning workspace для разработчиков. Claude объясняет тему, форжит капсулу знаний, генерирует карточки и измеряет освоение до уровня эксперта.">
+<title>Proof-Forge — куй навык, а не читай туториалы</title>
+<meta name="description" content="AI-агент учит тебя как ментор: объясняет, даёт честно сложную практику, кует карточки и капсулы знаний — пока ты не сможешь объяснить тему другому.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
 tailwind.config = { theme: { extend: {
-  fontFamily: { mono: ['ui-monospace','SFMono-Regular','Menlo','monospace'], sans: ['Inter','system-ui','sans-serif'] },
-  colors: { ink:'#0a0a0b', panel:'#141417', line:'#26262b', acc:'#7c5cff', acc2:'#22d3a6' }
+  fontFamily: {
+    display: ['"Space Grotesk"','system-ui','sans-serif'],
+    sans: ['Inter','system-ui','sans-serif'],
+    mono: ['"JetBrains Mono"','ui-monospace','monospace'],
+  },
+  colors: {
+    coal: '#0c0a09', soot: '#15110f', ash: '#1d1815', edge: '#2a2320',
+    ember: '#ff6b1a', flame: '#ff3d2e', gold: '#ffb347', acid: '#c8f04a', steel: '#7d8aa0',
+  },
 }}}
 </script>
 <style>
-  body{background:#0a0a0b;color:#e7e7ea}
-  .grid-bg{background-image:radial-gradient(circle at 1px 1px,#1c1c22 1px,transparent 0);background-size:32px 32px}
-  .glow{box-shadow:0 0 80px -20px rgba(124,92,255,.5)}
-  .card{background:#141417;border:1px solid #26262b}
-  .card:hover{border-color:#3a3a44}
-  ::selection{background:#7c5cff;color:#fff}
+  html{scroll-behavior:smooth}
+  body{background:#0c0a09;color:#f2ede9;overflow-x:hidden}
+  /* film grain */
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  /* cursor ember */
+  #ember{position:fixed;width:520px;height:520px;border-radius:50%;pointer-events:none;z-index:0;transform:translate(-50%,-50%);
+    background:radial-gradient(circle,rgba(255,107,26,.13),rgba(255,61,46,.05) 40%,transparent 70%);transition:opacity .4s;will-change:transform}
+  .hl{background:linear-gradient(100deg,#ffb347,#ff6b1a 45%,#ff3d2e);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .card{background:linear-gradient(180deg,#15110f,#120e0c);border:1px solid #2a2320}
+  .card:hover{border-color:#3a302b}
+  ::selection{background:#ff6b1a;color:#0c0a09}
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+  /* flip card */
+  .flip{perspective:1200px}
+  .flip-inner{transition:transform .6s cubic-bezier(.2,.7,.2,1);transform-style:preserve-3d;position:relative}
+  .flip.flipped .flip-inner{transform:rotateY(180deg)}
+  .flip-face{backface-visibility:hidden;position:absolute;inset:0}
+  .flip-back{transform:rotateY(180deg)}
+  /* marquee */
+  .marquee{display:flex;gap:3rem;animation:slide 32s linear infinite;white-space:nowrap}
+  @keyframes slide{to{transform:translateX(-50%)}}
+  /* temperature bar fill */
+  @keyframes heat{from{width:0}}
+  .tempfill{animation:heat 1.4s cubic-bezier(.2,.7,.2,1)}
+  .tab-on{color:#0c0a09;background:#ff6b1a}
+  details>summary{list-style:none;cursor:pointer}
+  details>summary::-webkit-details-marker{display:none}
+  .btn-press:active{transform:translateY(1px)}
 </style>
 </head>
 <body class="font-sans antialiased">
+<div id="ember"></div>
 
-<!-- nav -->
-<header class="sticky top-0 z-50 backdrop-blur border-b border-line/60 bg-ink/80">
-  <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-    <div class="flex items-center gap-2 font-mono font-semibold">
-      <span class="text-acc">▰</span> proof-forge
-    </div>
-    <nav class="flex items-center gap-6 text-sm text-zinc-400">
-      <a href="#how" class="hover:text-white transition">Как работает</a>
-      <a href="#features" class="hover:text-white transition hidden sm:block">Возможности</a>
-      <a href="#install" class="hover:text-white transition">Установка</a>
-      <a href="https://github.com/sidnevart/proof-forge-v2" class="px-3 py-1.5 rounded-md border border-line hover:border-zinc-500 hover:text-white transition">GitHub</a>
+<!-- NAV -->
+<header class="sticky top-0 z-50 backdrop-blur-md bg-coal/70 border-b border-edge/70">
+  <div class="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-2.5 font-display font-bold tracking-tight">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 16h11l4-4-4-4H3" stroke="#ff6b1a" stroke-width="2" stroke-linejoin="round"/><path d="M14 16l5 5M19 8l2-2" stroke="#ffb347" stroke-width="2" stroke-linecap="round"/></svg>
+      proof<span class="text-ember">·</span>forge
+    </a>
+    <nav class="flex items-center gap-1 sm:gap-2 text-sm">
+      <a href="#play" data-en="Try it" class="px-3 py-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-ash transition">Попробовать</a>
+      <a href="#how" data-en="How" class="px-3 py-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-ash transition hidden sm:block">Как это</a>
+      <a href="#start" data-en="Install" class="px-3 py-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-ash transition">Установить</a>
+      <button id="lang" class="ml-1 px-2.5 py-1.5 rounded-lg border border-edge font-mono text-xs text-stone-400 hover:text-white hover:border-stone-500 transition btn-press">EN</button>
+      <a href="https://github.com/sidnevart/proof-forge-v2" class="ml-1 px-3 py-1.5 rounded-lg bg-ash border border-edge hover:border-stone-500 transition hidden sm:block">GitHub ↗</a>
     </nav>
   </div>
 </header>
 
-<!-- hero -->
-<section class="grid-bg relative">
-  <div class="max-w-6xl mx-auto px-6 pt-24 pb-20 text-center">
-    <div class="inline-flex items-center gap-2 text-xs font-mono text-acc2 border border-acc2/30 rounded-full px-3 py-1 mb-8">
-      <span class="w-1.5 h-1.5 rounded-full bg-acc2 animate-pulse"></span> работает в Claude Desktop и Claude Code
-    </div>
-    <h1 class="text-5xl sm:text-6xl font-bold tracking-tight leading-[1.05]">
-      Учись с агентом —<br><span class="bg-gradient-to-r from-acc to-acc2 bg-clip-text text-transparent">от новичка до эксперта</span>
-    </h1>
-    <p class="mt-6 text-lg text-zinc-400 max-w-2xl mx-auto">
-      Claude объясняет тему как ментор, форжит капсулу знаний, генерирует карточки для повторения
-      и <span class="text-white">измеряет освоение каждого концепта</span> — пока не дойдёшь до уровня эксперта.
-    </p>
-    <div class="mt-10 flex items-center justify-center gap-4">
-      <a href="#install" class="px-5 py-3 rounded-lg bg-acc text-white font-medium glow hover:brightness-110 transition">Установить плагин</a>
-      <a href="https://github.com/sidnevart/proof-forge-v2" class="px-5 py-3 rounded-lg border border-line hover:border-zinc-500 transition">Смотреть код</a>
-    </div>
+<main id="top" class="relative z-10">
 
-    <!-- terminal demo -->
-    <div class="mt-16 max-w-3xl mx-auto text-left">
-      <div class="card rounded-xl overflow-hidden">
-        <div class="flex items-center gap-2 px-4 py-3 border-b border-line">
-          <span class="w-3 h-3 rounded-full bg-red-500/70"></span>
-          <span class="w-3 h-3 rounded-full bg-yellow-500/70"></span>
-          <span class="w-3 h-3 rounded-full bg-green-500/70"></span>
-          <span class="ml-3 text-xs text-zinc-500 font-mono">claude — proof-forge</span>
+<!-- HERO -->
+<section class="relative max-w-6xl mx-auto px-5 pt-20 pb-12">
+  <div class="inline-flex items-center gap-2 text-[13px] font-mono text-acid/90 border border-acid/25 rounded-full px-3 py-1 mb-8 reveal">
+    <span class="w-1.5 h-1.5 rounded-full bg-acid animate-pulse"></span>
+    <span data-en="lives inside Claude — Desktop & Code">живёт внутри Claude — Desktop и Code</span>
+  </div>
+
+  <h1 class="font-display font-bold tracking-tight text-[13vw] leading-[0.92] sm:text-7xl md:text-8xl reveal">
+    <span data-en="Don't skim tutorials.">Не читай туториалы.</span><br>
+    <span class="hl" data-en="Forge the skill.">Куй навык.</span>
+  </h1>
+
+  <p class="mt-7 max-w-xl text-lg text-stone-400 reveal" data-en="An AI mentor explains the topic, hands you genuinely hard practice, and forges cards and knowledge capsules — until you can teach it back. Knowledge that won't evaporate by Friday.">
+    AI-ментор объясняет тему, даёт по-настоящему сложную практику и кует карточки с капсулами знаний — пока ты не сможешь объяснить её другому. Знание, которое не выветрится к пятнице.
+  </p>
+
+  <div class="mt-9 flex flex-wrap items-center gap-3 reveal">
+    <a href="#start" class="group px-5 py-3 rounded-xl bg-ember text-coal font-semibold btn-press hover:bg-gold transition shadow-[0_0_50px_-12px_rgba(255,107,26,.7)]">
+      <span data-en="Start forging">Начать ковать</span> <span class="inline-block group-hover:translate-x-0.5 transition">→</span>
+    </a>
+    <a href="#play" class="px-5 py-3 rounded-xl border border-edge text-stone-200 hover:border-stone-500 hover:bg-ash transition btn-press" data-en="Touch the demos">Пощупать вживую</a>
+  </div>
+
+  <!-- hero stat strip -->
+  <div class="mt-14 grid grid-cols-2 sm:grid-cols-4 gap-px bg-edge rounded-2xl overflow-hidden border border-edge reveal">
+    <div class="bg-soot p-5"><div class="font-display text-3xl font-bold text-gold">7</div><div class="text-xs text-stone-500 mt-1" data-en="ways to drill: code, design, debug, prove…">типов практики — код, дизайн, дебаг…</div></div>
+    <div class="bg-soot p-5"><div class="font-display text-3xl font-bold text-ember">∞</div><div class="text-xs text-stone-500 mt-1" data-en="cross-device — your forge follows you">с любого устройства — кузница с тобой</div></div>
+    <div class="bg-soot p-5"><div class="font-display text-3xl font-bold text-acid">0</div><div class="text-xs text-stone-500 mt-1" data-en="apps to install — it's in your chat">новых приложений — всё в чате</div></div>
+    <div class="bg-soot p-5"><div class="font-display text-3xl font-bold text-flame">100%</div><div class="text-xs text-stone-500 mt-1" data-en="open source — MIT">открытый код — MIT</div></div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="py-4 border-y border-edge bg-soot/50 overflow-hidden">
+  <div class="marquee font-display text-sm uppercase tracking-[0.2em] text-stone-600">
+    <span>объясни · &nbsp; куй · &nbsp; проверь · &nbsp; повтори · &nbsp; объясни другому · &nbsp; куй · &nbsp; проверь · &nbsp; повтори · &nbsp;</span>
+    <span>объясни · &nbsp; куй · &nbsp; проверь · &nbsp; повтори · &nbsp; объясни другому · &nbsp; куй · &nbsp; проверь · &nbsp; повтори · &nbsp;</span>
+  </div>
+</div>
+
+<!-- PLAYGROUND -->
+<section id="play" class="max-w-6xl mx-auto px-5 py-24">
+  <div class="flex items-end justify-between flex-wrap gap-4 mb-10">
+    <div>
+      <div class="font-mono text-xs text-ember tracking-widest">/ 01 — <span data-en="THE WORKBENCH">ВЕРСТАК</span></div>
+      <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3" data-en="Touch the system">Потрогай систему</h2>
+      <p class="text-stone-400 mt-3 max-w-md" data-en="Not screenshots — real interactive pieces. Click around.">Не скриншоты — живые блоки. Кликай.</p>
+    </div>
+    <div id="pgtabs" class="flex flex-wrap gap-1.5 font-mono text-sm">
+      <button data-tab="card" class="tab-on px-4 py-2 rounded-lg transition btn-press" data-en="Card">Карточка</button>
+      <button data-tab="capsule" class="bg-ash px-4 py-2 rounded-lg text-stone-300 hover:text-white transition btn-press" data-en="Capsule">Капсула</button>
+      <button data-tab="task" class="bg-ash px-4 py-2 rounded-lg text-stone-300 hover:text-white transition btn-press" data-en="Practice">Практика</button>
+      <button data-tab="note" class="bg-ash px-4 py-2 rounded-lg text-stone-300 hover:text-white transition btn-press" data-en="Notes">Конспект</button>
+    </div>
+  </div>
+
+  <!-- PANEL: CARD -->
+  <div data-panel="card" class="pg-panel">
+    <div class="grid md:grid-cols-[1.1fr_.9fr] gap-6 items-center">
+      <div class="flip cursor-pointer select-none" id="flipcard">
+        <div class="flip-inner h-64">
+          <div class="flip-face card rounded-2xl p-7 flex flex-col">
+            <div class="flex items-center justify-between text-xs font-mono text-stone-500">
+              <span id="cardmeta">coroutines · 1/4</span><span data-en="tap to flip">нажми чтобы перевернуть</span>
+            </div>
+            <div class="flex-1 flex items-center">
+              <p id="cardq" class="font-display text-2xl font-semibold leading-snug"></p>
+            </div>
+            <div class="text-xs text-stone-600 font-mono" data-en="question">вопрос</div>
+          </div>
+          <div class="flip-face flip-back rounded-2xl p-7 flex flex-col" style="background:linear-gradient(180deg,#1c1410,#160f0c);border:1px solid #3a2a1f">
+            <div class="text-xs font-mono text-ember" data-en="answer">ответ</div>
+            <div class="flex-1 flex items-center">
+              <p id="carda" class="text-lg text-stone-200 leading-relaxed"></p>
+            </div>
+          </div>
         </div>
-        <div class="p-5 font-mono text-sm leading-relaxed">
-          <p><span class="text-acc2">you ▸</span> помоги изучить Kotlin Coroutines</p>
-          <p class="text-zinc-400 mt-2">⟶ объясняю structured concurrency + схема жизненного цикла Job…</p>
-          <p class="text-zinc-400">⟶ даю практику с edge-case (отмена под нагрузкой)</p>
-          <p class="mt-3"><span class="text-acc2">you ▸</span> закончил</p>
-          <p class="text-zinc-400 mt-2">📦 капсула сохранена · 🃏 7 карточек создано</p>
-          <p class="text-zinc-400">📊 launch/async <span class="text-acc2">🟦</span> · CoroutineScope <span class="text-acc2">🟩</span> · cancellation <span class="text-yellow-400">🟨</span></p>
-          <p class="mt-3"><span class="text-acc2">you ▸</span> прогресс</p>
-          <p class="text-zinc-400 mt-2">До эксперта: добей <span class="text-white">cancellation</span> — нужна 1 практика уровня 3 + struggle-check</p>
+      </div>
+      <div>
+        <p class="text-stone-400 mb-4" data-en="Cards come back right before you'd forget — the interval stretches as you recall with confidence. No streaks to babysit.">Карточки возвращаются ровно перед тем, как ты бы забыл — интервал растягивается, когда вспоминаешь увереннее. Никаких стриков, которые надо нянчить.</p>
+        <div class="text-xs font-mono text-stone-500 mb-2" data-en="how easily did it come back?">насколько легко вспомнил?</div>
+        <div class="flex gap-2">
+          <button data-rate="again" class="flex-1 px-3 py-2.5 rounded-lg bg-ash border border-edge hover:border-flame text-sm btn-press transition" data-en="Again">Снова</button>
+          <button data-rate="hard" class="flex-1 px-3 py-2.5 rounded-lg bg-ash border border-edge hover:border-gold text-sm btn-press transition" data-en="Hard">Трудно</button>
+          <button data-rate="good" class="flex-1 px-3 py-2.5 rounded-lg bg-ash border border-edge hover:border-acid text-sm btn-press transition" data-en="Easy">Легко</button>
+        </div>
+        <div id="cardnext" class="mt-4 text-sm font-mono text-acid h-5"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL: CAPSULE -->
+  <div data-panel="capsule" class="pg-panel hidden">
+    <div class="card rounded-2xl overflow-hidden">
+      <div class="flex items-center gap-2 px-5 py-3 border-b border-edge">
+        <span class="w-3 h-3 rounded-full bg-flame/70"></span><span class="w-3 h-3 rounded-full bg-gold/70"></span><span class="w-3 h-3 rounded-full bg-acid/70"></span>
+        <span class="ml-2 font-mono text-xs text-stone-500">capsule · kotlin-coroutines.md</span>
+      </div>
+      <div class="grid sm:grid-cols-[180px_1fr]">
+        <div id="captabs" class="border-b sm:border-b-0 sm:border-r border-edge p-3 flex sm:flex-col gap-1 font-mono text-sm overflow-x-auto">
+          <button data-cap="sum" class="text-left px-3 py-2 rounded-lg tab-on whitespace-nowrap" data-en="Summary">Суть</button>
+          <button data-cap="map" class="text-left px-3 py-2 rounded-lg text-stone-400 hover:text-white whitespace-nowrap" data-en="Concept map">Карта</button>
+          <button data-cap="weak" class="text-left px-3 py-2 rounded-lg text-stone-400 hover:text-white whitespace-nowrap" data-en="Weak spots">Слабые места</button>
+          <button data-cap="rev" class="text-left px-3 py-2 rounded-lg text-stone-400 hover:text-white whitespace-nowrap" data-en="Review">Вопросы</button>
+        </div>
+        <div id="capbody" class="p-6 min-h-[230px] text-[15px] leading-relaxed"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL: TASK -->
+  <div data-panel="task" class="pg-panel hidden">
+    <div class="card rounded-2xl p-7">
+      <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+        <div class="font-mono text-xs text-stone-500" data-en="difficulty — watch it adapt">сложность — смотри как подстраивается</div>
+        <div id="diffbtns" class="flex gap-1.5 font-mono text-xs">
+          <button data-diff="0" class="tab-on px-3 py-1.5 rounded-md btn-press" data-en="Warm-up">Разминка</button>
+          <button data-diff="1" class="bg-ash px-3 py-1.5 rounded-md text-stone-400 hover:text-white btn-press" data-en="Real">Боевая</button>
+          <button data-diff="2" class="bg-ash px-3 py-1.5 rounded-md text-stone-400 hover:text-white btn-press" data-en="Interview">Собес</button>
         </div>
       </div>
+      <p id="tasktitle" class="font-display text-xl font-semibold mb-2"></p>
+      <p id="taskbody" class="text-stone-300 mb-5"></p>
+      <div id="taskstruggle" class="hidden mb-5 pl-4 border-l-2 border-flame text-sm text-stone-400">
+        <span class="text-flame font-mono text-xs" data-en="struggle-check ▸ ">проверка на прочность ▸ </span><span id="strugtext"></span>
+      </div>
+      <details class="group">
+        <summary class="inline-flex items-center gap-2 text-sm font-mono text-acid hover:text-white transition">
+          <span class="transition group-open:rotate-90">▸</span> <span data-en="reveal solution">показать решение</span>
+        </summary>
+        <pre id="tasksol" class="mt-4 p-4 rounded-xl bg-coal border border-edge font-mono text-[13px] text-stone-300 overflow-x-auto whitespace-pre-wrap"></pre>
+      </details>
+    </div>
+  </div>
+
+  <!-- PANEL: NOTE -->
+  <div data-panel="note" class="pg-panel hidden">
+    <div class="card rounded-2xl p-7 md:p-9 max-w-3xl">
+      <div id="notebody" class="space-y-4"></div>
     </div>
   </div>
 </section>
 
-<!-- how it works -->
-<section id="how" class="max-w-6xl mx-auto px-6 py-24">
-  <h2 class="text-3xl font-bold text-center">Полный цикл обучения</h2>
-  <p class="text-zinc-400 text-center mt-3">Четыре шага, которые ведут от «не знаю» к «объясню другому».</p>
-  <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
-    <div class="card rounded-xl p-6">
-      <div class="text-acc font-mono text-sm">01 · learn</div>
-      <h3 class="font-semibold mt-3">Изучай</h3>
-      <p class="text-sm text-zinc-400 mt-2">Ментор объясняет тему простым языком со схемами и даёт по-настоящему сложную практику — калибрует под тебя.</p>
-    </div>
-    <div class="card rounded-xl p-6">
-      <div class="text-acc font-mono text-sm">02 · capsule</div>
-      <h3 class="font-semibold mt-3">Фиксируй</h3>
-      <p class="text-sm text-zinc-400 mt-2">Капсула знаний: Replay, концепт-карта, слабые места, вопросы для ревью — возвращайся к ней в любой момент.</p>
-    </div>
-    <div class="card rounded-xl p-6">
-      <div class="text-acc font-mono text-sm">03 · cards</div>
-      <h3 class="font-semibold mt-3">Повторяй</h3>
-      <p class="text-sm text-zinc-400 mt-2">Карточки по алгоритму SM-2: интервал растёт по мере того как ты вспоминаешь увереннее.</p>
-    </div>
-    <div class="card rounded-xl p-6">
-      <div class="text-acc font-mono text-sm">04 · review</div>
-      <h3 class="font-semibold mt-3">Проверяй</h3>
-      <p class="text-sm text-zinc-400 mt-2">Интерактивный quiz: hint-лесенка вместо готового ответа, struggle-check на edge-кейсы.</p>
-    </div>
-  </div>
-</section>
-
-<!-- features -->
-<section id="features" class="border-y border-line bg-panel/40">
-  <div class="max-w-6xl mx-auto px-6 py-24">
-    <h2 class="text-3xl font-bold text-center">Не лозунг, а измеримый результат</h2>
-    <div class="grid md:grid-cols-3 gap-6 mt-12">
-      <div class="card rounded-xl p-6">
-        <div class="text-2xl">🟥🟨🟩🟦</div>
-        <h3 class="font-semibold mt-4">Прогресс к эксперту</h3>
-        <p class="text-sm text-zinc-400 mt-2">Каждый концепт проходит уровни: не начат → узнаю → применяю → объясняю. «Эксперт по теме» = все концепты на 🟦. Видно что осталось доработать.</p>
+<!-- HOW -->
+<section id="how" class="border-y border-edge bg-soot/40">
+  <div class="max-w-6xl mx-auto px-5 py-24">
+    <div class="font-mono text-xs text-ember tracking-widest">/ 02 — <span data-en="THE LOOP">ЦИКЛ</span></div>
+    <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 max-w-2xl" data-en="Four moves from «read it» to «teach it»">Четыре хода от «прочитал» до «объясню сам»</h2>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
+      <div class="card rounded-2xl p-6 reveal">
+        <div class="font-display text-5xl font-bold text-edge">01</div>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Learn">Изучай</h3>
+        <p class="text-sm text-stone-400 mt-2" data-en="The mentor explains in plain words, draws diagrams, and gives practice that actually makes you think.">Ментор объясняет простым языком, рисует схемы и даёт практику, которая реально заставляет думать.</p>
       </div>
-      <div class="card rounded-xl p-6">
-        <div class="text-2xl">⚖️</div>
-        <h3 class="font-semibold mt-4">Честная сложность</h3>
-        <p class="text-sm text-zinc-400 mt-2">Задание сложное не по объёму, а по нагрузке: edge-кейсы, конфликтующие требования, обоснование trade-off. Легко далось — планка поднимается.</p>
+      <div class="card rounded-2xl p-6 reveal">
+        <div class="font-display text-5xl font-bold text-edge">02</div>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Forge">Куй</h3>
+        <p class="text-sm text-stone-400 mt-2" data-en="Everything you learned condenses into a capsule: the path, the concept map, your weak spots.">Всё изученное спрессовывается в капсулу: путь, карта концептов, твои слабые места.</p>
       </div>
-      <div class="card rounded-xl p-6">
-        <div class="text-2xl">🔁</div>
-        <h3 class="font-semibold mt-4">Интервальное повторение</h3>
-        <p class="text-sm text-zinc-400 mt-2">SM-2 разводит карточки во времени так, чтобы ты повторял ровно перед тем как забыть. Минимум усилий — максимум удержания.</p>
+      <div class="card rounded-2xl p-6 reveal">
+        <div class="font-display text-5xl font-bold text-edge">03</div>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Repeat">Повторяй</h3>
+        <p class="text-sm text-stone-400 mt-2" data-en="Cards resurface right before you'd forget. Five minutes a day keeps it welded in.">Карточки всплывают перед тем как забудешь. Пять минут в день — и знание приварено намертво.</p>
       </div>
-      <div class="card rounded-xl p-6">
-        <div class="text-2xl">🌐</div>
-        <h3 class="font-semibold mt-4">С любого устройства</h3>
-        <p class="text-sm text-zinc-400 mt-2">Профиль привязан к email — учись с ноутбука, продолжай с другого. Весь прогресс в облаке.</p>
-      </div>
-      <div class="card rounded-xl p-6">
-        <div class="text-2xl">🧠</div>
-        <h3 class="font-semibold mt-4">Агент — это мозг</h3>
-        <p class="text-sm text-zinc-400 mt-2">Всё мышление в сессии Claude. Бэкенд — чистое хранилище. Никаких чужих LLM-вызовов с твоими данными.</p>
-      </div>
-      <div class="card rounded-xl p-6">
-        <div class="text-2xl">⌨️</div>
-        <h3 class="font-semibold mt-4">Там где ты работаешь</h3>
-        <p class="text-sm text-zinc-400 mt-2">Claude Desktop и Claude Code. Никаких новых приложений — учишься прямо в чате, рядом с кодом.</p>
+      <div class="card rounded-2xl p-6 reveal">
+        <div class="font-display text-5xl font-bold text-edge">04</div>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Prove">Докажи</h3>
+        <p class="text-sm text-stone-400 mt-2" data-en="Interactive review with hints instead of spoilers, and trap questions that catch shallow understanding.">Интерактивное ревью с подсказками вместо спойлеров и вопросами-ловушками на поверхностное понимание.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- install -->
-<section id="install" class="max-w-3xl mx-auto px-6 py-24">
-  <h2 class="text-3xl font-bold text-center">Установка за минуту</h2>
-  <ol class="mt-12 space-y-6">
-    <li class="card rounded-xl p-6">
-      <div class="text-sm text-zinc-500 font-mono mb-3">шаг 1 · установи плагин</div>
-      <pre class="font-mono text-sm text-acc2 overflow-x-auto">uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"</pre>
-    </li>
-    <li class="card rounded-xl p-6">
-      <div class="text-sm text-zinc-500 font-mono mb-3">шаг 2 · добавь в конфиг Claude Desktop</div>
-      <pre class="font-mono text-xs text-zinc-300 overflow-x-auto">{
+<!-- TEMPERATURE / MASTERY -->
+<section class="max-w-6xl mx-auto px-5 py-24">
+  <div class="grid lg:grid-cols-[1fr_1fr] gap-12 items-center">
+    <div>
+      <div class="font-mono text-xs text-ember tracking-widest">/ 03 — <span data-en="HEAT">ЖАР</span></div>
+      <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3" data-en="«Expert» stops being a slogan">«Эксперт» перестаёт быть лозунгом</h2>
+      <p class="text-stone-400 mt-4 max-w-md" data-en="Every concept has a temperature. Cold metal you've only read about. White-hot you can shape and explain. The system measures each one — so you always see what's still cold and what to heat next.">
+        У каждого концепта есть температура. Холодный металл — только прочитал. Раскалённый добела — можешь гнуть и объяснять. Система меряет каждый — и ты всегда видишь, что ещё холодное и что греть дальше.
+      </p>
+      <p class="mt-4 text-sm text-stone-500" data-en="Solved a «hard» task on autopilot? The bar rises. The goal is productive struggle, not easy wins.">Решил «сложное» задание на автопилоте? Планка поднимается. Цель — продуктивная борьба, а не лёгкие победы.</p>
+    </div>
+    <div class="card rounded-2xl p-7">
+      <div class="space-y-6">
+        <div>
+          <div class="flex justify-between items-baseline mb-2"><span class="font-mono text-sm">launch / async</span><span class="font-mono text-xs text-gold" data-en="white-hot · can explain">раскалён · объясню</span></div>
+          <div class="h-2.5 rounded-full bg-coal overflow-hidden"><div class="tempfill h-full rounded-full" style="width:95%;background:linear-gradient(90deg,#7d8aa0,#ffb347,#fff6e8)"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between items-baseline mb-2"><span class="font-mono text-sm">CoroutineScope</span><span class="font-mono text-xs text-ember" data-en="hot · can apply">горячо · применяю</span></div>
+          <div class="h-2.5 rounded-full bg-coal overflow-hidden"><div class="tempfill h-full rounded-full" style="width:66%;background:linear-gradient(90deg,#7d8aa0,#ff6b1a)"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between items-baseline mb-2"><span class="font-mono text-sm">cancellation</span><span class="font-mono text-xs text-steel" data-en="warm · still reading">тёплый · ещё учу</span></div>
+          <div class="h-2.5 rounded-full bg-coal overflow-hidden"><div class="tempfill h-full rounded-full" style="width:30%;background:linear-gradient(90deg,#5b6678,#7d8aa0)"></div></div>
+        </div>
+      </div>
+      <div class="mt-7 pt-5 border-t border-edge text-sm text-stone-400">
+        <span class="text-acid font-mono" data-en="next ▸ ">дальше ▸ </span>
+        <span data-en="heat up «cancellation» — one interview-grade task + a struggle-check away from white-hot.">раскали «cancellation» — один собесный таск и проверка на прочность до белого каления.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHY / FEATURES -->
+<section class="border-y border-edge bg-soot/40">
+  <div class="max-w-6xl mx-auto px-5 py-24">
+    <div class="font-mono text-xs text-ember tracking-widest">/ 04 — <span data-en="WHY IT STICKS">ПОЧЕМУ ДЕРЖИТСЯ</span></div>
+    <div class="grid md:grid-cols-3 gap-4 mt-10">
+      <div class="card rounded-2xl p-6 reveal"><div class="font-display text-2xl font-bold text-gold" data-en="Hard, honestly">Честно сложно</div><p class="text-sm text-stone-400 mt-3" data-en="Difficulty isn't more code — it's edge cases, conflicting constraints, defending trade-offs. The kind that actually grows you.">Сложность — не больше кода, а edge-кейсы, конфликтующие требования, защита trade-off. Та, что реально качает.</p></div>
+      <div class="card rounded-2xl p-6 reveal"><div class="font-display text-2xl font-bold text-ember" data-en="The agent is the brain">Агент — это мозг</div><p class="text-sm text-stone-400 mt-3" data-en="All thinking happens in your Claude session. The backend is dumb storage — nobody else's model touches your data.">Всё мышление — в твоей сессии Claude. Бэкенд — тупое хранилище, ничья чужая модель не трогает твои данные.</p></div>
+      <div class="card rounded-2xl p-6 reveal"><div class="font-display text-2xl font-bold text-acid" data-en="Right where you work">Там, где ты работаешь</div><p class="text-sm text-stone-400 mt-3" data-en="Claude Desktop and Claude Code. No new app to babysit — you learn next to your code.">Claude Desktop и Claude Code. Никаких новых приложений — учишься рядом с кодом.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- INSTALL -->
+<section id="start" class="max-w-3xl mx-auto px-5 py-24">
+  <div class="font-mono text-xs text-ember tracking-widest text-center">/ 05 — <span data-en="LIGHT THE FORGE">РАЗЖЕЧЬ ГОРН</span></div>
+  <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 text-center" data-en="Running in a minute">Запустишь за минуту</h2>
+  <div class="mt-12 space-y-4">
+    <div class="card rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-3"><span class="font-mono text-xs text-stone-500" data-en="1 · install the plugin">1 · поставь плагин</span>
+        <button class="copy font-mono text-xs text-stone-400 hover:text-acid btn-press" data-copy='uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"' data-en="copy">копировать</button></div>
+      <pre class="font-mono text-[13px] text-acid overflow-x-auto whitespace-pre-wrap">uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"</pre>
+    </div>
+    <div class="card rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-3"><span class="font-mono text-xs text-stone-500" data-en="2 · add to Claude Desktop config">2 · добавь в конфиг Claude Desktop</span>
+        <button class="copy font-mono text-xs text-stone-400 hover:text-acid btn-press" data-copy='{"mcpServers":{"proof-forge":{"command":"proof-forge-mcp","env":{"BACKEND_URL":"https://api.proof-forge.ru"}}}}' data-en="copy">копировать</button></div>
+      <pre class="font-mono text-[12px] text-stone-300 overflow-x-auto">{
   "mcpServers": {
     "proof-forge": {
       "command": "proof-forge-mcp",
@@ -165,28 +317,161 @@ tailwind.config = { theme: { extend: {
     }
   }
 }</pre>
-    </li>
-    <li class="card rounded-xl p-6">
-      <div class="text-sm text-zinc-500 font-mono mb-3">шаг 3 · перезапусти Claude и пиши</div>
-      <pre class="font-mono text-sm text-acc2">помоги изучить JavaScript Closures</pre>
-      <p class="text-sm text-zinc-400 mt-3">При первом запуске Claude спросит email и создаст профиль. Всё.</p>
-    </li>
-  </ol>
+    </div>
+    <div class="card rounded-2xl p-5">
+      <div class="font-mono text-xs text-stone-500 mb-3" data-en="3 · restart Claude and type">3 · перезапусти Claude и напиши</div>
+      <pre class="font-mono text-[15px] text-ember" data-en="help me learn JavaScript closures">помоги изучить JavaScript closures</pre>
+      <p class="text-sm text-stone-500 mt-3" data-en="On first run Claude asks your email and creates a profile. That's it.">При первом запуске Claude спросит email и создаст профиль. Всё.</p>
+    </div>
+  </div>
   <div class="text-center mt-10">
-    <a href="https://github.com/sidnevart/proof-forge-v2#readme" class="text-acc hover:underline font-medium">Полная инструкция и self-hosting →</a>
+    <a href="https://github.com/sidnevart/proof-forge-v2#readme" class="text-ember hover:text-gold font-medium transition" data-en="Full guide & self-hosting →">Полная инструкция и self-hosting →</a>
   </div>
 </section>
 
-<!-- footer -->
-<footer class="border-t border-line">
-  <div class="max-w-6xl mx-auto px-6 py-12 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
-    <div class="font-mono"><span class="text-acc">▰</span> proof-forge · MIT</div>
-    <div class="flex items-center gap-6">
+<!-- CTA -->
+<section class="max-w-6xl mx-auto px-5 pb-24">
+  <div class="rounded-3xl p-10 sm:p-16 text-center relative overflow-hidden" style="background:radial-gradient(120% 120% at 50% 0%,#2a1810,#120d0b)">
+    <div class="absolute inset-0 opacity-40" style="background:radial-gradient(60% 80% at 50% 0%,rgba(255,107,26,.25),transparent)"></div>
+    <h2 class="relative font-display text-4xl sm:text-6xl font-bold leading-tight" data-en="Stop forgetting.<br>Start forging.">Хватит забывать.<br>Начни ковать.</h2>
+    <a href="#start" class="relative inline-block mt-8 px-7 py-4 rounded-xl bg-ember text-coal font-semibold btn-press hover:bg-gold transition shadow-[0_0_60px_-10px_rgba(255,107,26,.8)]" data-en="Light the forge →">Разжечь горн →</a>
+  </div>
+</section>
+
+</main>
+
+<footer class="border-t border-edge">
+  <div class="max-w-6xl mx-auto px-5 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-stone-600">
+    <div class="font-display font-bold">proof<span class="text-ember">·</span>forge <span class="text-stone-700 font-normal font-mono text-xs">· MIT</span></div>
+    <div class="flex items-center gap-6 font-mono text-xs">
       <a href="https://github.com/sidnevart/proof-forge-v2" class="hover:text-white transition">GitHub</a>
-      <a href="https://api.proof-forge.ru/docs" class="hover:text-white transition">API docs</a>
+      <a href="https://api.proof-forge.ru/docs" class="hover:text-white transition">API</a>
     </div>
   </div>
 </footer>
 
+<script>
+// ---------- cursor ember ----------
+const ember = document.getElementById('ember');
+let ex=innerWidth/2, ey=innerHeight/2, cx=ex, cy=ey;
+addEventListener('mousemove',e=>{ex=e.clientX;ey=e.clientY});
+(function loop(){cx+=(ex-cx)*.12;cy+=(ey-cy)*.12;ember.style.transform=`translate(${cx}px,${cy}px) translate(-50%,-50%)`;requestAnimationFrame(loop)})();
+
+// ---------- scroll reveal ----------
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.15});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+// ---------- i18n ----------
+let lang='ru';
+document.querySelectorAll('[data-en]').forEach(el=>el.dataset.ru=el.innerHTML);
+function applyLang(){
+  document.querySelectorAll('[data-en]').forEach(el=>el.innerHTML = lang==='en'?el.dataset.en:el.dataset.ru);
+  document.getElementById('lang').textContent = lang==='en'?'RU':'EN';
+  document.documentElement.lang=lang;
+  renderCard(); renderCap(capState); renderTask(taskDiff); renderNote();
+}
+document.getElementById('lang').onclick=()=>{lang=lang==='en'?'ru':'en';applyLang()};
+
+// ---------- playground tabs ----------
+const pgtabs=document.getElementById('pgtabs');
+pgtabs.onclick=e=>{const b=e.target.closest('[data-tab]');if(!b)return;
+  pgtabs.querySelectorAll('button').forEach(x=>{x.classList.remove('tab-on');x.classList.add('bg-ash','text-stone-300')});
+  b.classList.add('tab-on');b.classList.remove('bg-ash','text-stone-300');
+  document.querySelectorAll('.pg-panel').forEach(p=>p.classList.add('hidden'));
+  document.querySelector(`[data-panel="${b.dataset.tab}"]`).classList.remove('hidden');
+};
+
+// ---------- flashcard ----------
+const deck={ru:[
+  {q:'Чем launch отличается от async?',a:'launch запускает корутину «выстрелил и забыл» и возвращает Job. async возвращает Deferred с результатом, который берёшь через await().'},
+  {q:'Что произойдёт с дочерними корутинами, если отменить родительский Job?',a:'Все дети отменяются автоматически — это и есть structured concurrency: scope владеет иерархией.'},
+  {q:'Почему CancellationException нельзя глушить пустым catch?',a:'Он управляет кооперативной отменой. Проглотишь — корутина продолжит работать после cancel(), и отмена сломается.'},
+  {q:'Зачем suspend-функции нужен CoroutineScope?',a:'Он задаёт время жизни и контекст. Без scope корутина — сирота: её некому отменить, будет утечка.'},
+],en:[
+  {q:'How does launch differ from async?',a:'launch is fire-and-forget and returns a Job. async returns a Deferred whose result you take via await().'},
+  {q:'What happens to child coroutines when you cancel the parent Job?',a:'They all cancel automatically — that\'s structured concurrency: the scope owns the hierarchy.'},
+  {q:'Why can\'t you swallow CancellationException in an empty catch?',a:'It drives cooperative cancellation. Swallow it and the coroutine keeps running after cancel() — cancellation breaks.'},
+  {q:'Why does a suspend function need a CoroutineScope?',a:'It defines lifetime and context. Without a scope the coroutine is an orphan: nothing can cancel it — a leak.'},
+]};
+let ci=0;
+const flip=document.getElementById('flipcard');
+flip.onclick=()=>flip.classList.toggle('flipped');
+function renderCard(){const d=deck[lang][ci];document.getElementById('cardq').textContent=d.q;document.getElementById('carda').textContent=d.a;
+  document.getElementById('cardmeta').textContent=`coroutines · ${ci+1}/${deck[lang].length}`;}
+document.querySelectorAll('[data-rate]').forEach(btn=>btn.onclick=()=>{
+  const r=btn.dataset.rate, days={again:1,hard:3,good:9}[r];
+  const msg=lang==='en'?{again:'↻ back tomorrow',hard:'↗ back in 3 days',good:'✦ back in 9 days'}:{again:'↻ вернётся завтра',hard:'↗ через 3 дня',good:'✦ через 9 дней'};
+  document.getElementById('cardnext').textContent=msg[r];
+  setTimeout(()=>{flip.classList.remove('flipped');ci=(ci+1)%deck[lang].length;renderCard();setTimeout(()=>document.getElementById('cardnext').textContent='',900);},450);
+});
+
+// ---------- capsule ----------
+let capState='sum';
+const caps={
+  ru:{
+    sum:`<p class="text-stone-300">Корутины Kotlin — это лёгкие «потоки», которыми управляет не ОС, а рантайм. Ключевая идея — <b class="text-white">structured concurrency</b>: каждая корутина живёт внутри scope, который владеет её жизнью и отменой.</p><p class="text-stone-500 mt-3 text-sm">3 концепта · 12 минут · 1 практика выполнена</p>`,
+    map:`<div class="font-mono text-sm text-stone-300 leading-7"><span class="text-ember">CoroutineScope</span> ──владеет──▶ <span class="text-gold">Job</span><br>&nbsp;&nbsp;&nbsp;&nbsp;│<br>&nbsp;&nbsp;&nbsp;&nbsp;├─ launch ──▶ Job (fire & forget)<br>&nbsp;&nbsp;&nbsp;&nbsp;└─ async ──▶ Deferred&lt;T&gt; (await)<br><span class="text-steel">cancel()</span> ──каскад──▶ <span class="text-stone-400">все дети</span></div>`,
+    weak:`<p class="text-stone-300 mb-3"><b class="text-flame">cancellation</b> — пока тёплое.</p><p class="text-sm text-stone-400">Ты путаешь отмену scope с отменой отдельного Job, и не ловишь, что CancellationException обязан пробрасываться. Разберём на следующей практике.</p>`,
+    rev:`<ol class="space-y-3 text-sm text-stone-300"><li>1. Что вернёт <code class="text-acid">async{}.await()</code> при отменённом scope?</li><li>2. Почему <code class="text-acid">GlobalScope</code> считается анти-паттерном?</li><li>3. Как отменить одну корутину, не трогая соседок в том же scope?</li></ol>`
+  },
+  en:{
+    sum:`<p class="text-stone-300">Kotlin coroutines are lightweight "threads" managed by the runtime, not the OS. The core idea is <b class="text-white">structured concurrency</b>: every coroutine lives inside a scope that owns its life and cancellation.</p><p class="text-stone-500 mt-3 text-sm">3 concepts · 12 min · 1 practice done</p>`,
+    map:`<div class="font-mono text-sm text-stone-300 leading-7"><span class="text-ember">CoroutineScope</span> ──owns──▶ <span class="text-gold">Job</span><br>&nbsp;&nbsp;&nbsp;&nbsp;│<br>&nbsp;&nbsp;&nbsp;&nbsp;├─ launch ──▶ Job (fire & forget)<br>&nbsp;&nbsp;&nbsp;&nbsp;└─ async ──▶ Deferred&lt;T&gt; (await)<br><span class="text-steel">cancel()</span> ──cascades──▶ <span class="text-stone-400">all children</span></div>`,
+    weak:`<p class="text-stone-300 mb-3"><b class="text-flame">cancellation</b> — still warm.</p><p class="text-sm text-stone-400">You mix up cancelling a scope vs a single Job, and miss that CancellationException must be rethrown. We'll drill it next.</p>`,
+    rev:`<ol class="space-y-3 text-sm text-stone-300"><li>1. What does <code class="text-acid">async{}.await()</code> return on a cancelled scope?</li><li>2. Why is <code class="text-acid">GlobalScope</code> an anti-pattern?</li><li>3. How do you cancel one coroutine without touching its siblings in the same scope?</li></ol>`
+  }
+};
+const captabs=document.getElementById('captabs');
+captabs.onclick=e=>{const b=e.target.closest('[data-cap]');if(!b)return;capState=b.dataset.cap;
+  captabs.querySelectorAll('button').forEach(x=>{x.classList.remove('tab-on');x.classList.add('text-stone-400')});
+  b.classList.add('tab-on');b.classList.remove('text-stone-400');renderCap(capState)};
+function renderCap(s){document.getElementById('capbody').innerHTML=caps[lang][s]}
+
+// ---------- task (difficulty calibration) ----------
+let taskDiff=0;
+const tasks={ru:[
+  {t:'Разминка',title:'Запусти две корутины параллельно',body:'Используя launch, запусти две корутины, каждая печатает своё число через delay. Дождись обеих.',strug:null,sol:'runBlocking {\n  val a = launch { delay(100); println(1) }\n  val b = launch { delay(50); println(2) }\n  joinAll(a, b)   // вывод: 2, затем 1\n}'},
+  {t:'Боевая',title:'Параллельный загрузчик с лимитом',body:'Напиши функцию, которая качает список URL параллельно, но не более 5 одновременно. Верни map url→статус.',strug:'А что произойдёт, если один запрос зависнет навсегда? Где здесь нужен withTimeout и почему именно на этом уровне?',sol:'suspend fun fetchAll(urls: List<String>) = coroutineScope {\n  val gate = Semaphore(5)\n  urls.associateWith { url ->\n    async { gate.withPermit { withTimeout(3000){ fetch(url) } } }\n  }.mapValues { it.value.await() }\n}'},
+  {t:'Собес',title:'Реализуй bounded channel с backpressure',body:'Без kotlinx Channel: свой канал поверх корутин, capacity в конструкторе, стратегия DROP_OLDEST при переполнении. API: send()/receive().',strug:'Докажи, что твой send() не теряет элементы под гонкой двух продюсеров. Какой примитив синхронизации и почему не обычный Mutex на всю операцию?',sol:'class Bounded<T>(cap: Int) {\n  private val buf = ArrayDeque<T>()\n  private val lock = Mutex()\n  private val items = Semaphore(0)\n  suspend fun send(x: T) = lock.withLock {\n    if (buf.size == cap) buf.removeFirst()  // DROP_OLDEST\n    buf.addLast(x); items.release()\n  }\n  suspend fun receive(): T { items.acquire(); return lock.withLock { buf.removeFirst() } }\n}'},
+],en:[
+  {t:'Warm-up',title:'Run two coroutines in parallel',body:'Using launch, start two coroutines that each print a number after a delay. Wait for both.',strug:null,sol:'runBlocking {\n  val a = launch { delay(100); println(1) }\n  val b = launch { delay(50); println(2) }\n  joinAll(a, b)   // prints: 2, then 1\n}'},
+  {t:'Real',title:'Concurrent fetcher with a cap',body:'Write a function that downloads a list of URLs in parallel, but at most 5 at once. Return a map url→status.',strug:'What happens if one request hangs forever? Where does withTimeout belong and why at exactly this level?',sol:'suspend fun fetchAll(urls: List<String>) = coroutineScope {\n  val gate = Semaphore(5)\n  urls.associateWith { url ->\n    async { gate.withPermit { withTimeout(3000){ fetch(url) } } }\n  }.mapValues { it.value.await() }\n}'},
+  {t:'Interview',title:'Build a bounded channel with backpressure',body:'No kotlinx Channel: your own over coroutines, capacity in the constructor, DROP_OLDEST on overflow. API: send()/receive().',strug:'Prove your send() loses no items under two racing producers. Which sync primitive, and why not a plain Mutex over the whole op?',sol:'class Bounded<T>(cap: Int) {\n  private val buf = ArrayDeque<T>()\n  private val lock = Mutex()\n  private val items = Semaphore(0)\n  suspend fun send(x: T) = lock.withLock {\n    if (buf.size == cap) buf.removeFirst()  // DROP_OLDEST\n    buf.addLast(x); items.release()\n  }\n  suspend fun receive(): T { items.acquire(); return lock.withLock { buf.removeFirst() } }\n}'},
+]};
+const diffbtns=document.getElementById('diffbtns');
+diffbtns.onclick=e=>{const b=e.target.closest('[data-diff]');if(!b)return;taskDiff=+b.dataset.diff;
+  diffbtns.querySelectorAll('button').forEach(x=>{x.classList.remove('tab-on');x.classList.add('bg-ash','text-stone-400')});
+  b.classList.add('tab-on');b.classList.remove('bg-ash','text-stone-400');renderTask(taskDiff)};
+function renderTask(d){const t=tasks[lang][d];
+  document.getElementById('tasktitle').textContent=t.title;
+  document.getElementById('taskbody').textContent=t.body;
+  document.getElementById('tasksol').textContent=t.sol;
+  const sw=document.getElementById('taskstruggle');
+  if(t.strug){sw.classList.remove('hidden');document.getElementById('strugtext').textContent=t.strug}else{sw.classList.add('hidden')}}
+
+// ---------- note ----------
+function renderNote(){
+  const ru=`<h3 class="font-display text-2xl font-bold">Конспект: Kotlin Coroutines</h3>
+    <p class="text-stone-400 italic border-l-2 border-ember pl-4">Лёгкие потоки рантайма, где scope владеет жизнью и отменой своих корутин.</p>
+    <div><div class="font-mono text-xs text-ember mb-2">КЛЮЧЕВОЕ</div>
+    <ul class="space-y-1.5 text-stone-300 text-sm"><li>• <b>structured concurrency</b> — scope владеет иерархией, отмена каскадом</li><li>• <b>launch</b> → Job, <b>async</b> → Deferred&lt;T&gt;</li><li>• <b>CancellationException</b> кооперативен — всегда пробрасывай</li></ul></div>
+    <div class="rounded-xl bg-coal border border-edge p-4 font-mono text-[13px] text-stone-300">scope.launch { <span class="text-stone-500">// дитя scope</span><br>&nbsp;&nbsp;val r = async { load() }.await()<br>}</div>
+    <p class="text-sm"><span class="text-flame font-mono">⚠ ловушка:</span> <span class="text-stone-400">пустой catch на CancellationException ломает отмену.</span></p>`;
+  const en=`<h3 class="font-display text-2xl font-bold">Notes: Kotlin Coroutines</h3>
+    <p class="text-stone-400 italic border-l-2 border-ember pl-4">Lightweight runtime threads where a scope owns the life and cancellation of its coroutines.</p>
+    <div><div class="font-mono text-xs text-ember mb-2">KEY</div>
+    <ul class="space-y-1.5 text-stone-300 text-sm"><li>• <b>structured concurrency</b> — scope owns the hierarchy, cancellation cascades</li><li>• <b>launch</b> → Job, <b>async</b> → Deferred&lt;T&gt;</li><li>• <b>CancellationException</b> is cooperative — always rethrow</li></ul></div>
+    <div class="rounded-xl bg-coal border border-edge p-4 font-mono text-[13px] text-stone-300">scope.launch { <span class="text-stone-500">// child of scope</span><br>&nbsp;&nbsp;val r = async { load() }.await()<br>}</div>
+    <p class="text-sm"><span class="text-flame font-mono">⚠ trap:</span> <span class="text-stone-400">an empty catch on CancellationException breaks cancellation.</span></p>`;
+  document.getElementById('notebody').innerHTML = lang==='en'?en:ru;
+}
+
+// ---------- copy buttons ----------
+document.querySelectorAll('.copy').forEach(b=>b.onclick=()=>{navigator.clipboard.writeText(b.dataset.copy);
+  const o=b.textContent;b.textContent=lang==='en'?'copied ✓':'скопировано ✓';setTimeout(()=>b.textContent=o,1400)});
+
+// ---------- init ----------
+renderCard(); renderCap('sum'); renderTask(0); renderNote();
+</script>
 </body>
 </html>
