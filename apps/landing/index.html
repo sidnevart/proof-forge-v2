@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proof-Forge — учись с агентом до уровня эксперта</title>
+<meta name="description" content="Agent-native learning workspace для разработчиков. Claude объясняет тему, форжит капсулу знаний, генерирует карточки и измеряет освоение до уровня эксперта.">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  fontFamily: { mono: ['ui-monospace','SFMono-Regular','Menlo','monospace'], sans: ['Inter','system-ui','sans-serif'] },
+  colors: { ink:'#0a0a0b', panel:'#141417', line:'#26262b', acc:'#7c5cff', acc2:'#22d3a6' }
+}}}
+</script>
+<style>
+  body{background:#0a0a0b;color:#e7e7ea}
+  .grid-bg{background-image:radial-gradient(circle at 1px 1px,#1c1c22 1px,transparent 0);background-size:32px 32px}
+  .glow{box-shadow:0 0 80px -20px rgba(124,92,255,.5)}
+  .card{background:#141417;border:1px solid #26262b}
+  .card:hover{border-color:#3a3a44}
+  ::selection{background:#7c5cff;color:#fff}
+</style>
+</head>
+<body class="font-sans antialiased">
+
+<!-- nav -->
+<header class="sticky top-0 z-50 backdrop-blur border-b border-line/60 bg-ink/80">
+  <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-2 font-mono font-semibold">
+      <span class="text-acc">▰</span> proof-forge
+    </div>
+    <nav class="flex items-center gap-6 text-sm text-zinc-400">
+      <a href="#how" class="hover:text-white transition">Как работает</a>
+      <a href="#features" class="hover:text-white transition hidden sm:block">Возможности</a>
+      <a href="#install" class="hover:text-white transition">Установка</a>
+      <a href="https://github.com/sidnevart/proof-forge-v2" class="px-3 py-1.5 rounded-md border border-line hover:border-zinc-500 hover:text-white transition">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<!-- hero -->
+<section class="grid-bg relative">
+  <div class="max-w-6xl mx-auto px-6 pt-24 pb-20 text-center">
+    <div class="inline-flex items-center gap-2 text-xs font-mono text-acc2 border border-acc2/30 rounded-full px-3 py-1 mb-8">
+      <span class="w-1.5 h-1.5 rounded-full bg-acc2 animate-pulse"></span> работает в Claude Desktop и Claude Code
+    </div>
+    <h1 class="text-5xl sm:text-6xl font-bold tracking-tight leading-[1.05]">
+      Учись с агентом —<br><span class="bg-gradient-to-r from-acc to-acc2 bg-clip-text text-transparent">от новичка до эксперта</span>
+    </h1>
+    <p class="mt-6 text-lg text-zinc-400 max-w-2xl mx-auto">
+      Claude объясняет тему как ментор, форжит капсулу знаний, генерирует карточки для повторения
+      и <span class="text-white">измеряет освоение каждого концепта</span> — пока не дойдёшь до уровня эксперта.
+    </p>
+    <div class="mt-10 flex items-center justify-center gap-4">
+      <a href="#install" class="px-5 py-3 rounded-lg bg-acc text-white font-medium glow hover:brightness-110 transition">Установить плагин</a>
+      <a href="https://github.com/sidnevart/proof-forge-v2" class="px-5 py-3 rounded-lg border border-line hover:border-zinc-500 transition">Смотреть код</a>
+    </div>
+
+    <!-- terminal demo -->
+    <div class="mt-16 max-w-3xl mx-auto text-left">
+      <div class="card rounded-xl overflow-hidden">
+        <div class="flex items-center gap-2 px-4 py-3 border-b border-line">
+          <span class="w-3 h-3 rounded-full bg-red-500/70"></span>
+          <span class="w-3 h-3 rounded-full bg-yellow-500/70"></span>
+          <span class="w-3 h-3 rounded-full bg-green-500/70"></span>
+          <span class="ml-3 text-xs text-zinc-500 font-mono">claude — proof-forge</span>
+        </div>
+        <div class="p-5 font-mono text-sm leading-relaxed">
+          <p><span class="text-acc2">you ▸</span> помоги изучить Kotlin Coroutines</p>
+          <p class="text-zinc-400 mt-2">⟶ объясняю structured concurrency + схема жизненного цикла Job…</p>
+          <p class="text-zinc-400">⟶ даю практику с edge-case (отмена под нагрузкой)</p>
+          <p class="mt-3"><span class="text-acc2">you ▸</span> закончил</p>
+          <p class="text-zinc-400 mt-2">📦 капсула сохранена · 🃏 7 карточек создано</p>
+          <p class="text-zinc-400">📊 launch/async <span class="text-acc2">🟦</span> · CoroutineScope <span class="text-acc2">🟩</span> · cancellation <span class="text-yellow-400">🟨</span></p>
+          <p class="mt-3"><span class="text-acc2">you ▸</span> прогресс</p>
+          <p class="text-zinc-400 mt-2">До эксперта: добей <span class="text-white">cancellation</span> — нужна 1 практика уровня 3 + struggle-check</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- how it works -->
+<section id="how" class="max-w-6xl mx-auto px-6 py-24">
+  <h2 class="text-3xl font-bold text-center">Полный цикл обучения</h2>
+  <p class="text-zinc-400 text-center mt-3">Четыре шага, которые ведут от «не знаю» к «объясню другому».</p>
+  <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
+    <div class="card rounded-xl p-6">
+      <div class="text-acc font-mono text-sm">01 · learn</div>
+      <h3 class="font-semibold mt-3">Изучай</h3>
+      <p class="text-sm text-zinc-400 mt-2">Ментор объясняет тему простым языком со схемами и даёт по-настоящему сложную практику — калибрует под тебя.</p>
+    </div>
+    <div class="card rounded-xl p-6">
+      <div class="text-acc font-mono text-sm">02 · capsule</div>
+      <h3 class="font-semibold mt-3">Фиксируй</h3>
+      <p class="text-sm text-zinc-400 mt-2">Капсула знаний: Replay, концепт-карта, слабые места, вопросы для ревью — возвращайся к ней в любой момент.</p>
+    </div>
+    <div class="card rounded-xl p-6">
+      <div class="text-acc font-mono text-sm">03 · cards</div>
+      <h3 class="font-semibold mt-3">Повторяй</h3>
+      <p class="text-sm text-zinc-400 mt-2">Карточки по алгоритму SM-2: интервал растёт по мере того как ты вспоминаешь увереннее.</p>
+    </div>
+    <div class="card rounded-xl p-6">
+      <div class="text-acc font-mono text-sm">04 · review</div>
+      <h3 class="font-semibold mt-3">Проверяй</h3>
+      <p class="text-sm text-zinc-400 mt-2">Интерактивный quiz: hint-лесенка вместо готового ответа, struggle-check на edge-кейсы.</p>
+    </div>
+  </div>
+</section>
+
+<!-- features -->
+<section id="features" class="border-y border-line bg-panel/40">
+  <div class="max-w-6xl mx-auto px-6 py-24">
+    <h2 class="text-3xl font-bold text-center">Не лозунг, а измеримый результат</h2>
+    <div class="grid md:grid-cols-3 gap-6 mt-12">
+      <div class="card rounded-xl p-6">
+        <div class="text-2xl">🟥🟨🟩🟦</div>
+        <h3 class="font-semibold mt-4">Прогресс к эксперту</h3>
+        <p class="text-sm text-zinc-400 mt-2">Каждый концепт проходит уровни: не начат → узнаю → применяю → объясняю. «Эксперт по теме» = все концепты на 🟦. Видно что осталось доработать.</p>
+      </div>
+      <div class="card rounded-xl p-6">
+        <div class="text-2xl">⚖️</div>
+        <h3 class="font-semibold mt-4">Честная сложность</h3>
+        <p class="text-sm text-zinc-400 mt-2">Задание сложное не по объёму, а по нагрузке: edge-кейсы, конфликтующие требования, обоснование trade-off. Легко далось — планка поднимается.</p>
+      </div>
+      <div class="card rounded-xl p-6">
+        <div class="text-2xl">🔁</div>
+        <h3 class="font-semibold mt-4">Интервальное повторение</h3>
+        <p class="text-sm text-zinc-400 mt-2">SM-2 разводит карточки во времени так, чтобы ты повторял ровно перед тем как забыть. Минимум усилий — максимум удержания.</p>
+      </div>
+      <div class="card rounded-xl p-6">
+        <div class="text-2xl">🌐</div>
+        <h3 class="font-semibold mt-4">С любого устройства</h3>
+        <p class="text-sm text-zinc-400 mt-2">Профиль привязан к email — учись с ноутбука, продолжай с другого. Весь прогресс в облаке.</p>
+      </div>
+      <div class="card rounded-xl p-6">
+        <div class="text-2xl">🧠</div>
+        <h3 class="font-semibold mt-4">Агент — это мозг</h3>
+        <p class="text-sm text-zinc-400 mt-2">Всё мышление в сессии Claude. Бэкенд — чистое хранилище. Никаких чужих LLM-вызовов с твоими данными.</p>
+      </div>
+      <div class="card rounded-xl p-6">
+        <div class="text-2xl">⌨️</div>
+        <h3 class="font-semibold mt-4">Там где ты работаешь</h3>
+        <p class="text-sm text-zinc-400 mt-2">Claude Desktop и Claude Code. Никаких новых приложений — учишься прямо в чате, рядом с кодом.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- install -->
+<section id="install" class="max-w-3xl mx-auto px-6 py-24">
+  <h2 class="text-3xl font-bold text-center">Установка за минуту</h2>
+  <ol class="mt-12 space-y-6">
+    <li class="card rounded-xl p-6">
+      <div class="text-sm text-zinc-500 font-mono mb-3">шаг 1 · установи плагин</div>
+      <pre class="font-mono text-sm text-acc2 overflow-x-auto">uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"</pre>
+    </li>
+    <li class="card rounded-xl p-6">
+      <div class="text-sm text-zinc-500 font-mono mb-3">шаг 2 · добавь в конфиг Claude Desktop</div>
+      <pre class="font-mono text-xs text-zinc-300 overflow-x-auto">{
+  "mcpServers": {
+    "proof-forge": {
+      "command": "proof-forge-mcp",
+      "env": { "BACKEND_URL": "https://api.proof-forge.ru" }
+    }
+  }
+}</pre>
+    </li>
+    <li class="card rounded-xl p-6">
+      <div class="text-sm text-zinc-500 font-mono mb-3">шаг 3 · перезапусти Claude и пиши</div>
+      <pre class="font-mono text-sm text-acc2">помоги изучить JavaScript Closures</pre>
+      <p class="text-sm text-zinc-400 mt-3">При первом запуске Claude спросит email и создаст профиль. Всё.</p>
+    </li>
+  </ol>
+  <div class="text-center mt-10">
+    <a href="https://github.com/sidnevart/proof-forge-v2#readme" class="text-acc hover:underline font-medium">Полная инструкция и self-hosting →</a>
+  </div>
+</section>
+
+<!-- footer -->
+<footer class="border-t border-line">
+  <div class="max-w-6xl mx-auto px-6 py-12 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
+    <div class="font-mono"><span class="text-acc">▰</span> proof-forge · MIT</div>
+    <div class="flex items-center gap-6">
+      <a href="https://github.com/sidnevart/proof-forge-v2" class="hover:text-white transition">GitHub</a>
+      <a href="https://api.proof-forge.ru/docs" class="hover:text-white transition">API docs</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
