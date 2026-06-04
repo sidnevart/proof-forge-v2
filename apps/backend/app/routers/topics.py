@@ -164,6 +164,11 @@ async def delete_material(topic_id: str, material_id: str, db: AsyncSession = De
 
 # ── Capsule generation from materials ────────────────────────────────────────
 
+# Thresholds for chunked generation
+_SINGLE_PASS_LIMIT = 12_000   # chars — below this, one LLM call is enough
+_CHUNK_SIZE = 7_000            # chars per chunk in map phase
+
+
 class GenerateCapsuleRequest(BaseModel):
     user_id: str
 
@@ -183,50 +188,71 @@ def _extract_json(text: str) -> dict:
     return json.loads(text[start:end])
 
 
-@router.post("/topics/{topic_id}/capsule/generate", response_model=GenerateTopicOut, status_code=201)
-async def generate_capsule_from_materials(
-    topic_id: str,
-    data: GenerateCapsuleRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """Generate a capsule from all materials uploaded to the topic."""
-    from app.config import settings
+def _split_chunks(text: str, size: int) -> list[str]:
+    """Split text into ≤size chunks, preferring paragraph/line boundaries."""
+    if len(text) <= size:
+        return [text]
+    chunks = []
+    while text:
+        if len(text) <= size:
+            chunks.append(text)
+            break
+        split_at = text.rfind("\n\n", 0, size)
+        if split_at < size // 3:
+            split_at = text.rfind("\n", 0, size)
+        if split_at < size // 3:
+            split_at = size
+        chunks.append(text[:split_at])
+        text = text[split_at:].lstrip()
+    return chunks
 
-    if not settings.llm_api_key:
-        raise HTTPException(status_code=503, detail="LLM не настроен")
 
-    topic = await topic_repo.get_topic(db, topic_id)
-    if not topic:
-        raise HTTPException(status_code=404, detail="Topic not found")
-
-    # Gather all material texts
-    result = await db.execute(
-        select(TopicMaterial)
-        .where(TopicMaterial.topic_id == topic_id)
-        .order_by(TopicMaterial.created_at.asc())
+async def _llm_call(client: httpx.AsyncClient, settings, prompt: str, max_tokens: int = 1200) -> str:
+    response = await client.post(
+        f"{settings.llm_base_url}/chat/completions",
+        headers={"Authorization": f"Bearer {settings.llm_api_key}", "Content-Type": "application/json"},
+        json={
+            "model": settings.llm_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+            "temperature": 0.4,
+        },
     )
-    materials = result.scalars().all()
-    if not materials:
-        raise HTTPException(status_code=422, detail="Добавь материалы перед генерацией капсулы")
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
 
-    materials_block = "\n\n---\n\n".join(
-        f"### Материал: {m.name}\n\n{m.content_text[:8000]}"
-        for m in materials
-    )
 
-    prompt = f"""Ты — эксперт-преподаватель для IT-специалистов. На основе материалов ниже создай обучающую капсулу по теме «{topic.name}».
+async def _extract_concepts_from_chunk(
+    client: httpx.AsyncClient, settings, topic_name: str, material_name: str, chunk: str
+) -> str:
+    """Map phase: extract key concepts from one chunk of material."""
+    prompt = f"""Из фрагмента материала «{material_name}» (тема: «{topic_name}») извлеки ключевые концепции, определения и важные факты.
 
-## Материалы для изучения
+Фрагмент:
+{chunk}
+
+Ответь кратким структурированным списком — только суть, без воды. Без JSON, просто текст."""
+    result = await _llm_call(client, settings, prompt, max_tokens=800)
+    return f"[Источник: {material_name}]\n{result}"
+
+
+async def _generate_single_pass(
+    client: httpx.AsyncClient, settings, topic_name: str, materials_block: str
+) -> dict:
+    """Direct generation when total material fits in one call."""
+    prompt = f"""Ты — эксперт-преподаватель для IT-специалистов. На основе материалов создай обучающую капсулу по теме «{topic_name}».
+
+## Материалы
 
 {materials_block}
 
 ---
 
-Ответь ТОЛЬКО валидным JSON без markdown-блоков и пояснений:
+Ответь ТОЛЬКО валидным JSON без markdown-блоков:
 
 {{
   "summary": "Одно предложение — что охватывает капсула",
-  "content_md": "Структурированный markdown (600-900 слов) на основе материалов. Разделы: ## Обзор, ## Ключевые концепции, ## Практические примеры, ## Важно запомнить",
+  "content_md": "Структурированный markdown (600-900 слов). Разделы: ## Обзор, ## Ключевые концепции, ## Практические примеры, ## Важно запомнить",
   "review_questions": [
     {{"question": "...", "correct_answer": "...", "difficulty": 1}},
     {{"question": "...", "correct_answer": "...", "difficulty": 1}},
@@ -237,31 +263,103 @@ async def generate_capsule_from_materials(
   ]
 }}
 
-Требования:
-- Основывайся строго на загруженных материалах, не добавляй лишнего
-- Язык: русский (термины на языке оригинала)
-- 6 вопросов разной сложности
-- Конкретные ответы без воды"""
+- Основывайся на материалах. Язык: русский (термины на языке оригинала). 6 вопросов разной сложности."""
+    raw = await _llm_call(client, settings, prompt, max_tokens=4000)
+    return _extract_json(raw)
 
-    async with httpx.AsyncClient(timeout=90) as client:
-        response = await client.post(
-            f"{settings.llm_base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.llm_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.llm_model,
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 4000,
-                "temperature": 0.4,
-            },
-        )
-        response.raise_for_status()
-        raw = response.json()["choices"][0]["message"]["content"]
+
+async def _generate_chunked(
+    client: httpx.AsyncClient, settings, topic_name: str, materials: list
+) -> dict:
+    """Map-reduce generation for large materials (no context limits)."""
+    # MAP: extract concepts from each chunk
+    extracts: list[str] = []
+    for material in materials:
+        chunks = _split_chunks(material.content_text, _CHUNK_SIZE)
+        for chunk in chunks:
+            extract = await _extract_concepts_from_chunk(
+                client, settings, topic_name, material.name, chunk
+            )
+            extracts.append(extract)
+
+    # REDUCE: synthesize capsule from all extracted concepts
+    combined = "\n\n---\n\n".join(extracts)
+    prompt = f"""Ты — эксперт-преподаватель. На основе этих концепций по теме «{topic_name}» создай обучающую капсулу.
+
+## Извлечённые концепции из всех материалов
+
+{combined[:20_000]}
+
+---
+
+Ответь ТОЛЬКО валидным JSON без markdown-блоков:
+
+{{
+  "summary": "Одно предложение — что охватывает капсула",
+  "content_md": "Структурированный markdown (700-1000 слов). Разделы: ## Обзор, ## Ключевые концепции, ## Практические примеры, ## Важно запомнить",
+  "review_questions": [
+    {{"question": "...", "correct_answer": "...", "difficulty": 1}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 1}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 2}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 2}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 3}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 3}}
+  ]
+}}
+
+Язык: русский (термины на языке оригинала). 6 вопросов разной сложности."""
+    raw = await _llm_call(client, settings, prompt, max_tokens=4000)
+    return _extract_json(raw)
+
+
+@router.post("/topics/{topic_id}/capsule/generate", response_model=GenerateTopicOut, status_code=201)
+async def generate_capsule_from_materials(
+    topic_id: str,
+    data: GenerateCapsuleRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a capsule from all materials. Automatically uses chunked map-reduce for large inputs."""
+    from app.config import settings
+
+    if not settings.llm_api_key:
+        raise HTTPException(status_code=503, detail="LLM не настроен")
+
+    topic = await topic_repo.get_topic(db, topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+
+    result = await db.execute(
+        select(TopicMaterial)
+        .where(TopicMaterial.topic_id == topic_id)
+        .order_by(TopicMaterial.created_at.asc())
+    )
+    materials = result.scalars().all()
+    if not materials:
+        raise HTTPException(status_code=422, detail="Добавь материалы перед генерацией капсулы")
+
+    total_chars = sum(len(m.content_text) for m in materials)
+    use_chunked = total_chars > _SINGLE_PASS_LIMIT
+
+    # Timeout scales with number of chunks needed
+    est_chunks = max(1, total_chars // _CHUNK_SIZE)
+    timeout = 90 + est_chunks * 30  # ~30s per chunk + base
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            if use_chunked:
+                parsed = await _generate_chunked(client, settings, topic.name, list(materials))
+            else:
+                materials_block = "\n\n---\n\n".join(
+                    f"### Материал: {m.name}\n\n{m.content_text}"
+                    for m in materials
+                )
+                parsed = await _generate_single_pass(client, settings, topic.name, materials_block)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Ошибка генерации: {e}")
 
     try:
-        parsed = _extract_json(raw)
+        if "content_md" not in parsed:
+            raise ValueError("missing content_md")
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"LLM вернул невалидный JSON: {e}")
 
