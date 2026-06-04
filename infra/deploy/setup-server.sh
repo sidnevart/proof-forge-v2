@@ -47,10 +47,10 @@ RESEND_API_KEY=FILL_RESEND_KEY
 FROM_EMAIL=onboarding@resend.dev
 FRONTEND_URL=https://app.proof-forge.ru
 
-# AI — Ollama runs locally, LLM_API_KEY can be anything
-LLM_API_KEY=ollama
-LLM_BASE_URL=http://ollama:11434/v1
-LLM_MODEL=llama3.2:3b
+# AI — Zhipu AI (GLM), OpenAI-compatible cloud API
+LLM_API_KEY=FILL_LLM_KEY
+LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+LLM_MODEL=glm-4-flash
 ENVTEMPLATE
     echo ""
     echo -e "${RED}  ⚠  Edit $APP_DIR/.env.prod with real values, then re-run.${NC}"
@@ -87,16 +87,7 @@ docker compose -f docker-compose.prod.yml build --parallel
 docker compose -f docker-compose.prod.yml up -d
 ok "Services started"
 
-# ── 6. Pull Ollama model ──────────────────────────────────────────────────────
-OLLAMA_MODEL="${LLM_MODEL:-llama3.2:3b}"
-info "Pulling Ollama model: $OLLAMA_MODEL (this may take a few minutes)..."
-for i in $(seq 1 15); do
-    docker compose -f docker-compose.prod.yml exec -T ollama ollama pull "$OLLAMA_MODEL" 2>&1 && break || true
-    sleep 5
-done
-ok "Ollama model ready"
-
-# ── 8. Health check ───────────────────────────────────────────────────────────
+# ── 6. Health check ───────────────────────────────────────────────────────────
 info "Waiting for backend..."
 for i in $(seq 1 30); do
     curl -sf http://localhost:8000/health &>/dev/null && { ok "Backend healthy"; break; }

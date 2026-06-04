@@ -14,14 +14,6 @@ services:
       timeout: 5s
       retries: 5
 
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    volumes:
-      - ollama_data:/root/.ollama
-    expose:
-      - "11434"
-
   backend:
     build:
       context: ./apps/backend
@@ -34,14 +26,12 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       FRONTEND_URL: ${FRONTEND_URL:-https://app.proof-forge.ru}
       FROM_EMAIL: ${FROM_EMAIL:-onboarding@resend.dev}
-      LLM_API_KEY: ${LLM_API_KEY:-ollama}
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
-      LLM_MODEL: ${LLM_MODEL:-llama3.2:3b}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
+      LLM_MODEL: ${LLM_MODEL:-glm-4-flash}
     depends_on:
       postgres:
         condition: service_healthy
-      ollama:
-        condition: service_started
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
     expose:
@@ -76,6 +66,5 @@ services:
 
 volumes:
   postgres_data:
-  ollama_data:
   certbot_www:
   certbot_certs:
