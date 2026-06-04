@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -32,7 +32,7 @@ class PracticeTaskCreate(BaseModel):
     title: str
     instructions_md: str
     target_concepts: list[str] = Field(default_factory=list)
-    difficulty: int = 1
+    difficulty: int = Field(default=1, ge=1, le=3)
     expected_evidence: list[str] = Field(default_factory=list)
     check_commands: list[str] = Field(default_factory=list)
 
@@ -107,8 +107,8 @@ class IdeSubmissionOut(BaseModel):
 
 class EvaluationCreate(BaseModel):
     submission_id: str
-    score: float
-    status: str
+    score: float = Field(ge=0.0, le=1.0)
+    status: Literal["passed", "needs_revision", "failed"]
     feedback_md: str
     concept_scores: dict[str, float] = Field(default_factory=dict)
     weak_spots: list[dict[str, Any]] = Field(default_factory=list)

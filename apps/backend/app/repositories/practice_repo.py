@@ -57,6 +57,18 @@ async def get_practice_task(db: AsyncSession, task_id: str) -> PracticeTask | No
     return result.scalar_one_or_none()
 
 
+async def get_practice_task_for_user(
+    db: AsyncSession, task_id: str, user_id: str
+) -> PracticeTask | None:
+    result = await db.execute(
+        select(PracticeTask).where(
+            PracticeTask.id == task_id,
+            PracticeTask.user_id == user_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_active_tasks(db: AsyncSession, user_id: str) -> list[PracticeTask]:
     result = await db.execute(
         select(PracticeTask)
@@ -86,6 +98,10 @@ async def pair_ide_session(db: AsyncSession, data: IdeSessionCreate) -> IdeSessi
 
 
 async def create_submission(db: AsyncSession, data: IdeSubmissionCreate) -> IdeSubmission:
+    task = await get_practice_task_for_user(db, data.practice_task_id, data.user_id)
+    if task is None:
+        raise ValueError("Practice task not found for user")
+
     submission = IdeSubmission(
         practice_task_id=data.practice_task_id,
         user_id=data.user_id,
@@ -99,10 +115,7 @@ async def create_submission(db: AsyncSession, data: IdeSubmissionCreate) -> IdeS
         language=data.language,
     )
     db.add(submission)
-
-    task = await get_practice_task(db, data.practice_task_id)
-    if task:
-        task.status = "submitted"
+    task.status = "submitted"
 
     await db.commit()
     await db.refresh(submission)
@@ -115,6 +128,14 @@ async def get_submission(db: AsyncSession, submission_id: str) -> IdeSubmission 
 
 
 async def create_evaluation(db: AsyncSession, data: EvaluationCreate) -> Evaluation:
+    submission = await get_submission(db, data.submission_id)
+    if submission is None:
+        raise ValueError("Submission not found")
+
+    task = await get_practice_task(db, submission.practice_task_id)
+    if task is None:
+        raise ValueError("Practice task not found")
+
     evaluation = Evaluation(
         submission_id=data.submission_id,
         score=data.score,
@@ -125,12 +146,7 @@ async def create_evaluation(db: AsyncSession, data: EvaluationCreate) -> Evaluat
         next_action=data.next_action,
     )
     db.add(evaluation)
-
-    submission = await get_submission(db, data.submission_id)
-    if submission:
-        task = await get_practice_task(db, submission.practice_task_id)
-        if task:
-            task.status = "completed" if data.status == "passed" else "needs_revision"
+    task.status = "completed" if data.status == "passed" else "needs_revision"
 
     await db.commit()
     await db.refresh(evaluation)
