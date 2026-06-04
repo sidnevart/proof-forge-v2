@@ -6,9 +6,16 @@ plugins {
 group = "ru.proofforge"
 version = "0.1.0"
 
+repositories {
+    mavenCentral()
+    intellijPlatform {
+        defaultRepositories()
+    }
+}
+
 dependencies {
     intellijPlatform {
-        intellijIdeaCommunity("2025.1.3")
+        intellijIdeaCommunity("2025.1.2")
         bundledPlugin("com.intellij.java")
     }
 }

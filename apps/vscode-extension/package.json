@@ -1,0 +1,48 @@
+{
+  "name": "grasp-learning",
+  "displayName": "Grasp — AI Learning",
+  "description": "AI-ментор для разработчиков прямо в редакторе",
+  "version": "0.1.0",
+  "publisher": "grasp",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/sidnevart/proof-forge-v2" },
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Education", "Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "grasp-container", "title": "Grasp", "icon": "$(book)" }
+      ]
+    },
+    "views": {
+      "grasp-container": [
+        { "type": "webview", "id": "grasp.panel", "name": "Grasp Learning" }
+      ]
+    },
+    "commands": [
+      { "command": "grasp.openPanel", "title": "Grasp: Открыть панель обучения" },
+      { "command": "grasp.addCurrentFile", "title": "Grasp: Добавить файл в тему" }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "grasp.addCurrentFile",
+          "when": "resourceExtname =~ /\\.(py|go|ts|js|java|md|rs|kt|cpp|c|sql|yaml)$/",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "npx vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^2.21.0",
+    "typescript": "^5.0.0"
+  }
+}

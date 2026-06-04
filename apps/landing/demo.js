@@ -328,6 +328,7 @@ const b = makeCounter(); b(); // 1 — independent</pre>
     if (!b) return;
     [...devToggle.children].forEach(x => x.classList.toggle('on', x === b));
     device.dataset.mode = b.dataset.mode;
+    if (typeof rescaleDevices === 'function') rescaleDevices();
     bottom();
   });
   scChips.addEventListener('click', (e) => {

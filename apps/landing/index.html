@@ -74,7 +74,7 @@ tailwind.config = { theme: { extend: {
     --shadow:0 30px 70px -40px rgba(40,33,20,.45);
     --noise-op:.025; --noise-blend:multiply;
   }
-  html{scroll-behavior:smooth}
+  html{scroll-behavior:smooth;overflow-x:hidden}
   body{background:rgb(var(--paper));color:rgb(var(--ink));overflow-x:hidden;
     transition:background .5s ease,color .5s ease}
   body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:var(--noise-op);mix-blend-mode:var(--noise-blend);
@@ -125,7 +125,8 @@ tailwind.config = { theme: { extend: {
 
   /* screen */
   .screen{position:relative;overflow:hidden;background:rgb(var(--paper));transition:background .4s ease}
-  .device[data-mode="desktop"] .screen{border-radius:5px}
+  .device[data-mode="desktop"] .screen{border-radius:5px;overflow:hidden}
+  .device[data-mode="desktop"] .screen-inner{width:960px;transform-origin:top left;will-change:transform}
   .device[data-mode="mobile"] .screen{border-radius:46px}
 
   /* MacBook base */
@@ -257,16 +258,11 @@ tailwind.config = { theme: { extend: {
 
 <!-- HERO -->
 <section class="max-w-6xl mx-auto px-5 pt-20 pb-14">
-  <div class="inline-flex items-center gap-2 text-[13px] font-mono text-accent bg-accentsoft border border-accent/20 rounded-full px-3 py-1 mb-9 reveal">
-    <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
-    <span data-en="AI mentor for developers · Web + Claude">AI-ментор для разработчиков · Web + Claude</span>
-  </div>
-
   <h1 class="font-display font-bold tracking-tight text-[clamp(2.8rem,12vw,5.5rem)] leading-[0.95] reveal max-w-4xl">
     <span data-en="Learn it so it ">Учись так, чтобы </span><span class="ital" data-en="sticks.">помнить.</span>
   </h1>
 
-  <p class="mt-8 max-w-xl text-lg sm:text-xl text-mute leading-relaxed reveal" data-en="Your AI mentor that explains System Design, Go, Kubernetes, algorithms — gives practice at your level, and brings material back at just the right time so it sticks.">Твой AI-ментор, который объясняет System Design, Go, Kubernetes, алгоритмы — даёт практику под твой уровень и возвращает материал в нужный момент, чтобы не забыть.</p>
+  <p class="mt-8 max-w-xl text-lg sm:text-xl text-mute leading-relaxed reveal" data-en="Your AI mentor. Explains any topic, gives practice at your level — and helps you not forget it.">Твой AI-ментор. Разберёт любую тему, даст практику под твой уровень — и поможет не забыть.</p>
 
   <div class="mt-9 flex flex-wrap items-center gap-3 reveal">
     <a href="https://app.proof-forge.ru/login" data-en-href="https://app.proof-forge.ru/login" class="group px-6 py-3.5 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition shadow-[0_14px_40px_-12px_rgba(61,220,145,.5)]" data-track="hero_cta_webapp">
@@ -278,12 +274,12 @@ tailwind.config = { theme: { extend: {
   <div class="mt-10 flex flex-wrap gap-2.5 reveal">
     <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="🖥️ Web app">🖥️ Веб-приложение</span>
     <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="📱 Works on phone">📱 Работает на телефоне</span>
-    <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="🧠 Spaced repetition">🧠 Spaced repetition</span>
-    <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="🔓 Open source · MIT">🔓 Открытый код · MIT</span>
+    <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="🧠 Smart repetition">🧠 Умное повторение</span>
+    <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium text-mute/80" data-en="🔌 VS Code &amp; JetBrains (optional)">🔌 VS Code &amp; JetBrains (необязательно)</span>
   </div>
 
-  <p class="mt-7 text-sm text-mute reveal" data-en="For developers preparing for System Design interviews, learning new technologies, or deepening expertise in their stack.">
-    Для разработчиков, которые готовятся к System Design, изучают новые технологии или углубляют знания стека.
+  <p class="mt-7 text-sm text-mute reveal" data-en="For those who study seriously — and want to remember what they've learned.">
+    Для тех, кто учится всерьёз — и хочет помнить то, что изучал.
   </p>
 </section>
 
@@ -325,6 +321,7 @@ tailwind.config = { theme: { extend: {
         <span class="btn-side bside-pw"></span>
         <div class="island"></div>
         <div class="screen">
+          <div class="screen-inner">
           <!-- macOS title bar -->
           <div class="os-bar">
             <span class="light-dot" style="background:#ec6a5e"></span>
@@ -399,6 +396,7 @@ tailwind.config = { theme: { extend: {
               </div>
             </div>
           </div>
+          </div>
         </div>
       </div>
       <div class="macbase"></div>
@@ -412,7 +410,7 @@ tailwind.config = { theme: { extend: {
 <section id="start" class="max-w-6xl mx-auto px-5 py-24">
   <div class="font-mono text-xs text-accent tracking-widest mb-3">06 — <span data-en="GET STARTED">КАК НАЧАТЬ</span></div>
   <h2 class="font-display text-4xl sm:text-5xl font-bold mb-3 max-w-xl" data-en="Two ways to use Grasp">Два способа использовать Grasp</h2>
-  <p class="text-mute max-w-md mb-12" data-en="Web app works right now in your browser. Claude plugin adds full AI-agent power.">Веб-приложение работает прямо сейчас в браузере. Плагин для Claude — полная мощь AI-агента.</p>
+  <p class="text-mute max-w-md mb-12" data-en="Web app works right now in your browser. Claude plugin adds full AI-agent power. IDE plugins available separately below.">Веб-приложение работает прямо сейчас в браузере. Плагин для Claude — полная мощь AI-агента. IDE-плагины — отдельно ниже.</p>
 
   <div class="grid md:grid-cols-2 gap-5">
     <!-- Web App -->
@@ -483,6 +481,15 @@ tailwind.config = { theme: { extend: {
           <span data-en="Progress syncs to web app automatically">Прогресс синхронизируется в веб-приложении</span>
         </li>
       </ul>
+
+      <div class="codecard rounded-xl p-4 mt-4">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-mute text-xs font-mono">claude_desktop_config.json</span>
+          <button class="copy text-accent text-xs font-mono" data-copy='{"mcpServers":{"grasp":{"command":"uvx","args":["proof-forge-mcp"]}}}'>скопировать</button>
+        </div>
+        <pre class="text-xs overflow-x-auto">{"mcpServers": {"grasp": {"command": "uvx", "args": ["proof-forge-mcp"]}}}</pre>
+      </div>
+      <p class="text-xs text-mute mt-3">Добавь в конфиг → перезапусти Claude → готово</p>
 
       <a href="https://github.com/sidnevart/proof-forge-v2" target="_blank" rel="noopener noreferrer" data-track="start_plugin"
         class="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl border border-line bg-card text-ink font-semibold btn-press hover:border-mute transition">
@@ -606,57 +613,112 @@ tailwind.config = { theme: { extend: {
 </section>
 
 
-<!-- IDE BRIDGE -->
-<section class="max-w-6xl mx-auto px-5 py-24">
-  <div class="font-mono text-xs text-accent tracking-widest">06 — <span data-en="IDE BRIDGE">IDE BRIDGE</span></div>
-  <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 max-w-2xl" data-en="Submit straight from JetBrains">Отправляй решения прямо из JetBrains</h2>
-  <p class="text-mute mt-3 max-w-md" data-en="No copy-paste, no file uploads. The plugin sends your code, diff, and test output back to Grasp.">Без копипасты и загрузки файлов. Плагин отправляет код, diff и вывод тестов обратно в Grasp.</p>
+<!-- IDE PLUGINS -->
+<section id="ide" class="max-w-6xl mx-auto px-5 py-24">
+  <div class="font-mono text-xs text-accent tracking-widest">07 — <span data-en="IDE PLUGINS">IDE ПЛАГИНЫ</span></div>
+  <div class="flex flex-wrap items-baseline gap-3 mt-3 mb-3">
+    <h2 class="font-display text-4xl sm:text-5xl font-bold max-w-2xl" data-en="Code in your editor, review in Grasp">Пиши код в редакторе, повторяй в Grasp</h2>
+    <span class="inline-flex items-center px-2.5 py-1 rounded-full bg-sand border border-line text-xs font-mono text-mute" data-en="optional">необязательно</span>
+  </div>
+  <p class="text-mute max-w-md mb-12" data-en="Send code, diffs, and test output straight from your IDE — no copy-paste. Works alongside the web app.">Отправляй код, diff и вывод тестов прямо из IDE — без копипасты. Работает вместе с веб-приложением.</p>
 
-  <div class="grid md:grid-cols-2 gap-6 mt-12">
-    <div class="card rounded-2xl p-6 reveal">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-xl bg-accentsoft flex items-center justify-center text-accent font-mono text-sm font-bold">1</div>
-        <h3 class="font-display text-xl font-semibold" data-en="Install the plugin">Установи плагин</h3>
+  <div class="grid md:grid-cols-2 gap-5">
+
+    <!-- VS Code -->
+    <div class="card rounded-3xl p-8 flex flex-col reveal">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-xl bg-[#007ACC]/15 flex items-center justify-center shrink-0">
+          <svg width="20" height="20" viewBox="0 0 100 100" fill="none">
+            <path d="M74.5 6.3L38.1 39.8 15.5 22.4 6.3 27.7v44.6l9.2 5.3 22.6-17.4L74.5 93.7 93.7 84V16L74.5 6.3z" fill="#007ACC"/>
+            <path d="M74.5 27.5L45.1 50l29.4 22.5V27.5z" fill="#fff" opacity=".4"/>
+          </svg>
+        </div>
+        <div>
+          <div class="font-display text-xl font-bold">VS Code</div>
+          <div class="text-xs text-mute font-mono">grasp-learning · v0.1.0</div>
+        </div>
       </div>
-      <div class="codecard rounded-xl p-4 font-mono text-sm overflow-x-auto">
-        <div class="text-mute mb-2"># Clone and build</div>
-        <div>git clone https://github.com/sidnevart/proof-forge-v2.git</div>
-        <div>cd proof-forge-v2/apps/jetbrains-plugin</div>
-        <div>./gradlew buildPlugin</div>
-        <div class="text-mute mt-2"># Install from disk in IntelliJ IDEA:</div>
-        <div>Settings → Plugins → ⚙️ → Install from disk → build/distributions/*.zip</div>
+
+      <ol class="space-y-3 mb-6 flex-1">
+        <li class="flex items-start gap-3 text-sm text-mute">
+          <span class="w-5 h-5 rounded-full bg-accentsoft text-accent text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+          <span data-en="Download .vsix from GitHub Releases">Скачай .vsix с GitHub Releases</span>
+        </li>
+        <li class="flex items-start gap-3 text-sm text-mute">
+          <span class="w-5 h-5 rounded-full bg-accentsoft text-accent text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+          <span data-en="Run in terminal:">Запусти в терминале:</span>
+        </li>
+      </ol>
+
+      <div class="codecard rounded-xl p-4 mb-5">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-mute/60 text-xs font-mono">terminal</span>
+          <button class="copy text-accent text-xs font-mono" data-copy="code --install-extension grasp-learning-0.1.0.vsix" data-en="copy">скопировать</button>
+        </div>
+        <pre class="text-xs overflow-x-auto">code --install-extension grasp-learning-0.1.0.vsix</pre>
       </div>
+
+      <a href="https://github.com/sidnevart/proof-forge-v2/releases" target="_blank" rel="noopener noreferrer" data-track="ide_vscode_download"
+        class="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl border border-line bg-card text-ink font-semibold btn-press hover:border-[#007ACC]/60 hover:text-[#007ACC] transition">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span data-en="Download .vsix">Скачать .vsix</span>
+      </a>
     </div>
-    <div class="card rounded-2xl p-6 reveal">
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-xl bg-accentsoft flex items-center justify-center text-accent font-mono text-sm font-bold">2</div>
-        <h3 class="font-display text-xl font-semibold" data-en="Connect and go">Подключись и работай</h3>
+
+    <!-- JetBrains -->
+    <div class="card rounded-3xl p-8 flex flex-col reveal">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-xl overflow-hidden shrink-0">
+          <svg width="40" height="40" viewBox="0 0 100 100" fill="none">
+            <defs>
+              <linearGradient id="jbg" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#FE315D"/>
+                <stop offset="50%" stop-color="#9B48E6"/>
+                <stop offset="100%" stop-color="#0197F6"/>
+              </linearGradient>
+            </defs>
+            <rect width="100" height="100" rx="14" fill="url(#jbg)"/>
+            <rect x="15" y="60" width="38" height="7" rx="3.5" fill="#fff"/>
+            <rect x="15" y="15" width="30" height="7" rx="3.5" fill="#fff"/>
+            <rect x="15" y="27" width="7" height="28" rx="3.5" fill="#fff"/>
+          </svg>
+        </div>
+        <div>
+          <div class="font-display text-xl font-bold">JetBrains</div>
+          <div class="text-xs text-mute font-mono" data-en="IntelliJ IDEA, GoLand, PyCharm…">IntelliJ IDEA, GoLand, PyCharm…</div>
+        </div>
       </div>
-      <ul class="space-y-2 text-sm text-mute">
-        <li class="flex items-start gap-2">
-          <span class="text-accent mt-0.5">▸</span>
-          <span data-en="Open the Proof Forge tool window on the right panel.">Открой панель Proof Forge справа.</span>
+
+      <ol class="space-y-3 mb-6 flex-1">
+        <li class="flex items-start gap-3 text-sm text-mute">
+          <span class="w-5 h-5 rounded-full bg-accentsoft text-accent text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+          <span data-en="Download .zip from GitHub Releases">Скачай .zip с GitHub Releases</span>
         </li>
-        <li class="flex items-start gap-2">
-          <span class="text-accent mt-0.5">▸</span>
-          <span data-en="Enter API URL and your Grasp user id.">Введи API URL и свой user id из Grasp.</span>
+        <li class="flex items-start gap-3 text-sm text-mute">
+          <span class="w-5 h-5 rounded-full bg-accentsoft text-accent text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+          <span data-en="Settings → Plugins → ⚙️ → Install Plugin from Disk">Settings → Plugins → ⚙️ → Install Plugin from Disk</span>
         </li>
-        <li class="flex items-start gap-2">
-          <span class="text-accent mt-0.5">▸</span>
-          <span data-en="Pick a task, hit Submit — code, diff, and reflection are sent automatically.">Выбери задачу, нажми Submit — код, diff и рефлексия уйдут автоматически.</span>
-        </li>
-      </ul>
+      </ol>
+
+      <a href="https://github.com/sidnevart/proof-forge-v2/releases" target="_blank" rel="noopener noreferrer" data-track="ide_jetbrains_download"
+        class="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl border border-line bg-card text-ink font-semibold btn-press hover:border-purple-500/50 hover:text-purple-400 transition mt-auto">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span data-en="Download .zip">Скачать .zip</span>
+      </a>
     </div>
+
   </div>
 
   <div class="mt-6 card rounded-2xl p-6 reveal">
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div>
-        <h3 class="font-display text-lg font-semibold" data-en="Plugin does not modify your code">Плагин не меняет твой код</h3>
-        <p class="text-sm text-mute mt-1" data-en="It only collects evidence and sends it. No dependency management, no scaffolding, no auto-fixes.">Он только собирает evidence и отправляет. Без управления зависимостями, без генерации проектов, без авто-исправлений.</p>
+        <h3 class="font-display text-lg font-semibold" data-en="Plugins don't modify your code">Плагины не меняют твой код</h3>
+        <p class="text-sm text-mute mt-1" data-en="They only collect evidence and send it. No dependency management, no scaffolding, no auto-fixes.">Они только собирают evidence и отправляют. Без управления зависимостями, без генерации проектов, без авто-исправлений.</p>
       </div>
-      <a href="https://github.com/sidnevart/proof-forge-v2/tree/main/apps/jetbrains-plugin" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-line font-mono text-sm hover:border-accent hover:text-accent transition shrink-0" data-en="Source code on GitHub →" data-track="cta_ide_plugin">
-        Исходный код на GitHub →
+      <a href="https://github.com/sidnevart/proof-forge-v2/releases" target="_blank" rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-line font-mono text-sm hover:border-accent hover:text-accent transition shrink-0"
+        data-en="All releases on GitHub →" data-track="cta_ide_releases">
+        Все релизы на GitHub →
       </a>
     </div>
   </div>
@@ -738,6 +800,26 @@ const progIO=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){
   const b=e.target;setTimeout(()=>b.style.width=b.dataset.w+'%',120);progIO.unobserve(b);
 }}),{threshold:.4});
 document.querySelectorAll('.progbar').forEach(b=>progIO.observe(b));
+
+// ---------- device scale ----------
+function rescaleDevices(){
+  document.querySelectorAll('.device').forEach(dev=>{
+    const inner=dev.querySelector('.screen-inner');
+    if(!inner)return;
+    if(dev.dataset.mode==='desktop'){
+      const bezel=dev.querySelector('.bezel');
+      if(!bezel)return;
+      const scale=(bezel.clientWidth-28)/960;
+      inner.style.transform=`scale(${scale})`;
+      inner.parentElement.style.height=Math.round(540*scale)+'px';
+    }else{
+      inner.style.transform='';
+      inner.parentElement.style.height='';
+    }
+  });
+}
+window.addEventListener('resize',rescaleDevices,{passive:true});
+document.addEventListener('DOMContentLoaded',rescaleDevices);
 </script>
 <script src="demo.js"></script>
 <script>
