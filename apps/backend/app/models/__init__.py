@@ -16,6 +16,11 @@ from app.models.capsule_feedback import CapsuleFeedback
 from app.models.user_streak import UserStreak, CardSession
 from app.models.topic_material import TopicMaterial
 from app.models.llm_usage_log import LlmUsageLog
+from app.models.study_session import StudySession
+from app.models.practice_task import PracticeTask
+from app.models.ide_session import IdeSession
+from app.models.ide_submission import IdeSubmission
+from app.models.evaluation import Evaluation, FollowUp
 
 __all__ = [
     "User", "LearnerProfile", "Topic", "Capsule",
@@ -24,4 +29,5 @@ __all__ = [
     "ReviewCard", "ConceptMastery",
     "AuthToken", "WebEvent", "CapsuleFeedback", "UserStreak", "CardSession",
     "TopicMaterial", "LlmUsageLog",
+    "StudySession", "PracticeTask", "IdeSession", "IdeSubmission", "Evaluation", "FollowUp",
 ]
