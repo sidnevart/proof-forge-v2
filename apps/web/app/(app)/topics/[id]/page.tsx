@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getStoredUser } from '@/lib/auth'
-import { topics, type Topic, type TopicMaterial } from '@/lib/api'
+import { topics, practice, type Topic, type TopicMaterial } from '@/lib/api'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { track } from '@/lib/analytics'
 
@@ -31,6 +31,9 @@ export default function TopicPage() {
   const [genStep, setGenStep] = useState<GeneratingStep>(0)
   const [genError, setGenError] = useState('')
   const [dragOver, setDragOver] = useState(false)
+
+  const [startingStudy, setStartingStudy] = useState(false)
+  const [studyError, setStudyError] = useState('')
 
   const loadTopic = useCallback(async () => {
     if (!user) return
@@ -98,6 +101,20 @@ export default function TopicPage() {
       setMaterials((prev) => prev.filter((m) => m.id !== materialId))
     } catch {
       // ignore
+    }
+  }
+
+  const handleStartStudy = async () => {
+    if (!user || !topic) return
+    setStartingStudy(true)
+    setStudyError('')
+    try {
+      const result = await practice.startSession(user.user_id, topic.id)
+      router.push(`/study/${result.session.id}`)
+    } catch (err: unknown) {
+      setStudyError(err instanceof Error ? err.message : 'Ошибка запуска обучения')
+    } finally {
+      setStartingStudy(false)
     }
   }
 
@@ -258,6 +275,27 @@ export default function TopicPage() {
       )}
 
       {/* Generate button */}
+      {studyError && (
+        <div className="mb-4 px-4 py-3 rounded-xl bg-danger/10 border border-danger/20 text-sm text-danger">
+          {studyError}
+        </div>
+      )}
+
+      <div className="surface rounded-2xl p-5 mb-6 border border-accent/20 bg-accentsoft/20">
+        <div className="text-xs font-mono text-accent mb-1">Новый flow</div>
+        <h2 className="font-display text-xl font-bold text-ink mb-2">Учиться с практикой</h2>
+        <p className="text-sm text-mute mb-4">
+          Создай конспект и mini-project. Решение отправишь из JetBrains без ручной загрузки файлов.
+        </p>
+        <button
+          onClick={handleStartStudy}
+          disabled={startingStudy}
+          className="w-full py-3 rounded-xl bg-accent text-[#06140d] font-semibold text-sm hover:bg-accentdk transition-colors disabled:opacity-50"
+        >
+          {startingStudy ? 'Запускаем...' : 'Начать обучение →'}
+        </button>
+      </div>
+
       {genError && (
         <div className="mb-4 px-4 py-3 rounded-xl bg-danger/10 border border-danger/20 text-sm text-danger">
           {genError}

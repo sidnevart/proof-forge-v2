@@ -214,6 +214,98 @@ export const context = {
     req<AgentContext>(`/api/agent-context?user_id=${userId}`),
 }
 
+// ── Practice Bridge ──
+export type StudySession = {
+  id: string
+  user_id: string
+  topic_id: string
+  status: 'active' | 'paused' | 'completed'
+  conspect_md: string
+  learning_goals: string[]
+  created_at: string
+  completed_at: string | null
+}
+
+export type PracticeTask = {
+  id: string
+  user_id: string
+  topic_id: string
+  study_session_id: string
+  type: 'theory' | 'written' | 'coding' | 'debugging' | 'mini_project'
+  title: string
+  instructions_md: string
+  target_concepts: string[]
+  difficulty: number
+  expected_evidence: string[]
+  check_commands: string[]
+  status: 'assigned' | 'opened_in_ide' | 'submitted' | 'evaluated' | 'needs_revision' | 'completed'
+  created_at: string
+  updated_at: string
+}
+
+export type IdeSubmission = {
+  id: string
+  practice_task_id: string
+  user_id: string
+  ide_session_id: string | null
+  files: Array<{ path: string; content: string }>
+  diff: string
+  test_output: string
+  check_command: string
+  exit_code: number | null
+  reflection: string
+  language: string
+  submitted_at: string
+}
+
+export type Evaluation = {
+  id: string
+  submission_id: string
+  score: number
+  status: 'passed' | 'needs_revision' | 'failed'
+  feedback_md: string
+  concept_scores: Record<string, number>
+  weak_spots: Array<{ concept: string; severity: number }>
+  next_action: string
+  created_at: string
+}
+
+export type FollowUp = {
+  id: string
+  evaluation_id: string
+  question: string
+  expected_answer: string
+  user_answer: string
+  score: number | null
+  feedback_md: string
+}
+
+export const practice = {
+  startSession: (userId: string, topicId: string) =>
+    req<{ session: StudySession; tasks: PracticeTask[] }>('/api/study-sessions', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, topic_id: topicId }),
+    }),
+  getSession: (sessionId: string) =>
+    req<StudySession>(`/api/study-sessions/${sessionId}`),
+  listActiveTasks: (userId: string) =>
+    req<PracticeTask[]>(`/api/practice-tasks?user_id=${userId}&status=active`),
+  getTask: (taskId: string) =>
+    req<PracticeTask>(`/api/practice-tasks/${taskId}`),
+  completeSession: (sessionId: string, userId: string) =>
+    req<{ session: StudySession; capsule: Capsule }>(`/api/study-sessions/${sessionId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    }),
+  listFollowUps: (evaluationId: string) =>
+    req<FollowUp[]>(`/api/evaluations/${evaluationId}/follow-ups`),
+  answerFollowUp: (followUpId: string, userAnswer: string, score: number, feedback?: string) =>
+    req<FollowUp>(`/api/follow-ups/${followUpId}/answer`, {
+      method: 'POST',
+      body: JSON.stringify({ user_answer: userAnswer, score, feedback_md: feedback ?? '' }),
+    }),
+}
+
 // ── Analytics ──
 export const analytics = {
   track: (sessionId: string, eventType: string, props?: Record<string, unknown>) => {
