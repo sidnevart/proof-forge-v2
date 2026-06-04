@@ -42,15 +42,15 @@ POSTGRES_PASSWORD=FILL_DB_PASSWORD
 # Auth
 JWT_SECRET=FILL_JWT_SECRET
 
-# Email
+# Email (Resend — from address must match verified domain or use onboarding@resend.dev for testing)
 RESEND_API_KEY=FILL_RESEND_KEY
-FROM_EMAIL=noreply@proof-forge.ru
+FROM_EMAIL=onboarding@resend.dev
 FRONTEND_URL=https://app.proof-forge.ru
 
-# AI (OpenAI-compatible)
-LLM_API_KEY=FILL_LLM_KEY
-LLM_BASE_URL=https://api.together.xyz/v1
-LLM_MODEL=meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo
+# AI — Ollama runs locally, LLM_API_KEY can be anything
+LLM_API_KEY=ollama
+LLM_BASE_URL=http://ollama:11434/v1
+LLM_MODEL=llama3.2:3b
 ENVTEMPLATE
     echo ""
     echo -e "${RED}  ⚠  Edit $APP_DIR/.env.prod with real values, then re-run.${NC}"
@@ -87,7 +87,16 @@ docker compose -f docker-compose.prod.yml build --parallel
 docker compose -f docker-compose.prod.yml up -d
 ok "Services started"
 
-# ── 6. Health check ───────────────────────────────────────────────────────────
+# ── 6. Pull Ollama model ──────────────────────────────────────────────────────
+OLLAMA_MODEL="${LLM_MODEL:-llama3.2:3b}"
+info "Pulling Ollama model: $OLLAMA_MODEL (this may take a few minutes)..."
+for i in $(seq 1 15); do
+    docker compose -f docker-compose.prod.yml exec -T ollama ollama pull "$OLLAMA_MODEL" 2>&1 && break || true
+    sleep 5
+done
+ok "Ollama model ready"
+
+# ── 8. Health check ───────────────────────────────────────────────────────────
 info "Waiting for backend..."
 for i in $(seq 1 30); do
     curl -sf http://localhost:8000/health &>/dev/null && { ok "Backend healthy"; break; }
@@ -101,7 +110,7 @@ for i in $(seq 1 20); do
     sleep 3
 done
 
-# ── 7. SSH deploy key for GitHub Actions ─────────────────────────────────────
+# ── 9. SSH deploy key for GitHub Actions ─────────────────────────────────────
 KEY=/root/.ssh/grasp_deploy_ed25519
 if [[ ! -f "$KEY" ]]; then
     ssh-keygen -t ed25519 -f "$KEY" -N "" -C "grasp-deploy"
