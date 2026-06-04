@@ -107,6 +107,18 @@ export type Topic = {
   started_at: string
 }
 
+export type TopicMaterial = {
+  id: string
+  topic_id: string
+  user_id: string
+  type: 'file' | 'link'
+  name: string
+  url: string | null
+  content_text: string
+  file_size: number | null
+  created_at: string
+}
+
 export type GeneratedTopic = {
   topic_id: string
   capsule_id: string
@@ -119,10 +131,38 @@ export const topics = {
       method: 'POST',
       body: JSON.stringify({ user_id: userId, name }),
     }),
-  generateWeb: (userId: string, topic: string, description?: string) =>
-    req<GeneratedTopic>('/api/topics/generate-web', {
+  get: (topicId: string) =>
+    req<Topic>(`/api/topics/${topicId}`),
+  list: (userId: string) =>
+    req<Topic[]>(`/api/topics?user_id=${userId}`),
+  getMaterials: (topicId: string) =>
+    req<TopicMaterial[]>(`/api/topics/${topicId}/materials`),
+  uploadFile: async (topicId: string, userId: string, file: File): Promise<TopicMaterial> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('grasp_token') : null
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${BASE}/api/topics/${topicId}/materials/file?user_id=${userId}`, {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, topic, description: description ?? '' }),
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail ?? 'Upload error')
+    }
+    return res.json()
+  },
+  addLink: (topicId: string, userId: string, url: string) =>
+    req<TopicMaterial>(`/api/topics/${topicId}/materials/link`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, url }),
+    }),
+  deleteMaterial: (topicId: string, materialId: string) =>
+    req<void>(`/api/topics/${topicId}/materials/${materialId}`, { method: 'DELETE' }),
+  generateCapsule: (topicId: string, userId: string) =>
+    req<GeneratedTopic>(`/api/topics/${topicId}/capsule/generate`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
     }),
 }
 

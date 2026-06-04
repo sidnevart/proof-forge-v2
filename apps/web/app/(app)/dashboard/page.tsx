@@ -142,10 +142,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Empty state — clear onboarding for new users */}
+      {/* Empty state */}
       {!loading && !ctx?.capsules?.length && (
         <div className="space-y-3">
-          {/* Primary CTA — create first capsule */}
+          {/* Primary CTA */}
           <Link
             href="/topics/new"
             className="flex items-start gap-4 w-full surface surface-hover rounded-2xl p-6 group border border-accent/20 bg-accentsoft/30"
@@ -157,8 +157,10 @@ export default function DashboardPage() {
             </div>
             <div className="flex-1 text-left">
               <div className="text-xs font-mono text-accent mb-1">Начать здесь</div>
-              <div className="font-semibold text-ink">Создать первую капсулу</div>
-              <div className="text-sm text-mute mt-0.5">Введи тему — AI напишет теорию и карточки за 30 сек</div>
+              <div className="font-semibold text-ink">Начать изучение темы</div>
+              <div className="text-sm text-mute mt-0.5">
+                Загрузи файлы или ссылки — платформа создаст капсулу и карточки
+              </div>
             </div>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent shrink-0 mt-1 group-hover:translate-x-0.5 transition-transform">
               <polyline points="9 18 15 12 9 6"/>
@@ -174,7 +176,7 @@ export default function DashboardPage() {
               <div>
                 <div className="font-medium text-ink text-sm">Используешь Claude Desktop?</div>
                 <div className="text-sm text-mute mt-0.5">
-                  Установи Grasp-плагин — учись прямо в Claude с доступом к кодовой базе, YouTube и документации.
+                  Установи Grasp-плагин — учись прямо в Claude с доступом к кодовой базе и YouTube.
                 </div>
                 <a
                   href="https://github.com/sidnevart/proof-forge-v2"
@@ -190,7 +192,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Floating action — always visible if has content */}
+      {/* Link to start new topic when user already has content */}
       {!loading && (ctx?.capsules?.length ?? 0) > 0 && (
         <div className="mt-8 pt-6 border-t border-line">
           <Link
@@ -198,7 +200,7 @@ export default function DashboardPage() {
             className="flex items-center gap-2 text-sm text-mute hover:text-accent transition-colors font-mono"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Изучить новую тему
+            Начать изучение новой темы
           </Link>
         </div>
       )}
