@@ -3,8 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Grasp — учись так, чтобы помнить</title>
-<meta name="description" content="Grasp — AI-native ментор внутри Claude. Объясняет тему простым языком, даёт практику под твой уровень и сам возвращает к ней, пока ты не разберёшься по-настоящему.">
+<title>Grasp — AI-ментор для IT-специалистов | Учись и помни</title>
+<meta name="description" content="Grasp — персональный AI-ментор для разработчиков. Изучай архитектуру, алгоритмы, системный дизайн — с практикой под твой уровень и spaced repetition, чтобы не забыть.">
+<meta name="keywords" content="AI-обучение, программирование, разработка, системный дизайн, алгоритмы, spaced repetition, анки, технические навыки">
+<meta name="author" content="Grasp">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://proof-forge.ru">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://proof-forge.ru">
+<meta property="og:title" content="Grasp — AI-ментор для IT-специалистов">
+<meta property="og:description" content="Изучай архитектуру, алгоритмы, Go, Kubernetes, System Design — с практикой и spaced repetition. Grasp помнит, что ты учил, и возвращает к материалу в нужный момент.">
+<meta property="og:image" content="https://proof-forge.ru/og-image.png">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Grasp — AI-ментор для IT-специалистов">
+<meta name="twitter:description" content="AI-ментор с практикой и spaced repetition для разработчиков. Изучаешь раз — помнишь надолго.">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Grasp",
+  "description": "AI-native ментор для IT-специалистов с spaced repetition и персонализированной практикой",
+  "applicationCategory": "EducationalApplication",
+  "operatingSystem": "Web, iOS, Android",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "RUB"},
+  "url": "https://proof-forge.ru"
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -103,7 +130,7 @@ tailwind.config = { theme: { extend: {
 
   /* MacBook base */
   .macbase{display:none}
-  .device[data-mode="desktop"] .macbase{display:block;position:relative;width:min(1100px,calc(100% + 96px));max-width:100vw;height:15px;
+  .device[data-mode="desktop"] .macbase{display:block;position:relative;width:min(1100px,calc(100% + 40px));max-width:min(100vw - 40px, 1100px);height:15px;
     background:linear-gradient(#cfd2d7,#aeb2b9 52%,#888d95);border-radius:0 0 13px 13px;
     box-shadow:0 26px 34px -20px rgba(0,0,0,.55)}
   .device[data-mode="desktop"] .macbase::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);
@@ -212,16 +239,15 @@ tailwind.config = { theme: { extend: {
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="rgb(var(--accent))" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/></svg>
       Grasp
     </a>
-    <nav class="flex items-center gap-1 sm:gap-3 text-sm font-medium">
-      <a href="#play" data-en="Demo" class="px-2 py-1.5 text-mute hover:text-ink transition">Демо</a>
-      <a href="#how" data-en="How it works" class="px-2 py-1.5 text-mute hover:text-ink transition hidden sm:block">Как работает</a>
-      <a href="#start" data-en="Install" class="px-2 py-1.5 text-mute hover:text-ink transition">Установить</a>
-      <button id="theme" aria-label="theme" class="ml-1 w-9 h-9 grid place-items-center rounded-lg border border-line text-mute hover:text-ink hover:border-mute transition btn-press">
+    <nav class="flex items-center gap-1 sm:gap-2 text-sm font-medium">
+      <a href="#play" data-en="Demo" class="px-2 py-1.5 text-mute hover:text-ink transition hidden sm:block">Демо</a>
+      <a href="#how" data-en="How it works" class="px-2 py-1.5 text-mute hover:text-ink transition hidden md:block">Как работает</a>
+      <button id="theme" aria-label="theme" class="w-9 h-9 grid place-items-center rounded-lg border border-line text-mute hover:text-ink hover:border-mute transition btn-press">
         <svg class="ic-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/></svg>
         <svg class="ic-sun hidden" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
       </button>
-      <button id="lang" class="ml-1 px-2.5 py-1.5 rounded-lg border border-line font-mono text-xs text-mute hover:text-ink hover:border-mute transition btn-press">EN</button>
-      <a href="https://github.com/sidnevart/proof-forge-v2" class="ml-1 px-3 py-1.5 rounded-lg bg-ink text-paper hover:bg-accent hover:text-[#06140d] transition hidden sm:block">GitHub ↗</a>
+      <button id="lang" class="px-2.5 py-1.5 rounded-lg border border-line font-mono text-xs text-mute hover:text-ink hover:border-mute transition btn-press">EN</button>
+      <a href="https://app.proof-forge.ru/login" data-en="Sign in" class="px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/30 text-accent font-semibold hover:bg-accent hover:text-[#06140d] transition btn-press text-sm">Войти</a>
     </nav>
   </div>
 </header>
@@ -231,32 +257,32 @@ tailwind.config = { theme: { extend: {
 <!-- HERO -->
 <section class="max-w-6xl mx-auto px-5 pt-20 pb-14">
   <div class="inline-flex items-center gap-2 text-[13px] font-mono text-accent bg-accentsoft border border-accent/20 rounded-full px-3 py-1 mb-9 reveal">
-    <span class="w-1.5 h-1.5 rounded-full bg-accent"></span>
-    <span data-en="Works right inside Claude — Desktop &amp; Code">Работает прямо в Claude — Desktop и Code</span>
+    <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
+    <span data-en="AI mentor for developers · Web + Claude">AI-ментор для разработчиков · Web + Claude</span>
   </div>
 
-  <h1 class="font-display font-bold tracking-tight text-[15vw] leading-[0.95] sm:text-7xl md:text-8xl reveal max-w-4xl">
+  <h1 class="font-display font-bold tracking-tight text-[clamp(2.8rem,12vw,5.5rem)] leading-[0.95] reveal max-w-4xl">
     <span data-en="Learn it so it ">Учись так, чтобы </span><span class="ital" data-en="sticks.">помнить.</span>
   </h1>
 
-  <p class="mt-8 max-w-xl text-lg sm:text-xl text-mute leading-relaxed reveal" data-en="Grasp is an AI-native mentor. It explains any topic in plain language, gives practice at your level, and brings it back until you really get it.">Grasp — AI-native ментор. Объясняет тему простым языком, даёт практику под твой уровень и сам возвращает к ней, пока ты не разберёшься по-настоящему.</p>
+  <p class="mt-8 max-w-xl text-lg sm:text-xl text-mute leading-relaxed reveal" data-en="Your AI mentor that explains System Design, Go, Kubernetes, algorithms — gives practice at your level, and brings material back at just the right time so it sticks.">Твой AI-ментор, который объясняет System Design, Go, Kubernetes, алгоритмы — даёт практику под твой уровень и возвращает материал в нужный момент, чтобы не забыть.</p>
 
   <div class="mt-9 flex flex-wrap items-center gap-3 reveal">
-    <a href="#start" class="group px-6 py-3.5 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition shadow-[0_14px_40px_-12px_rgba(61,220,145,.5)]">
-      <span data-en="Start learning">Начать учиться</span> <span class="inline-block group-hover:translate-x-0.5 transition">→</span>
+    <a href="https://app.proof-forge.ru/login" data-en-href="https://app.proof-forge.ru/login" class="group px-6 py-3.5 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition shadow-[0_14px_40px_-12px_rgba(61,220,145,.5)]" data-track="hero_cta_webapp">
+      <span data-en="Open Grasp →">Открыть Grasp</span> <span class="inline-block group-hover:translate-x-0.5 transition">→</span>
     </a>
     <a href="#play" class="px-6 py-3.5 rounded-xl border border-line text-ink font-semibold hover:border-mute hover:bg-card transition btn-press" data-en="See the demo">Посмотреть демо</a>
   </div>
 
-  <div class="mt-12 flex flex-wrap gap-2.5 reveal">
-    <span class="px-4 py-2 rounded-full bg-card border border-line text-sm font-medium" data-en="Learn on your phone">Учись с телефона</span>
-    <span class="px-4 py-2 rounded-full bg-card border border-line text-sm font-medium" data-en="Right inside the chat">Прямо в чате Claude</span>
-    <span class="px-4 py-2 rounded-full bg-card border border-line text-sm font-medium" data-en="Nothing to install">Ничего не скачивать</span>
-    <span class="px-4 py-2 rounded-full bg-card border border-line text-sm font-medium" data-en="Open source · MIT">Открытый код · MIT</span>
+  <div class="mt-10 flex flex-wrap gap-2.5 reveal">
+    <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="🖥️ Web app">🖥️ Веб-приложение</span>
+    <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="📱 Works on phone">📱 Работает на телефоне</span>
+    <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="🧠 Spaced repetition">🧠 Spaced repetition</span>
+    <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="🔓 Open source · MIT">🔓 Открытый код · MIT</span>
   </div>
 
-  <p class="mt-7 text-sm text-mute reveal" data-en="For developers, analysts, PMs, ML &amp; DS engineers, and researchers.">
-    Для разработчиков, аналитиков, продактов, ML- и DS-инженеров и исследователей.
+  <p class="mt-7 text-sm text-mute reveal" data-en="For developers preparing for System Design interviews, learning new technologies, or deepening expertise in their stack.">
+    Для разработчиков, которые готовятся к System Design, изучают новые технологии или углубляют знания стека.
   </p>
 </section>
 
@@ -493,35 +519,54 @@ tailwind.config = { theme: { extend: {
 </section>
 
 <!-- INSTALL -->
-<section id="start" class="max-w-3xl mx-auto px-5 py-24">
-  <div class="font-mono text-xs text-accent tracking-widest text-center">06 — <span data-en="INSTALL">УСТАНОВКА</span></div>
-  <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 text-center" data-en="Running in a minute">Запустишь за минуту</h2>
-  <div class="mt-12 space-y-4">
-    <div class="card rounded-2xl p-5">
-      <div class="flex items-center justify-between mb-3"><span class="font-mono text-xs text-mute" data-en="1 · install the plugin">1 · поставь плагин</span>
-        <button class="copy font-mono text-xs text-mute hover:text-accent btn-press" data-copy='uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"' data-en="copy">копировать</button></div>
-      <pre class="codecard rounded-xl p-4 font-mono text-[13px] overflow-x-auto whitespace-pre-wrap">uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"</pre>
+<section id="start" class="max-w-5xl mx-auto px-5 py-24">
+  <div class="font-mono text-xs text-accent tracking-widest text-center">06 — <span data-en="GET STARTED">НАЧАТЬ</span></div>
+  <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 text-center" data-en="Two ways to start">Два способа начать</h2>
+  <p class="text-mute text-center mt-3 max-w-lg mx-auto" data-en="Use the web app right away, or connect Grasp to Claude Desktop for an even deeper experience.">Открой сразу в браузере или подключи Grasp к Claude Desktop для ещё более глубокого опыта.</p>
+
+  <div class="mt-12 grid sm:grid-cols-2 gap-6">
+    <!-- Web App -->
+    <div class="card rounded-2xl p-6 border-accent/30 relative overflow-hidden">
+      <div class="absolute top-4 right-4 text-[11px] font-mono text-accent bg-accentsoft px-2.5 py-1 rounded-full" data-en="Recommended">Рекомендуется</div>
+      <div class="text-3xl mb-4">🖥️</div>
+      <h3 class="font-display text-2xl font-bold" data-en="Web App">Веб-приложение</h3>
+      <p class="text-mute text-sm mt-2 mb-6 leading-relaxed" data-en="Sign in via email — no setup needed. Works on phone and desktop. Your progress is saved in the cloud.">Войди через email — ничего не настраивать. Работает на телефоне и компе. Прогресс хранится в облаке.</p>
+      <div class="space-y-2 text-sm mb-6">
+        <div class="flex items-center gap-2 text-mute"><span class="text-accent">✓</span> <span data-en="No installation">Без установки</span></div>
+        <div class="flex items-center gap-2 text-mute"><span class="text-accent">✓</span> <span data-en="Works on any device">Любое устройство</span></div>
+        <div class="flex items-center gap-2 text-mute"><span class="text-accent">✓</span> <span data-en="Flashcards, capsules, progress">Карточки, капсулы, прогресс</span></div>
+      </div>
+      <a href="https://app.proof-forge.ru/login" class="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition" data-en="Open Grasp →" data-track="install_webapp">
+        Открыть Grasp →
+      </a>
     </div>
-    <div class="card rounded-2xl p-5">
-      <div class="flex items-center justify-between mb-3"><span class="font-mono text-xs text-mute" data-en="2 · add to your Claude config">2 · добавь в конфиг Claude</span>
-        <button class="copy font-mono text-xs text-mute hover:text-accent btn-press" data-copy='{"mcpServers":{"grasp":{"command":"proof-forge-mcp","env":{"BACKEND_URL":"https://api.proof-forge.ru"}}}}' data-en="copy">копировать</button></div>
-      <pre class="codecard rounded-xl p-4 font-mono text-[12px] overflow-x-auto">{
-  "mcpServers": {
-    "grasp": {
-      "command": "proof-forge-mcp",
-      "env": { "BACKEND_URL": "https://api.proof-forge.ru" }
-    }
-  }
-}</pre>
+
+    <!-- Claude Plugin -->
+    <div class="card rounded-2xl p-6">
+      <div class="text-3xl mb-4">⚡</div>
+      <h3 class="font-display text-2xl font-bold" data-en="Claude Plugin">Плагин Claude</h3>
+      <p class="text-mute text-sm mt-2 mb-6 leading-relaxed" data-en="Connect Grasp to Claude Desktop or Code for a fully conversational learning experience right in the chat.">Подключи Grasp к Claude Desktop или Code — полностью разговорное обучение прямо в чате.</p>
+
+      <div class="space-y-3">
+        <div class="card rounded-xl p-3.5">
+          <div class="flex items-center justify-between mb-2"><span class="font-mono text-xs text-mute" data-en="1 · install plugin">1 · поставь плагин</span>
+            <button class="copy font-mono text-xs text-mute hover:text-accent btn-press" data-copy='uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"' data-en="copy">копировать</button></div>
+          <pre class="codecard rounded-lg p-3 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap">uv tool install "git+https://…/proof-forge-v2.git#subdirectory=apps/mcp-server"</pre>
+        </div>
+        <div class="card rounded-xl p-3.5">
+          <div class="flex items-center justify-between mb-2"><span class="font-mono text-xs text-mute" data-en="2 · Claude config">2 · конфиг Claude</span>
+            <button class="copy font-mono text-xs text-mute hover:text-accent btn-press" data-copy='{"mcpServers":{"grasp":{"command":"proof-forge-mcp","env":{"BACKEND_URL":"https://api.proof-forge.ru"}}}}' data-en="copy">копировать</button></div>
+          <pre class="codecard rounded-lg p-3 font-mono text-[11px] overflow-x-auto">{"mcpServers":{"grasp":{"command":"proof-forge-mcp"}}}</pre>
+        </div>
+        <div class="card rounded-xl p-3.5">
+          <div class="font-mono text-xs text-mute mb-2" data-en="3 · type in Claude">3 · напиши в Claude</div>
+          <pre class="codecard rounded-lg p-3 font-mono text-[13px] text-accent" data-en="help me learn Go interfaces">помоги изучить Go interfaces</pre>
+        </div>
+      </div>
+      <div class="mt-4 text-center">
+        <a href="https://github.com/sidnevart/proof-forge-v2#readme" class="text-sm text-accent hover:text-accentdk font-medium transition" data-en="Full guide →">Полная инструкция →</a>
+      </div>
     </div>
-    <div class="card rounded-2xl p-5">
-      <div class="font-mono text-xs text-mute mb-3" data-en="3 · restart Claude and type">3 · перезапусти Claude и напиши</div>
-      <pre class="codecard rounded-xl p-4 font-mono text-[15px] text-accent" data-en="help me learn JavaScript closures">помоги изучить JavaScript closures</pre>
-      <p class="text-sm text-mute mt-3" data-en="On first run Claude asks your email and creates a profile. That's it.">При первом запуске Claude спросит email и создаст профиль. Всё.</p>
-    </div>
-  </div>
-  <div class="text-center mt-10">
-    <a href="https://github.com/sidnevart/proof-forge-v2#readme" class="text-accent hover:text-accentdk font-medium transition" data-en="Full guide &amp; self-hosting →">Полная инструкция и self-hosting →</a>
   </div>
 </section>
 
@@ -531,8 +576,15 @@ tailwind.config = { theme: { extend: {
     <h2 class="font-display text-4xl sm:text-6xl font-bold leading-tight">
       <span data-en="Learn it once.">Учись один раз.</span><br><span class="italic" style="color:rgb(var(--accent))" data-en="Remember it for good.">Помни надолго.</span>
     </h2>
-    <p class="mt-5 max-w-md mx-auto" style="color:rgba(238,244,240,.6)" data-en="Open source. All you need is Claude.">Открытый код. Нужен только Claude.</p>
-    <a href="#start" class="inline-block mt-8 px-7 py-4 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition" data-en="Start learning →">Начать учиться →</a>
+    <p class="mt-5 max-w-md mx-auto text-base" style="color:rgba(238,244,240,.6)" data-en="Free to use. Open source. Start in 30 seconds.">Бесплатно. Открытый код. Начать за 30 секунд.</p>
+    <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+      <a href="https://app.proof-forge.ru/login" class="inline-flex items-center gap-2 px-7 py-4 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition" data-en="Open Grasp →" data-track="cta_bottom_webapp">
+        Открыть Grasp →
+      </a>
+      <a href="#start" class="inline-flex items-center gap-2 px-7 py-4 rounded-xl border border-white/15 text-white/70 font-semibold btn-press hover:border-white/30 hover:text-white transition" data-en="Claude Plugin">
+        Плагин Claude
+      </a>
+    </div>
   </div>
 </section>
 
@@ -598,5 +650,33 @@ const progIO=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){
 document.querySelectorAll('.progbar').forEach(b=>progIO.observe(b));
 </script>
 <script src="demo.js"></script>
+<script>
+// ---------- analytics ----------
+(function(){
+  const API = 'https://api.proof-forge.ru/api/analytics';
+  let sid = localStorage.getItem('g-sid');
+  if(!sid){sid=crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2);localStorage.setItem('g-sid',sid);}
+  const dev = /Mobi|Android|iPhone/i.test(navigator.userAgent)?'mobile':'desktop';
+  function track(type,props){
+    const body={session_id:sid,event_type:type,properties:props||{},url:location.href,referrer:document.referrer||null,device:dev};
+    fetch(API+'/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),keepalive:true}).catch(()=>{});
+  }
+  track('page_view',{lang:document.documentElement.lang,theme:document.documentElement.dataset.theme});
+
+  // section visibility tracking
+  const sectionNames={play:'demo',how:'how_it_works',start:'install'};
+  const secIO=new IntersectionObserver(es=>es.forEach(e=>{
+    if(e.isIntersecting)track('section_view',{section:sectionNames[e.target.id]||e.target.id});
+  }),{threshold:.3});
+  document.querySelectorAll('section[id]').forEach(s=>secIO.observe(s));
+
+  // CTA click tracking
+  document.querySelectorAll('[data-track]').forEach(el=>el.addEventListener('click',()=>track('cta_click',{button:el.dataset.track})));
+
+  // language switch tracking
+  const langBtn=document.getElementById('lang');
+  if(langBtn)langBtn.addEventListener('click',()=>track('lang_switch',{to:langBtn.textContent.trim()}));
+})();
+</script>
 </body>
 </html>

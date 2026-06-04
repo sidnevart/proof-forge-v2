@@ -10,10 +10,15 @@ from app.models.code_artifact import CodeArtifact
 from app.models.agent_context_export import AgentContextExport
 from app.models.review_card import ReviewCard
 from app.models.concept_mastery import ConceptMastery
+from app.models.auth_token import AuthToken
+from app.models.web_event import WebEvent
+from app.models.capsule_feedback import CapsuleFeedback
+from app.models.user_streak import UserStreak, CardSession
 
 __all__ = [
     "User", "LearnerProfile", "Topic", "Capsule",
     "ReviewQuestion", "ReviewAttempt", "WeakSpot",
     "LearningEvent", "CodeArtifact", "AgentContextExport",
     "ReviewCard", "ConceptMastery",
+    "AuthToken", "WebEvent", "CapsuleFeedback", "UserStreak", "CardSession",
 ]
