@@ -282,7 +282,12 @@ export type FollowUp = {
 
 export const practice = {
   startSession: (userId: string, topicId: string) =>
-    req<{ session: StudySession; tasks: PracticeTask[] }>('/api/study-sessions', {
+    req<{
+      session: StudySession
+      tasks: PracticeTask[]
+      generation_status: 'ai' | 'fallback'
+      generation_error: string | null
+    }>('/api/study-sessions', {
       method: 'POST',
       body: JSON.stringify({ user_id: userId, topic_id: topicId }),
     }),

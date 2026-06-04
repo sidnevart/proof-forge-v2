@@ -1,8 +1,62 @@
 import pytest
 
-from app.repositories import topic_repo, user_repo
+from app.repositories import practice_repo, topic_repo, user_repo
+from app.routers.chat import _build_topic_context
+from app.schemas.practice import PracticeTaskCreate, StudySessionCreate
 from app.schemas.topic import TopicStart
 from app.schemas.user import UserCreate
+
+
+@pytest.mark.asyncio
+async def test_chat_returns_clear_error_when_llm_is_not_configured(client):
+    res = await client.post(
+        "/api/chat",
+        json={"user_id": "user-no-llm", "message": "Привет", "history": []},
+    )
+
+    assert res.status_code == 503
+    assert res.json()["detail"] == "LLM не настроен"
+
+
+@pytest.mark.asyncio
+async def test_chat_topic_context_includes_active_study_session_and_tasks(db):
+    user = await user_repo.create_user(
+        db,
+        UserCreate(email="chat-context@example.com", display_name="ContextUser"),
+    )
+    topic = await topic_repo.start_topic(
+        db,
+        TopicStart(user_id=user.id, name="Kotlin coroutines"),
+    )
+    session = await practice_repo.create_study_session(
+        db,
+        StudySessionCreate(
+            user_id=user.id,
+            topic_id=topic.id,
+            conspect_md="## Coroutine builders\nUse launch for fire-and-forget work.",
+            learning_goals=["Explain launch vs async"],
+        ),
+    )
+    await practice_repo.create_practice_task(
+        db,
+        PracticeTaskCreate(
+            user_id=user.id,
+            topic_id=topic.id,
+            study_session_id=session.id,
+            type="mini_project",
+            title="Build a coroutine worker",
+            instructions_md="Create a small worker that uses launch and async.",
+            target_concepts=["launch", "async"],
+            difficulty=2,
+        ),
+    )
+
+    context = await _build_topic_context(db, user.id, topic.id)
+
+    assert "Текущая учебная сессия" in context
+    assert "Coroutine builders" in context
+    assert "Build a coroutine worker" in context
+    assert "launch" in context
 
 
 @pytest.mark.asyncio

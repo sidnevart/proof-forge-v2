@@ -141,7 +141,12 @@ export default function NewTopicPage() {
 
       // Step 5 — start study session immediately
       const result = await practice.startSession(user.user_id, topic.id)
-      router.push(`/study/${result.session.id}`)
+      if (result.generation_status === 'fallback') {
+        const reason = encodeURIComponent(result.generation_error ?? 'AI generation failed')
+        router.push(`/study/${result.session.id}?generation=fallback&reason=${reason}`)
+      } else {
+        router.push(`/study/${result.session.id}`)
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка создания темы')
       setSubmitting(false)
@@ -412,6 +417,8 @@ function LinkChip({ url, title, onRemove }: { url: string; title: string; onRemo
 
 // ── Submitting overlay ────────────────────────────────────────────────────────
 function SubmittingScreen({ step, name, total }: { step: number; name: string; total: number }) {
+  const label = getSubmittingLabel(step, total)
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 py-12">
       <div className="w-full max-w-sm text-center">
@@ -420,23 +427,27 @@ function SubmittingScreen({ step, name, total }: { step: number; name: string; t
         </div>
         <h2 className="font-display text-xl font-bold text-ink mb-1">Запускаем обучение</h2>
         <p className="text-mute text-sm mb-6 font-mono truncate">«{name}»</p>
-        <div className="space-y-1.5 text-left">
-          {STEPS.slice(0, total > 0 ? 5 : 1).map((s, i) => {
-            const done = i < step
-            const active = i === step
-            return (
-              <div key={s} className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${active ? 'bg-accentsoft' : ''}`}>
-                <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${done ? 'bg-accent' : active ? 'border-2 border-accent' : 'border border-line'}`}>
-                  {done && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#06140d" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
-                </div>
-                <span className={`text-sm ${active ? 'text-accent font-medium' : done ? 'text-mute' : 'text-mute/50'}`}>{s}</span>
-              </div>
-            )
-          })}
+        <div className="rounded-xl border border-line bg-card px-4 py-3 text-left">
+          <div className="flex items-center gap-3">
+            <span className="w-2 h-2 rounded-full bg-accent animate-pulse shrink-0" />
+            <span className="text-sm font-medium text-ink">{label}</span>
+          </div>
+          <p className="text-xs text-mute mt-2">
+            {total > 0
+              ? 'Сначала сохраняем материалы, затем AI подготовит конспект и задания.'
+              : 'AI готовит конспект и первые задания по теме.'}
+          </p>
         </div>
       </div>
     </div>
   )
+}
+
+function getSubmittingLabel(step: number, total: number) {
+  if (step === 0) return STEPS[0]
+  if (total > 0 && step === 1) return STEPS[1]
+  if (total > 0 && step === 2) return STEPS[2]
+  return 'Генерируем конспект и задания'
 }
 
 function formatSize(bytes: number) {

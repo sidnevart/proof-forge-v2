@@ -45,8 +45,17 @@ async def create_study_session(data: dict, db: AsyncSession = Depends(get_db)):
         for m in materials
     ]
 
-    # Try AI generation; fallback to templates
-    generated = await generate_study_content(app_settings, topic, materials_list)
+    generation_status = "ai"
+    generation_error: str | None = None
+
+    # Try AI generation; fallback to templates with explicit status for the UI.
+    try:
+        generated = await generate_study_content(app_settings, topic, materials_list)
+    except Exception as exc:
+        generated = None
+        generation_status = "fallback"
+        generation_error = str(exc) or exc.__class__.__name__
+
     if generated:
         session_data, task_list = generated
         session = await practice_repo.create_study_session(db, session_data)
@@ -65,6 +74,8 @@ async def create_study_session(data: dict, db: AsyncSession = Depends(get_db)):
     return {
         "session": StudySessionOut.model_validate(session),
         "tasks": tasks,
+        "generation_status": generation_status,
+        "generation_error": generation_error,
     }
 
 

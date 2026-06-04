@@ -18,6 +18,8 @@ async def test_create_study_session_generates_conspect_and_task(client, db):
     assert res.status_code == 201
     body = res.json()
     assert body["session"]["topic_id"] == topic.id
+    assert body["generation_status"] == "fallback"
+    assert body["generation_error"] == "LLM не настроен"
     assert "Go interfaces" in body["session"]["conspect_md"]
     assert len(body["tasks"]) == 2
     assert body["tasks"][0]["type"] == "theory"

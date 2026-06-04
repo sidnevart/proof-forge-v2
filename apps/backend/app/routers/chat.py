@@ -1,29 +1,38 @@
-from pathlib import Path
+from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
 from app.config import settings as app_settings
+from app.database import get_db
+from app.models import PracticeTask, StudySession
 from app.repositories import capsule_repo, chat_repo
 
 router = APIRouter(tags=["chat"])
 
-_SKILLS_DIR = Path(__file__).parent.parent / "skills"
-
 
 def _load_system_prompt() -> str:
-    try:
-        mentor = (_SKILLS_DIR / "study-mentor-v2.md").read_text(encoding="utf-8")
-        pedagogy = (_SKILLS_DIR / "_pedagogy.md").read_text(encoding="utf-8")
-        return f"{mentor}\n\n---\n\n## Педагогические принципы (_pedagogy.md)\n\n{pedagogy}"
-    except FileNotFoundError:
-        return (
-            "Ты — учебный ментор для IT-специалистов. "
-            "Помогай пользователю изучать темы, объясняй концепции, давай практические задания."
-        )
+    return """Ты — учебный ментор Proof Forge для IT-специалистов.
+
+Отвечай по-русски, конкретно и по делу. Твоя задача — вести пользователя через системное обучение темы: объяснять материал, проверять понимание, давать задания и связывать ответы с текущим конспектом.
+
+Работай так:
+- Если пользователь просит начать или продолжить тему, дай короткий конспект, затем задания: 1 теоретическое и 1 практическое или mini-project.
+- Если в системном контексте есть текущая учебная сессия, опирайся на ее конспект, learning goals и practice tasks.
+- Для практики формулируй результат, файлы/артефакты, критерии приемки и команды проверки, если они уместны.
+- Для вопросов по коду проси минимальный фрагмент, если данных не хватает; если данных хватает, разбирай конкретно.
+- Не обещай, что проверил код или запустил тесты, если в сообщении нет таких данных.
+- Когда пользователь ошибается, объясняй причину и давай следующий маленький шаг.
+- Не пиши общие мотивационные фразы. Не делай длинные лекции без запроса.
+
+Формат ответа по умолчанию:
+1. Короткое объяснение.
+2. Что сделать сейчас.
+3. Как понять, что получилось.
+"""
 
 
 _SYSTEM_PROMPT: str | None = None
@@ -34,6 +43,78 @@ def get_system_prompt() -> str:
     if _SYSTEM_PROMPT is None:
         _SYSTEM_PROMPT = _load_system_prompt()
     return _SYSTEM_PROMPT
+
+
+def _clip(text: str, max_chars: int) -> str:
+    text = text.strip()
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars].rstrip() + "\n\n..."
+
+
+async def _build_topic_context(db: AsyncSession, user_id: str, topic_id: str) -> str:
+    parts: list[str] = []
+
+    capsules = await capsule_repo.get_user_capsules(db, user_id, topic_id)
+    if capsules:
+        cap = capsules[0]
+        parts.append(f"## Материал темы из capsule\n\n{_clip(cap.content_md, 5000)}")
+
+    session_result = await db.execute(
+        select(StudySession)
+        .where(
+            StudySession.user_id == user_id,
+            StudySession.topic_id == topic_id,
+        )
+        .order_by(StudySession.created_at.desc())
+    )
+    session = session_result.scalar_one_or_none()
+    if session:
+        session_parts = [
+            "## Текущая учебная сессия",
+            f"Статус: {session.status}",
+        ]
+        if session.learning_goals:
+            goals = "\n".join(f"- {goal}" for goal in session.learning_goals[:8])
+            session_parts.append(f"### Цели обучения\n{goals}")
+        if session.conspect_md:
+            session_parts.append(f"### Конспект\n{_clip(session.conspect_md, 6000)}")
+
+        task_result = await db.execute(
+            select(PracticeTask)
+            .where(
+                PracticeTask.user_id == user_id,
+                PracticeTask.topic_id == topic_id,
+                PracticeTask.study_session_id == session.id,
+            )
+            .order_by(PracticeTask.created_at.asc())
+        )
+        tasks = list(task_result.scalars().all())
+        if tasks:
+            formatted_tasks = []
+            for task in tasks[:6]:
+                task_lines = [
+                    f"- [{task.type}] {task.title}",
+                    f"  Статус: {task.status}; сложность: {task.difficulty}",
+                ]
+                if task.target_concepts:
+                    task_lines.append(
+                        "  Концепты: " + ", ".join(task.target_concepts[:8])
+                    )
+                if task.instructions_md:
+                    task_lines.append(
+                        f"  Инструкция: {_clip(task.instructions_md, 1200)}"
+                    )
+                if task.check_commands:
+                    task_lines.append(
+                        "  Проверка: " + "; ".join(task.check_commands[:4])
+                    )
+                formatted_tasks.append("\n".join(task_lines))
+            session_parts.append("### Задания\n" + "\n".join(formatted_tasks))
+
+        parts.append("\n\n".join(session_parts))
+
+    return "\n\n".join(parts)
 
 
 # ── Legacy / universal chat endpoint ──────────────────────────────────────────
@@ -61,12 +142,10 @@ async def chat(data: ChatRequest, db: AsyncSession = Depends(get_db)):
 
     system = get_system_prompt()
 
-    # Append capsule content if topic provided
     if data.topic_id:
-        capsules = await capsule_repo.get_user_capsules(db, data.user_id, data.topic_id)
-        if capsules:
-            cap = capsules[0]
-            system += f"\n\n## Материал темы\n\n{cap.content_md}"
+        topic_context = await _build_topic_context(db, data.user_id, data.topic_id)
+        if topic_context:
+            system += f"\n\n{topic_context}"
 
     # Append mastery weak spots
     weak = await capsule_repo.get_user_weak_spots(db, data.user_id)
@@ -113,8 +192,6 @@ class ChatMessageIn(BaseModel):
     role: str
     content: str
 
-
-from datetime import datetime
 
 class ChatSessionOut(BaseModel):
     model_config = {"from_attributes": True}

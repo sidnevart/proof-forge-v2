@@ -16,6 +16,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [chatError, setChatError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -35,16 +36,14 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
     setMessages((prev) => [...prev, userMsg])
     setInput('')
     setSending(true)
+    setChatError('')
 
     try {
       const history = messages.map((m) => ({ role: m.role, content: m.content }))
       const res = await chat.send(user.user_id, text, history, topic_id)
       setMessages((prev) => [...prev, { role: 'assistant', content: res.message }])
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: `Ошибка: ${err instanceof Error ? err.message : 'что-то пошло не так'}` },
-      ])
+      setChatError(getChatErrorMessage(err))
     } finally {
       setSending(false)
       textareaRef.current?.focus()
@@ -59,7 +58,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
   }
 
   return (
-    <div className="flex flex-col h-screen max-h-screen">
+    <div className="flex flex-col h-[calc(100dvh-5rem)] md:h-[100dvh] max-h-[100dvh] overflow-hidden">
       {/* Header */}
       <div className="shrink-0 border-b border-line px-5 py-3 flex items-center gap-3">
         <Link
@@ -93,6 +92,12 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
             <p className="text-mute text-sm">
               Задавай вопросы по теме, проси объяснить концепцию, дать задание или разобрать код.
             </p>
+          </div>
+        )}
+
+        {chatError && (
+          <div className="max-w-3xl mx-auto px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+            {chatError}
           </div>
         )}
 
@@ -202,4 +207,15 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
       </div>
     </div>
   )
+}
+
+function getChatErrorMessage(err: unknown) {
+  const message = err instanceof Error ? err.message : 'что-то пошло не так'
+  if (message.includes('LLM не настроен')) {
+    return 'AI недоступен: на backend не настроен LLM_API_KEY. Проверь переменные окружения деплоя.'
+  }
+  if (message.includes('LLM error')) {
+    return `AI недоступен: провайдер вернул ошибку. ${message}`
+  }
+  return `AI недоступен: ${message}`
 }

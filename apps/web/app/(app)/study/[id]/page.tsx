@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -13,6 +13,7 @@ type Tab = 'chat' | 'conspect' | 'tasks'
 
 export default function StudySessionPage() {
   const { id } = useParams<{ id: string }>()
+  const searchParams = useSearchParams()
   const user = getStoredUser()
 
   const [session, setSession] = useState<StudySession | null>(null)
@@ -25,6 +26,7 @@ export default function StudySessionPage() {
   const [completing, setCompleting] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('chat')
   const [chatInitError, setChatInitError] = useState('')
+  const [chatError, setChatError] = useState('')
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -67,6 +69,7 @@ export default function StudySessionPage() {
 
     setInput('')
     setSending(true)
+    setChatError('')
 
     // Save user message
     try {
@@ -85,8 +88,7 @@ export default function StudySessionPage() {
       } catch {}
       setMessages((prev) => [...prev, { id: crypto.randomUUID(), session_id: chatSession.id, role: 'assistant', content: res.message, created_at: new Date().toISOString() }])
     } catch (err) {
-      const errMsg = `Ошибка: ${err instanceof Error ? err.message : 'что-то пошло не так'}`
-      setMessages((prev) => [...prev, { id: crypto.randomUUID(), session_id: chatSession.id, role: 'assistant', content: errMsg, created_at: new Date().toISOString() }])
+      setChatError(getChatErrorMessage(err))
     } finally {
       setSending(false)
       textareaRef.current?.focus()
@@ -128,9 +130,11 @@ export default function StudySessionPage() {
   }
 
   const allTasksCompleted = tasks.length > 0 && tasks.every((t) => t.status === 'completed')
+  const generationFallback = searchParams.get('generation') === 'fallback'
+  const generationReason = searchParams.get('reason')
 
   return (
-    <div className="flex flex-col h-[calc(100vh-1px)] max-h-screen">
+    <div className="flex flex-col h-[calc(100dvh-5rem)] md:h-[100dvh] max-h-[100dvh] overflow-hidden">
       {/* Header */}
       <div className="shrink-0 border-b border-line px-4 py-3 flex items-center gap-3 bg-paper/80 backdrop-blur-md z-10">
         <Link href="/dashboard" className="text-mute hover:text-ink transition-colors shrink-0">
@@ -193,6 +197,19 @@ export default function StudySessionPage() {
             {chatInitError && (
               <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
                 {chatInitError}
+              </div>
+            )}
+
+            {generationFallback && (
+              <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+                AI-конспект не был сгенерирован. Сейчас показан шаблонный план.
+                {generationReason ? ` Причина: ${generationReason}` : ''}
+              </div>
+            )}
+
+            {chatError && (
+              <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+                {chatError}
               </div>
             )}
 
@@ -364,4 +381,15 @@ export default function StudySessionPage() {
       </div>
     </div>
   )
+}
+
+function getChatErrorMessage(err: unknown) {
+  const message = err instanceof Error ? err.message : 'что-то пошло не так'
+  if (message.includes('LLM не настроен')) {
+    return 'AI недоступен: на backend не настроен LLM_API_KEY. Проверь переменные окружения деплоя.'
+  }
+  if (message.includes('LLM error')) {
+    return `AI недоступен: провайдер вернул ошибку. ${message}`
+  }
+  return `AI недоступен: ${message}`
 }

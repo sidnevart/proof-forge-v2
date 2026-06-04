@@ -81,21 +81,18 @@ def _build_study_prompt(topic_name: str, materials: list[dict]) -> str:
 async def generate_study_content(
     settings: Any, topic: Topic, materials: list[dict]
 ) -> tuple[StudySessionCreate, list[PracticeTaskCreate]] | None:
-    """Call LLM to generate study session content. Returns None on failure."""
+    """Call LLM to generate study session content."""
     if not settings.llm_api_key:
-        return None
+        raise RuntimeError("LLM не настроен")
 
     prompt = _build_study_prompt(topic.name, materials)
 
     async with httpx.AsyncClient(timeout=90) as client:
-        try:
-            raw = await _llm_call(client, settings, prompt, max_tokens=2500)
-            parsed = _extract_json(raw)
-        except Exception:
-            return None
+        raw = await _llm_call(client, settings, prompt, max_tokens=2500)
+        parsed = _extract_json(raw)
 
     if "conspect_md" not in parsed:
-        return None
+        raise ValueError("LLM вернул ответ без conspect_md")
 
     session_create = StudySessionCreate(
         user_id=topic.user_id,
