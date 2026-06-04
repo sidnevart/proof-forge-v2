@@ -114,6 +114,8 @@ class ChatMessageIn(BaseModel):
     content: str
 
 
+from datetime import datetime
+
 class ChatSessionOut(BaseModel):
     model_config = {"from_attributes": True}
     id: str
@@ -122,7 +124,7 @@ class ChatSessionOut(BaseModel):
     study_session_id: str | None
     title: str
     status: str
-    created_at: str
+    created_at: datetime
 
 
 class ChatMessageOut(BaseModel):
@@ -131,7 +133,7 @@ class ChatMessageOut(BaseModel):
     session_id: str
     role: str
     content: str
-    created_at: str
+    created_at: datetime
 
 
 @router.post("/chat/sessions", response_model=ChatSessionOut, status_code=201)

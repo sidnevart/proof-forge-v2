@@ -6,7 +6,48 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install backend dependencies
+        run: cd apps/backend && uv pip install --system -e ".[test]"
+
+      - name: Run backend tests
+        run: |
+          cd apps/backend
+          uv run pytest ../../tests/ -q --tb=short
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          APP_ENV: test
+          JWT_SECRET: test-secret-key
+          LLM_API_KEY: ""
+          LLM_BASE_URL: http://localhost:11434/v1
+          LLM_MODEL: test-model
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build web app
+        run: |
+          cd apps/web
+          npm ci
+          npm run build
+
   deploy:
+    needs: [test]
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -54,6 +95,9 @@ jobs:
 
             echo "==> Health check..."
             curl -sf http://127.0.0.1:8002/health | grep -q '"ok"'
+            curl -sf http://127.0.0.1:8002/api/topics > /dev/null
+            curl -sf http://127.0.0.1:8002/api/study-sessions > /dev/null
+            curl -sf http://127.0.0.1:8002/api/chat/sessions > /dev/null
             curl -sf http://127.0.0.1:3000 > /dev/null
 
             echo "==> Deploy complete!"
