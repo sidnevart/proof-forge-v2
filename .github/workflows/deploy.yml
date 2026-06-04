@@ -94,10 +94,10 @@ jobs:
             done
 
             echo "==> Health check..."
-            curl -sf http://127.0.0.1:8002/health | grep -q '"ok"'
-            curl -sf http://127.0.0.1:8002/api/topics > /dev/null
-            curl -sf http://127.0.0.1:8002/api/study-sessions > /dev/null
-            curl -sf http://127.0.0.1:8002/api/chat/sessions > /dev/null
+            curl -sf http://127.0.0.1:8002/health | grep -q '"status":"ok"'
+            curl -sf -X OPTIONS http://127.0.0.1:8002/api/chat \
+              -H "Origin: https://app.proof-forge.ru" \
+              -H "Access-Control-Request-Method: POST" > /dev/null
             curl -sf http://127.0.0.1:3000 > /dev/null
 
             echo "==> Deploy complete!"
