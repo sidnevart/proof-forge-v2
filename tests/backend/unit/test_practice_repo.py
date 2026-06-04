@@ -5,6 +5,7 @@ from app.repositories import practice_repo, topic_repo, user_repo
 from app.schemas.practice import (
     EvaluationCreate,
     IdeSubmissionCreate,
+    IdeSessionCreate,
     PracticeTaskCreate,
     StudySessionCreate,
 )
@@ -182,4 +183,201 @@ def test_invalid_evaluation_status_is_rejected_by_pydantic():
             status="complete",
             feedback_md="Invalid status.",
             next_action="revise",
+        )
+
+
+@pytest.mark.asyncio
+async def test_mismatched_study_session_user_or_topic_raises_value_error(db):
+    owner = await user_repo.create_user(
+        db, UserCreate(email="session-owner@example.com", display_name="Session Owner")
+    )
+    other_user = await user_repo.create_user(
+        db, UserCreate(email="session-other@example.com", display_name="Session Other")
+    )
+    topic = await topic_repo.start_topic(db, TopicStart(user_id=owner.id, name="Owned Topic"))
+    other_topic = await topic_repo.start_topic(
+        db, TopicStart(user_id=owner.id, name="Other Topic")
+    )
+    session = await practice_repo.create_study_session(
+        db,
+        StudySessionCreate(user_id=owner.id, topic_id=topic.id),
+    )
+
+    with pytest.raises(ValueError, match="Study session not found for user/topic"):
+        await practice_repo.create_practice_task(
+            db,
+            PracticeTaskCreate(
+                user_id=other_user.id,
+                topic_id=topic.id,
+                study_session_id=session.id,
+                type="exercise",
+                title="Wrong user",
+                instructions_md="This user does not own the session.",
+            ),
+        )
+
+    with pytest.raises(ValueError, match="Study session not found for user/topic"):
+        await practice_repo.create_practice_task(
+            db,
+            PracticeTaskCreate(
+                user_id=owner.id,
+                topic_id=other_topic.id,
+                study_session_id=session.id,
+                type="exercise",
+                title="Wrong topic",
+                instructions_md="This topic does not match the session.",
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_foreign_or_missing_ide_session_raises_value_error(db):
+    owner = await user_repo.create_user(
+        db, UserCreate(email="ide-owner@example.com", display_name="IDE Owner")
+    )
+    other_user = await user_repo.create_user(
+        db, UserCreate(email="ide-other@example.com", display_name="IDE Other")
+    )
+    topic = await topic_repo.start_topic(db, TopicStart(user_id=owner.id, name="IDE Topic"))
+    session = await practice_repo.create_study_session(
+        db,
+        StudySessionCreate(user_id=owner.id, topic_id=topic.id),
+    )
+    task = await practice_repo.create_practice_task(
+        db,
+        PracticeTaskCreate(
+            user_id=owner.id,
+            topic_id=topic.id,
+            study_session_id=session.id,
+            type="exercise",
+            title="Submit from IDE",
+            instructions_md="Submit with a paired IDE session.",
+        ),
+    )
+    foreign_ide_session = await practice_repo.pair_ide_session(
+        db, IdeSessionCreate(user_id=other_user.id)
+    )
+
+    with pytest.raises(ValueError, match="IDE session not found for user"):
+        await practice_repo.create_submission(
+            db,
+            IdeSubmissionCreate(
+                practice_task_id=task.id,
+                user_id=owner.id,
+                ide_session_id=foreign_ide_session.id,
+            ),
+        )
+
+    with pytest.raises(ValueError, match="IDE session not found for user"):
+        await practice_repo.create_submission(
+            db,
+            IdeSubmissionCreate(
+                practice_task_id=task.id,
+                user_id=owner.id,
+                ide_session_id="missing-ide-session",
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_evaluation_for_missing_submission_raises_value_error(db):
+    with pytest.raises(ValueError, match="Submission not found"):
+        await practice_repo.create_evaluation(
+            db,
+            EvaluationCreate(
+                submission_id="missing-submission",
+                score=0.5,
+                status="needs_revision",
+                feedback_md="No submission exists.",
+                next_action="revise",
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_duplicate_evaluation_reuses_id_and_updates_fields(db):
+    user = await user_repo.create_user(
+        db, UserCreate(email="idempotent@example.com", display_name="Idempotent")
+    )
+    topic = await topic_repo.start_topic(
+        db, TopicStart(user_id=user.id, name="Idempotent Topic")
+    )
+    session = await practice_repo.create_study_session(
+        db,
+        StudySessionCreate(user_id=user.id, topic_id=topic.id),
+    )
+    task = await practice_repo.create_practice_task(
+        db,
+        PracticeTaskCreate(
+            user_id=user.id,
+            topic_id=topic.id,
+            study_session_id=session.id,
+            type="exercise",
+            title="Retry evaluation",
+            instructions_md="Submit once, evaluate twice.",
+        ),
+    )
+    submission = await practice_repo.create_submission(
+        db,
+        IdeSubmissionCreate(practice_task_id=task.id, user_id=user.id),
+    )
+
+    first_evaluation = await practice_repo.create_evaluation(
+        db,
+        EvaluationCreate(
+            submission_id=submission.id,
+            score=0.35,
+            status="failed",
+            feedback_md="Initial failure.",
+            concept_scores={"ownership": 0.2},
+            weak_spots=[{"concept": "ownership"}],
+            next_action="revise",
+        ),
+    )
+    second_evaluation = await practice_repo.create_evaluation(
+        db,
+        EvaluationCreate(
+            submission_id=submission.id,
+            score=0.9,
+            status="passed",
+            feedback_md="Passed after revision.",
+            concept_scores={"ownership": 0.9},
+            weak_spots=[],
+            next_action="continue_lesson",
+        ),
+    )
+    completed_task = await practice_repo.get_practice_task(db, task.id)
+
+    assert second_evaluation.id == first_evaluation.id
+    assert second_evaluation.score == 0.9
+    assert second_evaluation.status == "passed"
+    assert second_evaluation.feedback_md == "Passed after revision."
+    assert second_evaluation.concept_scores == {"ownership": 0.9}
+    assert second_evaluation.weak_spots == []
+    assert second_evaluation.next_action == "continue_lesson"
+    assert completed_task is not None
+    assert completed_task.status == "completed"
+
+
+def test_invalid_evaluation_score_is_rejected_by_pydantic():
+    with pytest.raises(ValidationError):
+        EvaluationCreate(
+            submission_id="submission-id",
+            score=1.1,
+            status="passed",
+            feedback_md="Score is too high.",
+            next_action="continue_lesson",
+        )
+
+
+def test_invalid_practice_task_difficulty_is_rejected_by_pydantic():
+    with pytest.raises(ValidationError):
+        PracticeTaskCreate(
+            user_id="user-id",
+            topic_id="topic-id",
+            study_session_id="session-id",
+            type="exercise",
+            title="Invalid difficulty",
+            instructions_md="Difficulty must be between 1 and 3.",
+            difficulty=4,
         )

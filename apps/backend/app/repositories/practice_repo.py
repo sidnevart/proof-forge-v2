@@ -33,6 +33,14 @@ async def get_study_session(db: AsyncSession, session_id: str) -> StudySession |
 
 
 async def create_practice_task(db: AsyncSession, data: PracticeTaskCreate) -> PracticeTask:
+    session = await get_study_session(db, data.study_session_id)
+    if (
+        session is None
+        or session.user_id != data.user_id
+        or session.topic_id != data.topic_id
+    ):
+        raise ValueError("Study session not found for user/topic")
+
     task = PracticeTask(
         user_id=data.user_id,
         topic_id=data.topic_id,
@@ -97,10 +105,29 @@ async def pair_ide_session(db: AsyncSession, data: IdeSessionCreate) -> IdeSessi
     return session
 
 
+async def get_ide_session_for_user(
+    db: AsyncSession, ide_session_id: str, user_id: str
+) -> IdeSession | None:
+    result = await db.execute(
+        select(IdeSession).where(
+            IdeSession.id == ide_session_id,
+            IdeSession.user_id == user_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def create_submission(db: AsyncSession, data: IdeSubmissionCreate) -> IdeSubmission:
     task = await get_practice_task_for_user(db, data.practice_task_id, data.user_id)
     if task is None:
         raise ValueError("Practice task not found for user")
+
+    if data.ide_session_id is not None:
+        ide_session = await get_ide_session_for_user(
+            db, data.ide_session_id, data.user_id
+        )
+        if ide_session is None:
+            raise ValueError("IDE session not found for user")
 
     submission = IdeSubmission(
         practice_task_id=data.practice_task_id,
@@ -127,6 +154,15 @@ async def get_submission(db: AsyncSession, submission_id: str) -> IdeSubmission 
     return result.scalar_one_or_none()
 
 
+async def get_evaluation_by_submission(
+    db: AsyncSession, submission_id: str
+) -> Evaluation | None:
+    result = await db.execute(
+        select(Evaluation).where(Evaluation.submission_id == submission_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def create_evaluation(db: AsyncSession, data: EvaluationCreate) -> Evaluation:
     submission = await get_submission(db, data.submission_id)
     if submission is None:
@@ -136,16 +172,17 @@ async def create_evaluation(db: AsyncSession, data: EvaluationCreate) -> Evaluat
     if task is None:
         raise ValueError("Practice task not found")
 
-    evaluation = Evaluation(
-        submission_id=data.submission_id,
-        score=data.score,
-        status=data.status,
-        feedback_md=data.feedback_md,
-        concept_scores=data.concept_scores,
-        weak_spots=data.weak_spots,
-        next_action=data.next_action,
-    )
-    db.add(evaluation)
+    evaluation = await get_evaluation_by_submission(db, data.submission_id)
+    if evaluation is None:
+        evaluation = Evaluation(submission_id=data.submission_id)
+        db.add(evaluation)
+
+    evaluation.score = data.score
+    evaluation.status = data.status
+    evaluation.feedback_md = data.feedback_md
+    evaluation.concept_scores = data.concept_scores
+    evaluation.weak_spots = data.weak_spots
+    evaluation.next_action = data.next_action
     task.status = "completed" if data.status == "passed" else "needs_revision"
 
     await db.commit()
