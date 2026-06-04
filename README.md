@@ -110,6 +110,22 @@ forge capsule
 ```
 → Полная капсула знаний: Replay, Concept Map, слабые места, вопросы для ревью
 
+### IDE Evidence Bridge
+
+Первый IDE-bridge — JetBrains plugin.
+
+Flow:
+
+1. Начни тему в веб-приложении.
+2. Нажми **«Начать обучение»** — создаётся study session и mini-project task.
+3. Открой Proof Forge tool window в JetBrains.
+4. Введи API URL и Proof Forge user id.
+5. Загрузи активные задачи и скопируй task id.
+6. Отправь текущий проект как evidence.
+7. Открой Proof Forge веб — проверь evaluation и прогресс.
+
+Плагин — это evidence bridge. Он не управляет зависимостями, не создаёт проекты и не редактирует твой код.
+
 ---
 
 ## Прогресс к эксперту
