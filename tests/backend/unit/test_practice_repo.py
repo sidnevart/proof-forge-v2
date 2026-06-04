@@ -65,12 +65,13 @@ async def test_study_session_task_submission_evaluation_round_trip(db):
     active_tasks = await practice_repo.list_active_tasks(db, user.id)
 
     assert task.status == "submitted"
-    assert active_tasks[0].id == task.id
+    assert {active_task.id for active_task in active_tasks} == {task.id}
 
     evaluation = await practice_repo.create_evaluation(
         db,
         EvaluationCreate(
             submission_id=submission.id,
+            user_id=user.id,
             score=0.82,
             status="passed",
             feedback_md="Good use of cancellation.",
@@ -123,6 +124,7 @@ async def test_needs_revision_evaluation_marks_task_needs_revision(db):
         db,
         EvaluationCreate(
             submission_id=submission.id,
+            user_id=user.id,
             score=0.45,
             status="needs_revision",
             feedback_md="Revise cancellation handling.",
@@ -181,6 +183,7 @@ def test_invalid_evaluation_status_is_rejected_by_pydantic():
     with pytest.raises(ValidationError):
         EvaluationCreate(
             submission_id="submission-id",
+            user_id="user-id",
             score=0.5,
             status="complete",
             feedback_md="Invalid status.",
@@ -307,9 +310,55 @@ async def test_create_evaluation_for_missing_submission_raises_value_error(db):
             db,
             EvaluationCreate(
                 submission_id="missing-submission",
+                user_id="user-id",
                 score=0.5,
                 status="needs_revision",
                 feedback_md="No submission exists.",
+                next_action="revise",
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_cross_user_evaluation_raises_value_error(db):
+    owner = await user_repo.create_user(
+        db, UserCreate(email="eval-owner@example.com", display_name="Eval Owner")
+    )
+    intruder = await user_repo.create_user(
+        db, UserCreate(email="eval-intruder@example.com", display_name="Eval Intruder")
+    )
+    topic = await topic_repo.start_topic(
+        db, TopicStart(user_id=owner.id, name="Evaluation Ownership")
+    )
+    session = await practice_repo.create_study_session(
+        db,
+        StudySessionCreate(user_id=owner.id, topic_id=topic.id),
+    )
+    task = await practice_repo.create_practice_task(
+        db,
+        PracticeTaskCreate(
+            user_id=owner.id,
+            topic_id=topic.id,
+            study_session_id=session.id,
+            type="exercise",
+            title="Owned submission",
+            instructions_md="Only the submission owner can evaluate.",
+        ),
+    )
+    submission = await practice_repo.create_submission(
+        db,
+        IdeSubmissionCreate(practice_task_id=task.id, user_id=owner.id),
+    )
+
+    with pytest.raises(ValueError, match="Submission not found for user"):
+        await practice_repo.create_evaluation(
+            db,
+            EvaluationCreate(
+                submission_id=submission.id,
+                user_id=intruder.id,
+                score=0.5,
+                status="needs_revision",
+                feedback_md="Cross-user evaluation attempt.",
                 next_action="revise",
             ),
         )
@@ -351,6 +400,7 @@ async def test_create_evaluation_for_missing_practice_task_raises_value_error(db
             db,
             EvaluationCreate(
                 submission_id=submission.id,
+                user_id=user.id,
                 score=0.5,
                 status="needs_revision",
                 feedback_md="Task row is missing.",
@@ -391,6 +441,7 @@ async def test_duplicate_evaluation_reuses_id_and_updates_fields(db):
         db,
         EvaluationCreate(
             submission_id=submission.id,
+            user_id=user.id,
             score=0.35,
             status="failed",
             feedback_md="Initial failure.",
@@ -403,6 +454,7 @@ async def test_duplicate_evaluation_reuses_id_and_updates_fields(db):
         db,
         EvaluationCreate(
             submission_id=submission.id,
+            user_id=user.id,
             score=0.9,
             status="passed",
             feedback_md="Passed after revision.",
@@ -433,6 +485,7 @@ def test_invalid_evaluation_score_is_rejected_by_pydantic():
     with pytest.raises(ValidationError):
         EvaluationCreate(
             submission_id="submission-id",
+            user_id="user-id",
             score=1.1,
             status="passed",
             feedback_md="Score is too high.",

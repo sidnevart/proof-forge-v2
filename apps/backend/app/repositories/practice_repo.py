@@ -187,6 +187,8 @@ async def create_evaluation(db: AsyncSession, data: EvaluationCreate) -> Evaluat
     submission = await get_submission(db, data.submission_id)
     if submission is None:
         raise ValueError("Submission not found")
+    if submission.user_id != data.user_id:
+        raise ValueError("Submission not found for user")
     practice_task_id = submission.practice_task_id
 
     task = await get_practice_task(db, practice_task_id)

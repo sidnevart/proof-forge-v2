@@ -107,6 +107,7 @@ class IdeSubmissionOut(BaseModel):
 
 class EvaluationCreate(BaseModel):
     submission_id: str
+    user_id: str
     score: float = Field(ge=0.0, le=1.0)
     status: Literal["passed", "needs_revision", "failed"]
     feedback_md: str
