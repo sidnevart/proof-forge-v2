@@ -4,9 +4,11 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Evaluation, IdeSession, IdeSubmission, PracticeTask, StudySession, Topic
+from app.models import Evaluation, FollowUp, IdeSession, IdeSubmission, PracticeTask, StudySession, Topic
 from app.schemas.practice import (
     EvaluationCreate,
+    FollowUpCreate,
+    FollowUpAnswer,
     IdeSessionCreate,
     IdeSubmissionCreate,
     PracticeTaskCreate,
@@ -160,8 +162,33 @@ async def create_submission(db: AsyncSession, data: IdeSubmissionCreate) -> IdeS
     return submission
 
 
+async def complete_study_session(db: AsyncSession, session_id: str) -> StudySession | None:
+    session = await get_study_session(db, session_id)
+    if not session:
+        return None
+    session.status = "completed"
+    session.completed_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
+async def list_session_tasks(db: AsyncSession, session_id: str) -> list[PracticeTask]:
+    result = await db.execute(
+        select(PracticeTask)
+        .where(PracticeTask.study_session_id == session_id)
+        .order_by(PracticeTask.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
 async def get_submission(db: AsyncSession, submission_id: str) -> IdeSubmission | None:
     result = await db.execute(select(IdeSubmission).where(IdeSubmission.id == submission_id))
+    return result.scalar_one_or_none()
+
+
+async def get_evaluation(db: AsyncSession, evaluation_id: str) -> Evaluation | None:
+    result = await db.execute(select(Evaluation).where(Evaluation.id == evaluation_id))
     return result.scalar_one_or_none()
 
 
@@ -222,3 +249,39 @@ async def create_evaluation(db: AsyncSession, data: EvaluationCreate) -> Evaluat
 
     await db.refresh(evaluation)
     return evaluation
+
+
+async def create_follow_up(db: AsyncSession, data: FollowUpCreate) -> FollowUp:
+    follow_up = FollowUp(
+        evaluation_id=data.evaluation_id,
+        question=data.question,
+        expected_answer=data.expected_answer,
+    )
+    db.add(follow_up)
+    await db.commit()
+    await db.refresh(follow_up)
+    return follow_up
+
+
+async def get_follow_up(db: AsyncSession, follow_up_id: str) -> FollowUp | None:
+    result = await db.execute(select(FollowUp).where(FollowUp.id == follow_up_id))
+    return result.scalar_one_or_none()
+
+
+async def list_follow_ups_by_evaluation(db: AsyncSession, evaluation_id: str) -> list[FollowUp]:
+    result = await db.execute(
+        select(FollowUp).where(FollowUp.evaluation_id == evaluation_id).order_by(FollowUp.id)
+    )
+    return list(result.scalars().all())
+
+
+async def answer_follow_up(db: AsyncSession, follow_up_id: str, data: FollowUpAnswer) -> FollowUp:
+    follow_up = await get_follow_up(db, follow_up_id)
+    if follow_up is None:
+        raise ValueError("Follow-up not found")
+    follow_up.user_answer = data.user_answer
+    follow_up.score = data.score
+    follow_up.feedback_md = data.feedback_md
+    await db.commit()
+    await db.refresh(follow_up)
+    return follow_up

@@ -76,7 +76,7 @@ class IdeSessionOut(BaseModel):
 
 
 class IdeSubmissionCreate(BaseModel):
-    practice_task_id: str
+    practice_task_id: str | None = None
     user_id: str
     ide_session_id: str | None = None
     files: list[dict[str, Any]] = Field(default_factory=list)
@@ -126,5 +126,29 @@ class EvaluationOut(BaseModel):
     weak_spots: list[dict[str, Any]]
     next_action: str
     created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class FollowUpCreate(BaseModel):
+    evaluation_id: str
+    question: str
+    expected_answer: str = ""
+
+
+class FollowUpAnswer(BaseModel):
+    user_answer: str
+    score: float = Field(ge=0.0, le=1.0)
+    feedback_md: str = ""
+
+
+class FollowUpOut(BaseModel):
+    id: str
+    evaluation_id: str
+    question: str
+    expected_answer: str
+    user_answer: str
+    score: float | None
+    feedback_md: str
 
     model_config = {"from_attributes": True}
