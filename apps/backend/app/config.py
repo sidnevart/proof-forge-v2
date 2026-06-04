@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_base_url: str = "https://api.together.xyz/v1"
     llm_model: str = "meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo"
+    llm_cost_per_1k_tokens: float = 0.001  # USD per 1K tokens (GLM-4-flash ≈ $0.001/1K)
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

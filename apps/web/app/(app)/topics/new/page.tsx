@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getStoredUser } from '@/lib/auth'
 import { topics } from '@/lib/api'
+import { track } from '@/lib/analytics'
 
 const ACCEPT = '.md,.py,.java,.csv,.txt,.js,.ts,.go,.rs,.c,.cpp,.h,.json,.yaml,.yml,.toml,.sh,.sql,.rb,.php,.kt,.pdf'
 
@@ -129,6 +130,10 @@ export default function NewTopicPage() {
     setSubmitting(true)
     setError('')
     setSubmitStep(0)
+    track({
+      name: 'topic_creation_started',
+      props: { has_materials: totalMaterials > 0, file_count: pending.files.length, link_count: pending.links.length },
+    })
 
     try {
       // Step 1 — create topic

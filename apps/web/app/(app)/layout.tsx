@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { AppSidebar, AppBottomNav } from '@/components/AppNav'
 import { getStoredUser, type AuthUser } from '@/lib/auth'
+import { track } from '@/lib/analytics'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [checked, setChecked] = useState(false)
 
@@ -19,6 +21,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     setChecked(true)
   }, [router])
+
+  useEffect(() => {
+    if (checked && user) {
+      track({ name: 'page_view', props: { path: pathname } })
+    }
+  }, [pathname, checked, user])
 
   if (!checked || !user) {
     return (

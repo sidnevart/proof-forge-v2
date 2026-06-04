@@ -18,7 +18,7 @@ async def health():
     return {"status": "ok"}
 
 
-from app.routers import users, events, topics, capsules, reviews, agent_context, cards, mastery, auth, analytics
+from app.routers import users, events, topics, capsules, reviews, agent_context, cards, mastery, auth, analytics, metrics
 
 app.include_router(users.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
@@ -30,3 +30,4 @@ app.include_router(cards.router, prefix="/api")
 app.include_router(mastery.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
+app.include_router(metrics.router, prefix="/api")

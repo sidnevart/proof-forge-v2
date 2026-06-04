@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { use } from 'react'
 import { capsules, type Capsule, type CapsuleFeedback } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
+import { track } from '@/lib/analytics'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Skeleton, SkeletonText } from '@/components/ui/Skeleton'
@@ -25,12 +26,14 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
     ]).then(([c, f]) => {
       setCapsule(c)
       setFeedback(f)
+      track({ name: 'capsule_viewed', props: { capsule_id: id } })
     }).catch(console.error).finally(() => setLoading(false))
   }, [id])
 
   const requestFeedback = async () => {
     if (!user) return
     setLoadingFeedback(true)
+    track({ name: 'ai_feedback_clicked', props: { capsule_id: id } })
     try {
       const f = await capsules.requestFeedback(id)
       setFeedback(f)

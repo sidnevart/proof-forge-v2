@@ -6,6 +6,7 @@ from app.database import get_db
 from app.repositories import user_repo, auth_repo
 from app.services import jwt as jwt_service, email as email_service
 from app.schemas.auth import SendLinkRequest, SendLinkResponse, VerifyRequest, VerifyResponse, MeResponse
+from app.models.learning_event import LearningEvent
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -25,7 +26,14 @@ async def verify_magic_link(data: VerifyRequest, db: AsyncSession = Depends(get_
     if not email:
         raise HTTPException(status_code=401, detail="Ссылка недействительна или уже использована")
 
-    user = await user_repo.find_or_create(db, email)
+    is_new, user = await user_repo.find_or_create_with_flag(db, email)
+    db.add(LearningEvent(
+        user_id=user.id,
+        event_type="user_login",
+        payload={"email": email, "first_login": is_new},
+    ))
+    await db.commit()
+
     access_token = jwt_service.create_access_token(user.id, user.email)
     return VerifyResponse(
         access_token=access_token,

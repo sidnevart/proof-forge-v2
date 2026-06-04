@@ -20,6 +20,22 @@ async def find_or_create(db: AsyncSession, email: str, display_name: str = "") -
     return user
 
 
+async def find_or_create_with_flag(db: AsyncSession, email: str, display_name: str = "") -> tuple[bool, User]:
+    """Returns (is_new, user). is_new=True means first login ever."""
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if user:
+        return False, user
+    user = User(email=email, display_name=display_name or email.split("@")[0])
+    db.add(user)
+    await db.flush()
+    profile = LearnerProfile(user_id=user.id, known_topics=[], weak_spots=[], skill_level="beginner")
+    db.add(profile)
+    await db.commit()
+    await db.refresh(user)
+    return True, user
+
+
 async def create_user(db: AsyncSession, data: UserCreate) -> User:
     user = User(email=data.email, display_name=data.display_name)
     db.add(user)

@@ -15,6 +15,7 @@ from app.models.web_event import WebEvent
 from app.models.capsule_feedback import CapsuleFeedback
 from app.models.user_streak import UserStreak, CardSession
 from app.models.topic_material import TopicMaterial
+from app.models.llm_usage_log import LlmUsageLog
 
 __all__ = [
     "User", "LearnerProfile", "Topic", "Capsule",
@@ -22,5 +23,5 @@ __all__ = [
     "LearningEvent", "CodeArtifact", "AgentContextExport",
     "ReviewCard", "ConceptMastery",
     "AuthToken", "WebEvent", "CapsuleFeedback", "UserStreak", "CardSession",
-    "TopicMaterial",
+    "TopicMaterial", "LlmUsageLog",
 ]

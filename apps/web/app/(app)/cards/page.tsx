@@ -7,6 +7,7 @@ import { FlipCard } from '@/components/FlipCard'
 import { StreakCounter } from '@/components/StreakCounter'
 import { Skeleton } from '@/components/ui/Skeleton'
 import Link from 'next/link'
+import { track } from '@/lib/analytics'
 
 type SessionStats = { reviewed: number; again: number; hard: number; good: number; easy: number }
 
@@ -30,7 +31,11 @@ export default function CardsPage() {
       ])
       setQueue(due)
       setStreak(stats.streak)
-      if (due.length === 0) setDone(true)
+      if (due.length === 0) {
+        setDone(true)
+      } else {
+        track({ name: 'card_session_start', props: { due_count: due.length } })
+      }
     } catch (e) {
       console.error(e)
     } finally {
@@ -48,6 +53,7 @@ export default function CardsPage() {
       await cards.attempt(card.card_id, user.user_id, ratingVal)
       const key = ratingVal === 1 ? 'again' : ratingVal === 2 ? 'hard' : ratingVal === 3 ? 'good' : 'easy'
       setSession((s) => ({ ...s, reviewed: s.reviewed + 1, [key]: s[key] + 1 }))
+      track({ name: 'card_rated', props: { rating: ratingVal, topic: card.topic_name } })
 
       if (current + 1 >= queue.length) {
         setDone(true)
@@ -71,7 +77,13 @@ export default function CardsPage() {
     </div>
   )
 
-  if (done) return <DoneScreen session={session} streak={streak} onRestart={() => { setDone(false); setCurrent(0); loadCards() }} />
+  if (done) {
+    if (session.reviewed > 0) {
+      const pctGood = Math.round(((session.good + session.easy) / session.reviewed) * 100)
+      track({ name: 'card_session_end', props: { reviewed: session.reviewed, good_pct: pctGood, streak } })
+    }
+    return <DoneScreen session={session} streak={streak} onRestart={() => { setDone(false); setCurrent(0); loadCards() }} />
+  }
 
   const card = queue[current]
   if (!card) return null

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { auth } from '@/lib/api'
 import { isLoggedIn } from '@/lib/auth'
+import { track } from '@/lib/analytics'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -22,9 +23,11 @@ export default function LoginPage() {
     if (!email.trim()) return
     setLoading(true)
     setError('')
+    track({ name: 'login_attempt' })
     try {
       await auth.sendLink(email.trim(), name.trim())
       setSent(true)
+      track({ name: 'magic_link_sent' })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка отправки')
     } finally {

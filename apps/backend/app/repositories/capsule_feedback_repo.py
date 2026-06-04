@@ -1,8 +1,11 @@
+import time as _time
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.capsule_feedback import CapsuleFeedback
 from app.models import Capsule, WeakSpot, ReviewAttempt, ReviewQuestion
+from app.models.llm_usage_log import LlmUsageLog
+from app.models.learning_event import LearningEvent
 
 
 async def get_latest_feedback(db: AsyncSession, capsule_id: str) -> CapsuleFeedback | None:
@@ -68,6 +71,7 @@ async def generate_and_store_feedback(db: AsyncSession, capsule_id: str) -> Caps
 
 Будь конкретным и мотивирующим. Не более 350 слов."""
 
+    t0 = _time.monotonic()
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post(
             f"{settings.llm_base_url}/chat/completions",
@@ -83,8 +87,13 @@ async def generate_and_store_feedback(db: AsyncSession, capsule_id: str) -> Caps
             },
         )
         response.raise_for_status()
-        data = response.json()
-        suggestions_md = data["choices"][0]["message"]["content"]
+        resp_data = response.json()
+        suggestions_md = resp_data["choices"][0]["message"]["content"]
+
+    latency_ms = int((_time.monotonic() - t0) * 1000)
+    usage = resp_data.get("usage", {})
+    total_tokens = usage.get("total_tokens", usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0))
+    cost_usd = total_tokens * settings.llm_cost_per_1k_tokens / 1000
 
     feedback = CapsuleFeedback(
         capsule_id=capsule_id,
@@ -93,6 +102,27 @@ async def generate_and_store_feedback(db: AsyncSession, capsule_id: str) -> Caps
         model_version=settings.llm_model,
     )
     db.add(feedback)
+
+    db.add(LlmUsageLog(
+        user_id=capsule.user_id,
+        call_type="feedback",
+        topic_id=capsule.topic_id,
+        capsule_id=capsule_id,
+        model=settings.llm_model,
+        prompt_tokens=usage.get("prompt_tokens", 0),
+        completion_tokens=usage.get("completion_tokens", 0),
+        total_tokens=total_tokens,
+        cost_usd=cost_usd,
+        latency_ms=latency_ms,
+        status="success",
+    ))
+
+    db.add(LearningEvent(
+        user_id=capsule.user_id,
+        event_type="ai_feedback_generated",
+        payload={"capsule_id": capsule_id, "total_tokens": total_tokens, "cost_usd": round(cost_usd, 6)},
+    ))
+
     await db.commit()
     await db.refresh(feedback)
     return feedback

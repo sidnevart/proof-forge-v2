@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { getStoredUser } from '@/lib/auth'
 import { topics, type Topic, type TopicMaterial } from '@/lib/api'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { track } from '@/lib/analytics'
 
 const ACCEPT = '.md,.py,.java,.csv,.txt,.js,.ts,.go,.rs,.c,.cpp,.h,.json,.yaml,.yml,.toml,.sh,.sql,.rb,.php,.kt,.pdf'
 
@@ -105,6 +106,7 @@ export default function TopicPage() {
     setGenerating(true)
     setGenError('')
     setGenStep(0)
+    track({ name: 'capsule_generation_started', props: { material_count: materials.length } })
     const stepInterval = setInterval(() => {
       setGenStep((s) => (s < 3 ? (s + 1) as GeneratingStep : 3))
     }, 3000)

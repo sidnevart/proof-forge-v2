@@ -1,5 +1,6 @@
 import json
 import re
+import time as _time
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -12,6 +13,8 @@ from app.repositories import topic_repo, capsule_repo
 from app.schemas.topic import TopicStart, TopicOut
 from app.schemas.capsule import CapsuleCreate, CapsuleOut, ReviewQuestionIn, ReviewQuestionOut
 from app.models.topic_material import TopicMaterial
+from app.models.learning_event import LearningEvent
+from app.models.llm_usage_log import LlmUsageLog
 
 router = APIRouter(tags=["topics"])
 
@@ -20,7 +23,13 @@ router = APIRouter(tags=["topics"])
 
 @router.post("/topics/start", response_model=TopicOut, status_code=201)
 async def start_topic(data: TopicStart, db: AsyncSession = Depends(get_db)):
-    return await topic_repo.start_topic(db, data)
+    topic = await topic_repo.start_topic(db, data)
+    db.add(LearningEvent(
+        user_id=data.user_id, event_type="topic_created",
+        payload={"topic_id": topic.id, "name": data.name},
+    ))
+    await db.commit()
+    return topic
 
 
 @router.get("/topics")
@@ -120,6 +129,10 @@ async def upload_material_file(
         file_size=len(data),
     )
     db.add(material)
+    db.add(LearningEvent(
+        user_id=user_id, event_type="material_uploaded",
+        payload={"type": "file", "topic_id": topic_id, "name": file.filename, "size": len(data)},
+    ))
     await db.commit()
     await db.refresh(material)
     return MaterialOut.from_orm(material)
@@ -144,6 +157,10 @@ async def add_material_link(
         content_text=content_text,
     )
     db.add(material)
+    db.add(LearningEvent(
+        user_id=data.user_id, event_type="material_uploaded",
+        payload={"type": "link", "topic_id": topic_id, "url": data.url},
+    ))
     await db.commit()
     await db.refresh(material)
     return MaterialOut.from_orm(material)
@@ -207,7 +224,11 @@ def _split_chunks(text: str, size: int) -> list[str]:
     return chunks
 
 
-async def _llm_call(client: httpx.AsyncClient, settings, prompt: str, max_tokens: int = 1200) -> str:
+async def _llm_call(
+    client: httpx.AsyncClient, settings, prompt: str, max_tokens: int = 1200
+) -> tuple[str, dict]:
+    """Returns (content, usage_dict). usage_dict has prompt_tokens, completion_tokens, total_tokens."""
+    t0 = _time.monotonic()
     response = await client.post(
         f"{settings.llm_base_url}/chat/completions",
         headers={"Authorization": f"Bearer {settings.llm_api_key}", "Content-Type": "application/json"},
@@ -219,27 +240,38 @@ async def _llm_call(client: httpx.AsyncClient, settings, prompt: str, max_tokens
         },
     )
     response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
+    latency_ms = int((_time.monotonic() - t0) * 1000)
+    data = response.json()
+    usage = data.get("usage", {})
+    prompt_tokens = usage.get("prompt_tokens", 0)
+    completion_tokens = usage.get("completion_tokens", 0)
+    total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
+    return data["choices"][0]["message"]["content"], {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+        "latency_ms": latency_ms,
+    }
 
 
 async def _extract_concepts_from_chunk(
     client: httpx.AsyncClient, settings, topic_name: str, material_name: str, chunk: str
-) -> str:
-    """Map phase: extract key concepts from one chunk of material."""
+) -> tuple[str, dict]:
+    """Map phase: returns (concepts_text, usage_dict)."""
     prompt = f"""Из фрагмента материала «{material_name}» (тема: «{topic_name}») извлеки ключевые концепции, определения и важные факты.
 
 Фрагмент:
 {chunk}
 
 Ответь кратким структурированным списком — только суть, без воды. Без JSON, просто текст."""
-    result = await _llm_call(client, settings, prompt, max_tokens=800)
-    return f"[Источник: {material_name}]\n{result}"
+    content, usage = await _llm_call(client, settings, prompt, max_tokens=800)
+    return f"[Источник: {material_name}]\n{content}", usage
 
 
 async def _generate_single_pass(
     client: httpx.AsyncClient, settings, topic_name: str, materials_block: str
-) -> dict:
-    """Direct generation when total material fits in one call."""
+) -> tuple[dict, dict]:
+    """Returns (parsed_capsule, usage_dict)."""
     prompt = f"""Ты — эксперт-преподаватель для IT-специалистов. На основе материалов создай обучающую капсулу по теме «{topic_name}».
 
 ## Материалы
@@ -263,24 +295,28 @@ async def _generate_single_pass(
   ]
 }}
 
-- Основывайся на материалах. Язык: русский (термины на языке оригинала). 6 вопросов разной сложности."""
-    raw = await _llm_call(client, settings, prompt, max_tokens=4000)
-    return _extract_json(raw)
+Основывайся на материалах. Язык: русский (термины на языке оригинала). 6 вопросов разной сложности."""
+    raw, usage = await _llm_call(client, settings, prompt, max_tokens=4000)
+    return _extract_json(raw), usage
 
 
 async def _generate_chunked(
     client: httpx.AsyncClient, settings, topic_name: str, materials: list
-) -> dict:
-    """Map-reduce generation for large materials (no context limits)."""
+) -> tuple[dict, dict]:
+    """Map-reduce generation for large materials. Returns (parsed_capsule, aggregated_usage)."""
+    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "latency_ms": 0}
+
     # MAP: extract concepts from each chunk
     extracts: list[str] = []
     for material in materials:
         chunks = _split_chunks(material.content_text, _CHUNK_SIZE)
         for chunk in chunks:
-            extract = await _extract_concepts_from_chunk(
+            extract, usage = await _extract_concepts_from_chunk(
                 client, settings, topic_name, material.name, chunk
             )
             extracts.append(extract)
+            for k in ("prompt_tokens", "completion_tokens", "total_tokens", "latency_ms"):
+                total_usage[k] += usage.get(k, 0)
 
     # REDUCE: synthesize capsule from all extracted concepts
     combined = "\n\n---\n\n".join(extracts)
@@ -308,8 +344,10 @@ async def _generate_chunked(
 }}
 
 Язык: русский (термины на языке оригинала). 6 вопросов разной сложности."""
-    raw = await _llm_call(client, settings, prompt, max_tokens=4000)
-    return _extract_json(raw)
+    raw, reduce_usage = await _llm_call(client, settings, prompt, max_tokens=4000)
+    for k in ("prompt_tokens", "completion_tokens", "total_tokens", "latency_ms"):
+        total_usage[k] += reduce_usage.get(k, 0)
+    return _extract_json(raw), total_usage
 
 
 @router.post("/topics/{topic_id}/capsule/generate", response_model=GenerateTopicOut, status_code=201)
@@ -344,24 +382,27 @@ async def generate_capsule_from_materials(
     est_chunks = max(1, total_chars // _CHUNK_SIZE)
     timeout = 90 + est_chunks * 30  # ~30s per chunk + base
 
+    usage: dict = {}
+    t0 = _time.monotonic()
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
             if use_chunked:
-                parsed = await _generate_chunked(client, settings, topic.name, list(materials))
+                parsed, usage = await _generate_chunked(client, settings, topic.name, list(materials))
             else:
                 materials_block = "\n\n---\n\n".join(
                     f"### Материал: {m.name}\n\n{m.content_text}"
                     for m in materials
                 )
-                parsed = await _generate_single_pass(client, settings, topic.name, materials_block)
+                parsed, usage = await _generate_single_pass(client, settings, topic.name, materials_block)
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Ошибка генерации: {e}")
 
-    try:
-        if "content_md" not in parsed:
-            raise ValueError("missing content_md")
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"LLM вернул невалидный JSON: {e}")
+    if "content_md" not in parsed:
+        raise HTTPException(status_code=502, detail="LLM вернул невалидный JSON: missing content_md")
+
+    total_latency_ms = int((_time.monotonic() - t0) * 1000)
+    total_tokens = usage.get("total_tokens", 0)
+    cost_usd = total_tokens * settings.llm_cost_per_1k_tokens / 1000
 
     questions = [ReviewQuestionIn(**q) for q in parsed.get("review_questions", [])]
     capsule_data = CapsuleCreate(
@@ -373,6 +414,37 @@ async def generate_capsule_from_materials(
     )
     capsule = await capsule_repo.store_capsule(db, capsule_data)
     capsule_questions = await capsule_repo.get_capsule_questions(db, capsule.id)
+
+    # Log LLM usage
+    db.add(LlmUsageLog(
+        user_id=data.user_id,
+        call_type="capsule_gen",
+        topic_id=topic_id,
+        capsule_id=capsule.id,
+        model=settings.llm_model,
+        prompt_tokens=usage.get("prompt_tokens", 0),
+        completion_tokens=usage.get("completion_tokens", 0),
+        total_tokens=total_tokens,
+        cost_usd=cost_usd,
+        latency_ms=total_latency_ms,
+        status="success",
+    ))
+
+    # Log business event
+    db.add(LearningEvent(
+        user_id=data.user_id,
+        event_type="capsule_generated",
+        payload={
+            "topic_id": topic_id,
+            "capsule_id": capsule.id,
+            "total_tokens": total_tokens,
+            "cost_usd": round(cost_usd, 6),
+            "latency_ms": total_latency_ms,
+            "chunked": use_chunked,
+            "material_count": len(materials),
+        },
+    ))
+    await db.commit()
 
     capsule_out = CapsuleOut.model_validate(capsule)
     capsule_out.review_questions = [ReviewQuestionOut.model_validate(q) for q in capsule_questions]
