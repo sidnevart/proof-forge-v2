@@ -58,6 +58,11 @@ async def test_study_session_task_submission_evaluation_round_trip(db):
         ),
     )
 
+    active_tasks = await practice_repo.list_active_tasks(db, user.id)
+
+    assert task.status == "submitted"
+    assert active_tasks[0].id == task.id
+
     evaluation = await practice_repo.create_evaluation(
         db,
         EvaluationCreate(
@@ -71,10 +76,10 @@ async def test_study_session_task_submission_evaluation_round_trip(db):
         ),
     )
 
-    active_tasks = await practice_repo.list_active_tasks(db, user.id)
+    completed_task = await practice_repo.get_practice_task(db, task.id)
 
     assert session.status == "active"
-    assert task.status == "submitted"
     assert submission.exit_code == 0
     assert evaluation.status == "passed"
-    assert active_tasks[0].id == task.id
+    assert completed_task is not None
+    assert completed_task.status == "completed"
