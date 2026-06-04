@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Evaluation, IdeSession, IdeSubmission, PracticeTask, StudySession
+from app.models import Evaluation, IdeSession, IdeSubmission, PracticeTask, StudySession, Topic
 from app.schemas.practice import (
     EvaluationCreate,
     IdeSessionCreate,
@@ -14,6 +15,16 @@ from app.schemas.practice import (
 
 
 async def create_study_session(db: AsyncSession, data: StudySessionCreate) -> StudySession:
+    result = await db.execute(
+        select(Topic).where(
+            Topic.id == data.topic_id,
+            Topic.user_id == data.user_id,
+        )
+    )
+    topic = result.scalar_one_or_none()
+    if topic is None:
+        raise ValueError("Topic not found for user")
+
     session = StudySession(
         user_id=data.user_id,
         topic_id=data.topic_id,
@@ -163,12 +174,22 @@ async def get_evaluation_by_submission(
     return result.scalar_one_or_none()
 
 
+def apply_evaluation_data(evaluation: Evaluation, data: EvaluationCreate) -> None:
+    evaluation.score = data.score
+    evaluation.status = data.status
+    evaluation.feedback_md = data.feedback_md
+    evaluation.concept_scores = data.concept_scores
+    evaluation.weak_spots = data.weak_spots
+    evaluation.next_action = data.next_action
+
+
 async def create_evaluation(db: AsyncSession, data: EvaluationCreate) -> Evaluation:
     submission = await get_submission(db, data.submission_id)
     if submission is None:
         raise ValueError("Submission not found")
+    practice_task_id = submission.practice_task_id
 
-    task = await get_practice_task(db, submission.practice_task_id)
+    task = await get_practice_task(db, practice_task_id)
     if task is None:
         raise ValueError("Practice task not found")
 
@@ -177,14 +198,25 @@ async def create_evaluation(db: AsyncSession, data: EvaluationCreate) -> Evaluat
         evaluation = Evaluation(submission_id=data.submission_id)
         db.add(evaluation)
 
-    evaluation.score = data.score
-    evaluation.status = data.status
-    evaluation.feedback_md = data.feedback_md
-    evaluation.concept_scores = data.concept_scores
-    evaluation.weak_spots = data.weak_spots
-    evaluation.next_action = data.next_action
+    apply_evaluation_data(evaluation, data)
     task.status = "completed" if data.status == "passed" else "needs_revision"
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+
+        evaluation = await get_evaluation_by_submission(db, data.submission_id)
+        if evaluation is None:
+            raise
+
+        task = await get_practice_task(db, practice_task_id)
+        if task is None:
+            raise ValueError("Practice task not found")
+
+        apply_evaluation_data(evaluation, data)
+        task.status = "completed" if data.status == "passed" else "needs_revision"
+        await db.commit()
+
     await db.refresh(evaluation)
     return evaluation

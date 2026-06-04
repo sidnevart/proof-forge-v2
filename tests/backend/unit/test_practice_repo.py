@@ -1,6 +1,8 @@
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import select
 
+from app.models import Evaluation
 from app.repositories import practice_repo, topic_repo, user_repo
 from app.schemas.practice import (
     EvaluationCreate,
@@ -187,6 +189,25 @@ def test_invalid_evaluation_status_is_rejected_by_pydantic():
 
 
 @pytest.mark.asyncio
+async def test_cross_user_topic_session_creation_raises_value_error(db):
+    owner = await user_repo.create_user(
+        db, UserCreate(email="topic-owner@example.com", display_name="Topic Owner")
+    )
+    other_user = await user_repo.create_user(
+        db, UserCreate(email="topic-other@example.com", display_name="Topic Other")
+    )
+    topic = await topic_repo.start_topic(
+        db, TopicStart(user_id=owner.id, name="Owned Topic")
+    )
+
+    with pytest.raises(ValueError, match="Topic not found for user"):
+        await practice_repo.create_study_session(
+            db,
+            StudySessionCreate(user_id=other_user.id, topic_id=topic.id),
+        )
+
+
+@pytest.mark.asyncio
 async def test_mismatched_study_session_user_or_topic_raises_value_error(db):
     owner = await user_repo.create_user(
         db, UserCreate(email="session-owner@example.com", display_name="Session Owner")
@@ -347,8 +368,13 @@ async def test_duplicate_evaluation_reuses_id_and_updates_fields(db):
         ),
     )
     completed_task = await practice_repo.get_practice_task(db, task.id)
+    result = await db.execute(
+        select(Evaluation).where(Evaluation.submission_id == submission.id)
+    )
+    evaluations = list(result.scalars().all())
 
     assert second_evaluation.id == first_evaluation.id
+    assert len(evaluations) == 1
     assert second_evaluation.score == 0.9
     assert second_evaluation.status == "passed"
     assert second_evaluation.feedback_md == "Passed after revision."

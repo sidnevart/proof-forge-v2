@@ -87,8 +87,8 @@ def upgrade() -> None:
         sa.Column("weak_spots", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("next_action", sa.String(), nullable=False, server_default="revise"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.UniqueConstraint("submission_id", name="uq_evaluations_submission_id"),
     )
-    op.create_index("ix_evaluations_submission", "evaluations", ["submission_id"])
 
     op.create_table(
         "follow_ups",
@@ -105,7 +105,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_follow_ups_evaluation_id", table_name="follow_ups")
-    op.drop_index("ix_evaluations_submission", table_name="evaluations")
     op.drop_index("ix_ide_submissions_task", table_name="ide_submissions")
     op.drop_index("ix_ide_sessions_user_id", table_name="ide_sessions")
     op.drop_index("ix_practice_tasks_session", table_name="practice_tasks")
