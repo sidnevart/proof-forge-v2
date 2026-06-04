@@ -11,37 +11,37 @@ router = APIRouter(tags=["agent-context"])
 
 @router.get("/agent-context", response_model=AgentContextOut)
 async def get_agent_context(
-    userId: str = Query(...),
+    user_id: str = Query(..., alias="userId"),
     topic: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    profile = await user_repo.get_profile(db, userId)
+    profile = await user_repo.get_profile(db, user_id)
     profile_dict = {
         "known_topics": profile.known_topics if profile else [],
         "weak_spots": profile.weak_spots if profile else [],
         "skill_level": profile.skill_level if profile else "unknown",
     }
 
-    capsules = await capsule_repo.get_user_capsules(db, userId)
+    capsules = await capsule_repo.get_user_capsules(db, user_id)
     capsules_list = [
         {"id": c.id, "topic_id": c.topic_id, "summary": c.summary, "created_at": c.created_at.isoformat()}
         for c in capsules[:5]
     ]
 
-    weak_spots = await capsule_repo.get_user_weak_spots(db, userId)
+    weak_spots = await capsule_repo.get_user_weak_spots(db, user_id)
     spots_list = [
         {"concept": ws.concept, "severity": ws.severity, "topic_id": ws.topic_id}
         for ws in weak_spots[:10]
     ]
 
-    events = await event_repo.get_recent_events(db, userId)
+    events = await event_repo.get_recent_events(db, user_id)
     events_list = [
         {"event_type": e.event_type, "payload": e.payload, "occurred_at": e.occurred_at.isoformat()}
         for e in events
     ]
 
     return AgentContextOut(
-        user_id=userId,
+        user_id=user_id,
         topic=topic,
         profile=profile_dict,
         capsules=capsules_list,

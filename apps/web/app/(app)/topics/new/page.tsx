@@ -418,10 +418,10 @@ function SubmittingScreen({ step, name, total }: { step: number; name: string; t
         <div className="w-14 h-14 rounded-2xl bg-accentsoft flex items-center justify-center mx-auto mb-5">
           <div className="w-7 h-7 rounded-full border-2 border-accentdk border-t-accent animate-spin" />
         </div>
-        <h2 className="font-display text-xl font-bold text-ink mb-1">Создаём тему</h2>
+        <h2 className="font-display text-xl font-bold text-ink mb-1">Запускаем обучение</h2>
         <p className="text-mute text-sm mb-6 font-mono truncate">«{name}»</p>
         <div className="space-y-1.5 text-left">
-          {STEPS.slice(0, total > 0 ? 3 : 1).map((s, i) => {
+          {STEPS.slice(0, total > 0 ? 5 : 1).map((s, i) => {
             const done = i < step
             const active = i === step
             return (
