@@ -405,7 +405,93 @@ tailwind.config = { theme: { extend: {
     </div>
   </div>
 
-  <p class="text-center text-xs text-mute mt-5 font-mono" data-en="Pre-recorded interface preview — your real sessions live inside Claude.">Превью интерфейса — настоящие сессии идут внутри Claude.</p>
+  <p class="text-center text-xs text-mute mt-5 font-mono" data-en="Interface preview — use Grasp in browser or inside Claude.">Превью интерфейса — используй Grasp в браузере или внутри Claude.</p>
+</section>
+
+<!-- TWO PATHS -->
+<section id="start" class="max-w-6xl mx-auto px-5 py-24">
+  <div class="font-mono text-xs text-accent tracking-widest mb-3">06 — <span data-en="GET STARTED">КАК НАЧАТЬ</span></div>
+  <h2 class="font-display text-4xl sm:text-5xl font-bold mb-3 max-w-xl" data-en="Two ways to use Grasp">Два способа использовать Grasp</h2>
+  <p class="text-mute max-w-md mb-12" data-en="Web app works right now in your browser. Claude plugin adds full AI-agent power.">Веб-приложение работает прямо сейчас в браузере. Плагин для Claude — полная мощь AI-агента.</p>
+
+  <div class="grid md:grid-cols-2 gap-5">
+    <!-- Web App -->
+    <div class="card rounded-3xl p-8 flex flex-col" style="border-color:rgba(61,220,145,.35);background:linear-gradient(135deg,rgba(61,220,145,.06) 0%,transparent 60%)">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-xl bg-accentsoft flex items-center justify-center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18"/><circle cx="7.5" cy="6" r=".5" fill="rgb(var(--accent))"/><circle cx="10" cy="6" r=".5" fill="rgb(var(--accent))"/></svg>
+        </div>
+        <div>
+          <div class="inline-flex items-center gap-1.5 text-[11px] font-mono text-accent bg-accentsoft px-2 py-0.5 rounded-full mb-0.5" data-en="RECOMMENDED">РЕКОМЕНДУЕМ</div>
+          <div class="font-display text-xl font-bold" data-en="Web Platform">Веб-платформа</div>
+        </div>
+      </div>
+
+      <ul class="space-y-2.5 mb-7 flex-1">
+        <li class="flex items-start gap-2.5 text-sm text-mute">
+          <svg class="mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span data-en="Works in any browser — desktop and mobile">Работает в любом браузере — десктоп и телефон</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm text-mute">
+          <svg class="mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span data-en="No install — sign in with email in 30 seconds">Без установки — войди через email за 30 сек</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm text-mute">
+          <svg class="mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span data-en="AI generates a capsule from any topic in ~30 sec">AI создаёт капсулу из любой темы за ~30 сек</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm text-mute">
+          <svg class="mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span data-en="Spaced repetition, streak tracking, progress">Spaced repetition, стрик, прогресс по концептам</span>
+        </li>
+      </ul>
+
+      <a href="https://app.proof-forge.ru/login" data-track="start_webapp"
+        class="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition">
+        <span data-en="Open Grasp →">Открыть Grasp →</span>
+      </a>
+      <p class="text-center text-xs text-mute/60 mt-3" data-en="Free. No setup.">Бесплатно. Без настройки.</p>
+    </div>
+
+    <!-- Claude Plugin -->
+    <div class="card rounded-3xl p-8 flex flex-col">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-xl bg-card border border-line flex items-center justify-center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--mute))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <div>
+          <div class="inline-flex items-center gap-1.5 text-[11px] font-mono text-mute bg-sand px-2 py-0.5 rounded-full mb-0.5" data-en="POWER USERS">ДЛЯ ПРОДВИНУТЫХ</div>
+          <div class="font-display text-xl font-bold" data-en="Claude Plugin">Плагин для Claude</div>
+        </div>
+      </div>
+
+      <ul class="space-y-2.5 mb-7 flex-1">
+        <li class="flex items-start gap-2.5 text-sm text-mute">
+          <svg class="mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--mute))" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span data-en="Full AI agent: read codebase, docs, YouTube">Полный AI-агент: читает кодовую базу, доки, YouTube</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm text-mute">
+          <svg class="mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--mute))" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span data-en="Deep context: studies your specific codebase">Глубокий контекст: изучает твою кодовую базу</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm text-mute">
+          <svg class="mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--mute))" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span data-en="Claude Desktop + MCP integration">Claude Desktop + MCP интеграция</span>
+        </li>
+        <li class="flex items-start gap-2.5 text-sm text-mute">
+          <svg class="mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--mute))" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span data-en="Progress syncs to web app automatically">Прогресс синхронизируется в веб-приложении</span>
+        </li>
+      </ul>
+
+      <a href="https://github.com/sidnevart/proof-forge-v2" target="_blank" rel="noopener noreferrer" data-track="start_plugin"
+        class="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl border border-line bg-card text-ink font-semibold btn-press hover:border-mute transition">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        <span data-en="Install plugin (GitHub)">Установить плагин (GitHub)</span>
+      </a>
+      <p class="text-center text-xs text-mute/60 mt-3" data-en="Requires Claude Desktop (free)">Требует Claude Desktop (бесплатно)</p>
+    </div>
+  </div>
 </section>
 
 <!-- HOW -->
@@ -612,7 +698,7 @@ document.querySelectorAll('.progbar').forEach(b=>progIO.observe(b));
   track('page_view',{lang:document.documentElement.lang,theme:document.documentElement.dataset.theme});
 
   // section visibility tracking
-  const sectionNames={play:'demo',how:'how_it_works',start:'install'};
+  const sectionNames={play:'demo',how:'how_it_works',start:'get_started'};
   const secIO=new IntersectionObserver(es=>es.forEach(e=>{
     if(e.isIntersecting)track('section_view',{section:sectionNames[e.target.id]||e.target.id});
   }),{threshold:.3});

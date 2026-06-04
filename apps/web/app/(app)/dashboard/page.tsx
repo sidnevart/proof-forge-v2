@@ -142,14 +142,64 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — clear onboarding for new users */}
       {!loading && !ctx?.capsules?.length && (
-        <div className="surface rounded-2xl p-10 text-center">
-          <div className="text-4xl mb-4">⚗️</div>
-          <h3 className="font-display text-xl font-bold text-ink mb-2">Лаборатория пуста</h3>
-          <p className="text-mute text-sm max-w-xs mx-auto">
-            Начни обучение в Claude с Grasp-плагином, и твои первые капсулы появятся здесь.
-          </p>
+        <div className="space-y-3">
+          {/* Primary CTA — create first capsule */}
+          <Link
+            href="/topics/new"
+            className="flex items-start gap-4 w-full surface surface-hover rounded-2xl p-6 group border border-accent/20 bg-accentsoft/30"
+          >
+            <div className="w-12 h-12 rounded-xl bg-accentsoft border border-accent/30 flex items-center justify-center text-accent shrink-0">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+              </svg>
+            </div>
+            <div className="flex-1 text-left">
+              <div className="text-xs font-mono text-accent mb-1">Начать здесь</div>
+              <div className="font-semibold text-ink">Создать первую капсулу</div>
+              <div className="text-sm text-mute mt-0.5">Введи тему — AI напишет теорию и карточки за 30 сек</div>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent shrink-0 mt-1 group-hover:translate-x-0.5 transition-transform">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </Link>
+
+          {/* Secondary — Claude plugin */}
+          <div className="surface rounded-2xl p-5">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-card border border-line flex items-center justify-center shrink-0 mt-0.5">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--mute))" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-5"/></svg>
+              </div>
+              <div>
+                <div className="font-medium text-ink text-sm">Используешь Claude Desktop?</div>
+                <div className="text-sm text-mute mt-0.5">
+                  Установи Grasp-плагин — учись прямо в Claude с доступом к кодовой базе, YouTube и документации.
+                </div>
+                <a
+                  href="https://github.com/sidnevart/proof-forge-v2"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-accent hover:text-accentdk transition-colors mt-2 font-mono"
+                >
+                  Установить плагин →
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating action — always visible if has content */}
+      {!loading && (ctx?.capsules?.length ?? 0) > 0 && (
+        <div className="mt-8 pt-6 border-t border-line">
+          <Link
+            href="/topics/new"
+            className="flex items-center gap-2 text-sm text-mute hover:text-accent transition-colors font-mono"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Изучить новую тему
+          </Link>
         </div>
       )}
     </div>

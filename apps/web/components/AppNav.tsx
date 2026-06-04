@@ -59,8 +59,21 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
         </Link>
       </div>
 
+      {/* New Topic CTA */}
+      <div className="px-3 pt-4 pb-2">
+        <Link
+          href="/topics/new"
+          className="flex items-center gap-2 w-full px-3 py-2.5 rounded-xl bg-accent text-[#06140d] font-semibold text-sm hover:bg-accentdk transition-colors"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Новая тема
+        </Link>
+      </div>
+
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-2 space-y-1">
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + '/')
           return (
@@ -110,9 +123,7 @@ export function AppBottomNav() {
               key={item.href}
               href={item.href}
               className={`flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl transition-all ${
-                active
-                  ? 'text-accent'
-                  : 'text-mute hover:text-ink'
+                active ? 'text-accent' : 'text-mute hover:text-ink'
               }`}
             >
               {item.icon}
@@ -120,6 +131,18 @@ export function AppBottomNav() {
             </Link>
           )
         })}
+        {/* New Topic — center action */}
+        <Link
+          href="/topics/new"
+          className="flex flex-col items-center gap-1 px-4 py-1.5"
+        >
+          <div className="w-8 h-8 rounded-xl bg-accent flex items-center justify-center text-[#06140d]">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </div>
+          <span className="text-[10px] font-medium text-accent">Учиться</span>
+        </Link>
       </div>
     </nav>
   )

@@ -107,11 +107,22 @@ export type Topic = {
   started_at: string
 }
 
+export type GeneratedTopic = {
+  topic_id: string
+  capsule_id: string
+  capsule: Capsule
+}
+
 export const topics = {
   start: (userId: string, name: string) =>
     req<Topic>('/api/topics/start', {
       method: 'POST',
       body: JSON.stringify({ user_id: userId, name }),
+    }),
+  generateWeb: (userId: string, topic: string, description?: string) =>
+    req<GeneratedTopic>('/api/topics/generate-web', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, topic, description: description ?? '' }),
     }),
 }
 
