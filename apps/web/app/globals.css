@@ -1,0 +1,193 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+/* ── DESIGN TOKENS (raw RGB channels — matches landing) ── */
+:root, [data-theme="dark"] {
+  --paper: 19 18 16;
+  --card: 28 26 21;
+  --sand: 34 31 24;
+  --ink: 239 233 218;
+  --mute: 150 143 127;
+  --line: 44 41 33;
+  --accent: 61 220 145;
+  --accentdk: 43 185 120;
+  --accentsoft: 24 46 35;
+  --code: 13 12 9;
+  --codeline: 42 40 33;
+  --sel-bg: 61 220 145;
+  --sel-fg: 13 12 9;
+  --danger: 220 80 80;
+  --warn: 220 170 60;
+  --info: 80 160 220;
+  --noise-op: 0.04;
+}
+
+[data-theme="light"] {
+  --paper: 245 241 232;
+  --card: 255 253 248;
+  --sand: 239 233 219;
+  --ink: 27 26 22;
+  --mute: 111 105 92;
+  --line: 230 223 208;
+  --accent: 15 122 82;
+  --accentdk: 11 94 63;
+  --accentsoft: 231 240 234;
+  --code: 28 27 22;
+  --codeline: 51 49 42;
+  --sel-bg: 15 122 82;
+  --sel-fg: 245 241 232;
+  --noise-op: 0.025;
+}
+
+/* ── BASE ── */
+html { scroll-behavior: smooth; }
+
+body {
+  background: rgb(var(--paper));
+  color: rgb(var(--ink));
+  font-family: 'Manrope', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: var(--noise-op);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+::selection { background: rgb(var(--sel-bg)); color: rgb(var(--sel-fg)); }
+
+/* ── TAILWIND THEME EXTENSION ── */
+@theme {
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Manrope', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-paper: rgb(var(--paper));
+  --color-card: rgb(var(--card));
+  --color-sand: rgb(var(--sand));
+  --color-ink: rgb(var(--ink));
+  --color-mute: rgb(var(--mute));
+  --color-line: rgb(var(--line));
+  --color-accent: rgb(var(--accent));
+  --color-accentdk: rgb(var(--accentdk));
+  --color-accentsoft: rgb(var(--accentsoft));
+  --color-danger: rgb(var(--danger));
+  --color-warn: rgb(var(--warn));
+  --color-info: rgb(var(--info));
+}
+
+/* ── COMPONENT CLASSES ── */
+.surface {
+  background: rgb(var(--card));
+  border: 1px solid rgb(var(--line));
+  transition: border-color 0.2s;
+}
+.surface-hover:hover { border-color: rgb(var(--accent) / 0.4); }
+
+.btn-press:active { transform: translateY(1px); }
+
+/* ── MASTERY LEVEL COLORS ── */
+.mastery-unknown   { color: rgb(var(--mute)); }
+.mastery-recognize { color: #f5c542; }
+.mastery-apply     { color: rgb(var(--accent)); }
+.mastery-explain   { color: #60a5fa; }
+
+.badge-unknown   { background: rgb(var(--sand)); border-color: rgb(var(--line)); color: rgb(var(--mute)); }
+.badge-recognize { background: rgb(245 197 66 / 0.12); border-color: rgb(245 197 66 / 0.35); color: #f5c542; }
+.badge-apply     { background: rgb(var(--accentsoft)); border-color: rgb(var(--accent) / 0.35); color: rgb(var(--accent)); }
+.badge-explain   { background: rgb(96 165 250 / 0.12); border-color: rgb(96 165 250 / 0.35); color: #60a5fa; }
+
+/* ── FLIP CARD ── */
+.flip-container { perspective: 1200px; }
+.flip-inner {
+  transition: transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transform-style: preserve-3d;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.flip-container.flipped .flip-inner { transform: rotateY(180deg); }
+.flip-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  position: absolute;
+  inset: 0;
+}
+.flip-back { transform: rotateY(180deg); }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 6px; }
+
+/* ── CODE SURFACE ── */
+.code-surface {
+  background: rgb(var(--code));
+  border: 1px solid rgb(var(--codeline));
+  color: #e9e5d8;
+}
+
+/* ── PROGRESS BAR ANIMATION ── */
+.prog-fill { transition: width 1s cubic-bezier(0.2, 0.7, 0.2, 1); }
+
+/* ── SKELETON ── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--card)) 25%,
+    rgb(var(--sand)) 50%,
+    rgb(var(--card)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* ── RATING BUTTONS ── */
+.rating-btn {
+  flex: 1;
+  padding: 0.65rem 0.4rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.78rem;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  cursor: pointer;
+  text-align: center;
+}
+.rating-btn:active { transform: scale(0.97); }
+.rating-1 { background: rgb(220 60 60 / 0.12); color: #e05050; border-color: rgb(220 60 60 / 0.25); }
+.rating-1:hover { background: rgb(220 60 60 / 0.22); }
+.rating-2 { background: rgb(220 160 50 / 0.12); color: #dca030; border-color: rgb(220 160 50 / 0.25); }
+.rating-2:hover { background: rgb(220 160 50 / 0.22); }
+.rating-3 { background: rgb(var(--accentsoft)); color: rgb(var(--accent)); border-color: rgb(var(--accent) / 0.3); }
+.rating-3:hover { background: rgb(var(--accent) / 0.18); }
+.rating-4 { background: rgb(80 150 220 / 0.12); color: #5096dc; border-color: rgb(80 150 220 / 0.25); }
+.rating-4:hover { background: rgb(80 150 220 / 0.22); }
+
+/* ── NAV ITEM ── */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: rgb(var(--mute));
+  transition: all 0.15s;
+  text-decoration: none;
+}
+.nav-item:hover { color: rgb(var(--ink)); background: rgb(var(--sand)); }
+.nav-item.active { color: rgb(var(--accent)); background: rgb(var(--accentsoft)); }

@@ -1,0 +1,57 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            APP_DIR=/opt/proof-forge
+
+            echo "==> Pulling latest code..."
+            cd $APP_DIR
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> Writing .env..."
+            cat > $APP_DIR/.env << 'ENVEOF'
+            ${{ secrets.ENV_PROD }}
+            ENVEOF
+
+            echo "==> Building and restarting services..."
+            docker compose -f docker-compose.prod.yml build --parallel
+            docker compose -f docker-compose.prod.yml up -d
+
+            echo "==> Waiting for backend..."
+            for i in $(seq 1 20); do
+              if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+                echo "Backend healthy"
+                break
+              fi
+              echo "Waiting... ($i/20)"
+              sleep 3
+            done
+
+            echo "==> Health check..."
+            curl -sf http://localhost:8000/health | grep -q '"ok"'
+            curl -sf http://localhost:3000 > /dev/null
+
+            echo "==> Deploy complete!"
+            docker compose -f docker-compose.prod.yml ps
