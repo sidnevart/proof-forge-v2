@@ -20,6 +20,19 @@ export function activate(ctx: vscode.ExtensionContext) {
       }
     })
   );
+  ctx.subscriptions.push(
+    vscode.window.registerUriHandler({
+      handleUri(uri: vscode.Uri) {
+        if (uri.path === '/auth') {
+          const token = new URLSearchParams(uri.query).get('token');
+          if (token) {
+            vscode.commands.executeCommand('workbench.view.extension.grasp-container');
+            provider.postMessage({ type: 'auth_token', token });
+          }
+        }
+      }
+    })
+  );
 }
 
 export function deactivate() {}

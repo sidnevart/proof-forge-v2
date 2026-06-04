@@ -11,6 +11,7 @@ function VerifyContent() {
   const router = useRouter()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
+  const [accessToken, setAccessToken] = useState('')
 
   useEffect(() => {
     const token = params.get('token')
@@ -27,8 +28,9 @@ function VerifyContent() {
           email: data.email,
           display_name: data.display_name,
         })
+        setAccessToken(data.access_token)
         setStatus('success')
-        setTimeout(() => router.replace('/dashboard'), 1200)
+        setTimeout(() => router.replace('/dashboard'), 3000)
       })
       .catch((err) => {
         setStatus('error')
@@ -55,7 +57,18 @@ function VerifyContent() {
           </svg>
         </div>
         <h2 className="font-display text-2xl font-bold text-ink mb-2">Добро пожаловать!</h2>
-        <p className="text-mute">Переходим на главную...</p>
+        <p className="text-mute mb-6">Переходим на главную...</p>
+        {accessToken && (
+          <a
+            href={`vscode://grasp.grasp-learning/auth?token=${accessToken}`}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-sm text-mute hover:text-ink hover:border-accent/40 transition-colors font-mono"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9l6 6M15 9l-6 6"/>
+            </svg>
+            Открыть в VS Code →
+          </a>
+        )}
       </div>
     )
   }

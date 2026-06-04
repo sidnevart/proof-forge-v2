@@ -4,23 +4,10 @@ import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getStoredUser } from '@/lib/auth'
-import { topics } from '@/lib/api'
+import { topics, practice } from '@/lib/api'
 import { track } from '@/lib/analytics'
 
 const ACCEPT = '.md,.py,.java,.csv,.txt,.js,.ts,.go,.rs,.c,.cpp,.h,.json,.yaml,.yml,.toml,.sh,.sql,.rb,.php,.kt,.pdf'
-
-const SUGGESTIONS = [
-  'Go горутины и каналы',
-  'Docker и контейнеризация',
-  'Kubernetes основы',
-  'System Design: распределённые системы',
-  'SQL оптимизация запросов',
-  'React хуки и жизненный цикл',
-  'gRPC vs REST',
-  'CAP-теорема',
-  'Kafka: устройство и паттерны',
-  'PostgreSQL индексы',
-]
 
 // ── File type metadata ──────────────────────────────────────────────────────
 const FILE_TYPES: Record<string, { color: string; bg: string; label: string }> = {
@@ -61,7 +48,7 @@ const STEPS = [
   'Загружаем файлы',
   'Сохраняем ссылки',
   'Читаем материалы',
-  'Финальная сборка',
+  'Запускаем обучение',
 ]
 
 // ── Main page ────────────────────────────────────────────────────────────────
@@ -150,9 +137,11 @@ export default function NewTopicPage() {
       for (const pl of pending.links) {
         await topics.addLink(topic.id, user.user_id, pl.url)
       }
-      setSubmitStep(3)
+      setSubmitStep(4)
 
-      router.push(`/topics/${topic.id}`)
+      // Step 5 — start study session immediately
+      const result = await practice.startSession(user.user_id, topic.id)
+      router.push(`/study/${result.session.id}`)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Ошибка создания темы')
       setSubmitting(false)
@@ -190,19 +179,6 @@ export default function NewTopicPage() {
             className="w-full px-4 py-3.5 rounded-xl border border-line bg-card text-ink placeholder:text-mute/40 focus:outline-none focus:border-accent/60 transition-colors text-base font-medium"
           />
 
-          {/* Quick suggestions */}
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {SUGGESTIONS.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setName(s)}
-                className="px-2.5 py-1 rounded-lg border border-line text-xs text-mute hover:text-ink hover:border-accent/40 transition-colors"
-              >
-                {s}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* ── Materials zone ───────────────────────────────────────────────── */}

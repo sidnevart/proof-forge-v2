@@ -286,6 +286,8 @@ export const practice = {
       method: 'POST',
       body: JSON.stringify({ user_id: userId, topic_id: topicId }),
     }),
+  listSessions: (userId: string) =>
+    req<StudySession[]>(`/api/study-sessions?user_id=${userId}`),
   getSession: (sessionId: string) =>
     req<StudySession>(`/api/study-sessions/${sessionId}`),
   listActiveTasks: (userId: string) =>
@@ -304,6 +306,54 @@ export const practice = {
       method: 'POST',
       body: JSON.stringify({ user_answer: userAnswer, score, feedback_md: feedback ?? '' }),
     }),
+}
+
+// ── Chat ──
+export type ChatSession = {
+  id: string
+  user_id: string
+  topic_id: string
+  study_session_id: string | null
+  title: string
+  status: string
+  created_at: string
+}
+
+export type ChatMessage = {
+  id: string
+  session_id: string
+  role: string
+  content: string
+  created_at: string
+}
+
+export const chat = {
+  send: (
+    userId: string,
+    message: string,
+    history: { role: string; content: string }[],
+    topicId?: string,
+  ) =>
+    req<{ message: string }>('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, message, history, topic_id: topicId }),
+    }),
+  createSession: (userId: string, topicId: string, title: string, studySessionId?: string) =>
+    req<ChatSession>('/api/chat/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, topic_id: topicId, title, study_session_id: studySessionId }),
+    }),
+  listSessions: (userId: string) =>
+    req<ChatSession[]>(`/api/chat/sessions?user_id=${userId}`),
+  getSession: (sessionId: string) =>
+    req<ChatSession>(`/api/chat/sessions/${sessionId}`),
+  createMessage: (sessionId: string, role: string, content: string) =>
+    req<ChatMessage>(`/api/chat/sessions/${sessionId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ role, content }),
+    }),
+  listMessages: (sessionId: string) =>
+    req<ChatMessage[]>(`/api/chat/sessions/${sessionId}/messages`),
 }
 
 // ── Analytics ──

@@ -21,6 +21,7 @@ from app.models.practice_task import PracticeTask
 from app.models.ide_session import IdeSession
 from app.models.ide_submission import IdeSubmission
 from app.models.evaluation import Evaluation, FollowUp
+from app.models.chat_session import ChatSession, ChatMessage
 
 __all__ = [
     "User", "LearnerProfile", "Topic", "Capsule",
@@ -30,4 +31,5 @@ __all__ = [
     "AuthToken", "WebEvent", "CapsuleFeedback", "UserStreak", "CardSession",
     "TopicMaterial", "LlmUsageLog",
     "StudySession", "PracticeTask", "IdeSession", "IdeSubmission", "Evaluation", "FollowUp",
+    "ChatSession", "ChatMessage",
 ]

@@ -6,7 +6,7 @@ app = FastAPI(title="Grasp API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://localhost:3000", "https://proof-forge.ru"],
+    allow_origins=[settings.frontend_url, "http://localhost:3000", "https://proof-forge.ru", "https://app.proof-forge.ru"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -18,7 +18,7 @@ async def health():
     return {"status": "ok"}
 
 
-from app.routers import users, events, topics, capsules, reviews, agent_context, cards, mastery, auth, analytics, metrics, practice
+from app.routers import users, events, topics, capsules, reviews, agent_context, cards, mastery, auth, analytics, metrics, practice, chat
 
 app.include_router(users.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
@@ -32,3 +32,4 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(practice.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")

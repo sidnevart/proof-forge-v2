@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { auth } from '@/lib/api'
-import { isLoggedIn } from '@/lib/auth'
+import { isLoggedIn, saveSession } from '@/lib/auth'
 import { track } from '@/lib/analytics'
 
 export default function LoginPage() {
@@ -16,6 +16,21 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isLoggedIn()) router.replace('/dashboard')
+  }, [router])
+
+  // Handle VS Code auth token injected via postMessage
+  useEffect(() => {
+    const handleMessage = async (e: MessageEvent) => {
+      if (e.data?.type !== 'auth_token' || !e.data.token) return
+      try {
+        localStorage.setItem('grasp_token', e.data.token)
+        const user = await auth.me()
+        saveSession(e.data.token, { user_id: user.user_id, email: user.email, display_name: user.display_name })
+        router.replace('/dashboard')
+      } catch {}
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
   }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {

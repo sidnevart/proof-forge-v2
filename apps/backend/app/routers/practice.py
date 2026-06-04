@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.config import settings as app_settings
+from app.models.topic_material import TopicMaterial
 from app.repositories import practice_repo, topic_repo
 from app.schemas.practice import (
     EvaluationCreate,
@@ -18,7 +21,7 @@ from app.schemas.practice import (
 )
 from app.schemas.capsule import CapsuleOut
 from app.services.practice_evaluation import evaluate_submission, finalize_evaluation_mastery
-from app.services.practice_generation import build_study_session, build_study_tasks
+from app.services.practice_generation import build_study_session, build_study_tasks, generate_study_content
 from app.services.study_completion import forge_capsule_from_session
 
 router = APIRouter(tags=["practice"])
@@ -30,15 +33,49 @@ async def create_study_session(data: dict, db: AsyncSession = Depends(get_db)):
     if not topic or topic.user_id != data["user_id"]:
         raise HTTPException(status_code=404, detail="Topic not found")
 
-    session = await practice_repo.create_study_session(db, build_study_session(topic))
-    tasks = []
-    for task_data in build_study_tasks(session.id, topic):
-        task = await practice_repo.create_practice_task(db, task_data)
-        tasks.append(PracticeTaskOut.model_validate(task))
+    # Load materials for AI generation
+    result = await db.execute(
+        select(TopicMaterial)
+        .where(TopicMaterial.topic_id == topic.id)
+        .order_by(TopicMaterial.created_at.asc())
+    )
+    materials = result.scalars().all()
+    materials_list = [
+        {"name": m.name, "type": m.type, "content_text": m.content_text}
+        for m in materials
+    ]
+
+    # Try AI generation; fallback to templates
+    generated = await generate_study_content(app_settings, topic, materials_list)
+    if generated:
+        session_data, task_list = generated
+        session = await practice_repo.create_study_session(db, session_data)
+        tasks = []
+        for t in task_list:
+            t.study_session_id = session.id
+            task = await practice_repo.create_practice_task(db, t)
+            tasks.append(PracticeTaskOut.model_validate(task))
+    else:
+        session = await practice_repo.create_study_session(db, build_study_session(topic))
+        tasks = []
+        for task_data in build_study_tasks(session.id, topic):
+            task = await practice_repo.create_practice_task(db, task_data)
+            tasks.append(PracticeTaskOut.model_validate(task))
+
     return {
         "session": StudySessionOut.model_validate(session),
         "tasks": tasks,
     }
+
+
+@router.get("/study-sessions", response_model=list[StudySessionOut])
+async def list_study_sessions(user_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(practice_repo.StudySession)
+        .where(practice_repo.StudySession.user_id == user_id)
+        .order_by(practice_repo.StudySession.created_at.desc())
+    )
+    return result.scalars().all()
 
 
 @router.get("/study-sessions/{session_id}", response_model=StudySessionOut)

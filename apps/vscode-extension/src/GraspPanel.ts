@@ -46,6 +46,11 @@ export class GraspPanel implements vscode.WebviewViewProvider {
       }
     });
     frame.onload = () => window.parent.postMessage({ type: 'ready' }, '*');
+    window.addEventListener('message', e => {
+      if (e.data?.type === 'auth_token') {
+        frame.contentWindow?.postMessage({ type: 'auth_token', token: e.data.token }, '${APP_URL}');
+      }
+    });
   </script>
 </body>
 </html>`;

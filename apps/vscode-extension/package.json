@@ -2,13 +2,13 @@
   "name": "grasp-learning",
   "displayName": "Grasp — AI Learning",
   "description": "AI-ментор для разработчиков прямо в редакторе",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "grasp",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/sidnevart/proof-forge-v2" },
   "engines": { "vscode": "^1.80.0" },
   "categories": ["Education", "Other"],
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": ["onStartupFinished", "onUri"],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
