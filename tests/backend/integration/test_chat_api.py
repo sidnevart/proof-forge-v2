@@ -1,6 +1,8 @@
+import httpx
 import pytest
 
 from app.repositories import practice_repo, topic_repo, user_repo
+from app.routers import chat as chat_router
 from app.routers.chat import _build_topic_context
 from app.schemas.practice import PracticeTaskCreate, StudySessionCreate
 from app.schemas.topic import TopicStart
@@ -16,6 +18,35 @@ async def test_chat_returns_clear_error_when_llm_is_not_configured(client):
 
     assert res.status_code == 503
     assert res.json()["detail"] == "LLM не настроен"
+
+
+@pytest.mark.asyncio
+async def test_chat_llm_timeout_returns_cors_error_response(client, monkeypatch):
+    class TimeoutClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, *args, **kwargs):
+            raise httpx.TimeoutException("timed out")
+
+    monkeypatch.setattr(chat_router.app_settings, "llm_api_key", "test-key")
+    monkeypatch.setattr(chat_router.httpx, "AsyncClient", TimeoutClient)
+
+    res = await client.post(
+        "/api/chat",
+        headers={"Origin": "https://app.proof-forge.ru"},
+        json={"user_id": "timeout-user", "message": "Привет", "history": []},
+    )
+
+    assert res.status_code == 504
+    assert res.headers["access-control-allow-origin"] == "https://app.proof-forge.ru"
+    assert "LLM timeout" in res.json()["detail"]
 
 
 @pytest.mark.asyncio

@@ -287,13 +287,7 @@ export default function StudySessionPage() {
                 placeholder="Спроси ментора..."
                 rows={1}
                 disabled={sending || !chatSession}
-                className="flex-1 resize-none px-3 py-2.5 rounded-xl border border-line bg-card text-ink placeholder:text-mute/50 focus:outline-none focus:border-accent/60 transition-colors text-sm disabled:opacity-50"
-                style={{ maxHeight: '100px', overflowY: 'auto' }}
-                onInput={(e) => {
-                  const el = e.currentTarget
-                  el.style.height = 'auto'
-                  el.style.height = Math.min(el.scrollHeight, 100) + 'px'
-                }}
+                className="flex-1 h-9 resize-none overflow-hidden px-3 py-2 rounded-xl border border-line bg-card text-ink placeholder:text-mute/50 focus:outline-none focus:border-accent/60 transition-colors text-sm leading-5 disabled:opacity-50"
               />
               <button
                 onClick={sendMessage}
@@ -311,71 +305,52 @@ export default function StudySessionPage() {
 
         {/* Right panel: conspect + tasks */}
         <div className={`w-full md:w-[380px] lg:w-[420px] shrink-0 flex flex-col min-h-0 bg-sand/20 border-l border-line ${activeTab !== 'conspect' && activeTab !== 'tasks' ? 'hidden md:flex' : ''}`}>
-          <div className="flex border-b border-line bg-paper">
-            <button
-              onClick={() => setActiveTab('conspect')}
-              className={`flex-1 py-2.5 text-xs font-medium transition-colors md:border-b-0 ${activeTab === 'conspect' ? 'text-accent border-b-2 border-accent bg-accentsoft/20 md:bg-transparent md:border-b-0' : 'text-mute'}`}
-            >
-              Конспект
-            </button>
-            <button
-              onClick={() => setActiveTab('tasks')}
-              className={`flex-1 py-2.5 text-xs font-medium transition-colors md:border-b-0 ${activeTab === 'tasks' ? 'text-accent border-b-2 border-accent bg-accentsoft/20 md:bg-transparent md:border-b-0' : 'text-mute'}`}
-            >
-              Задания ({tasks.length})
-            </button>
-          </div>
-
           <div className="flex-1 overflow-y-auto">
-            {activeTab === 'conspect' || (typeof window !== 'undefined' && window.innerWidth >= 768) ? (
-              <div className="p-4">
-                <div className="prose-grasp text-sm">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{session.conspect_md}</ReactMarkdown>
-                </div>
+            <div className={`p-4 ${activeTab === 'tasks' ? 'hidden md:block' : 'block'}`}>
+              <div className="prose-grasp text-sm">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{session.conspect_md}</ReactMarkdown>
               </div>
-            ) : null}
+            </div>
 
-            {activeTab === 'tasks' || (typeof window !== 'undefined' && window.innerWidth >= 768) ? (
-              <div className="p-4 space-y-2">
-                {tasks.length === 0 && (
-                  <p className="text-xs text-mute text-center py-8">Задания загружаются...</p>
-                )}
-                {tasks.map((task) => (
-                  <Link
-                    key={task.id}
-                    href={`/practice/${task.id}`}
-                    className="surface surface-hover rounded-xl p-3.5 block text-sm"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="text-[10px] font-mono text-accent uppercase tracking-wide">{task.type}</div>
-                        <div className="font-semibold text-ink mt-0.5">{task.title}</div>
-                        <div className="text-xs text-mute mt-1 line-clamp-2">{task.instructions_md.slice(0, 120)}...</div>
-                      </div>
-                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 ${
-                        task.status === 'completed'
-                          ? 'bg-accent/10 text-accent'
-                          : task.status === 'submitted'
-                          ? 'bg-sand text-mute'
-                          : 'bg-card border border-line text-mute'
-                      }`}>
-                        {task.status}
-                      </span>
+            <div className={`p-4 space-y-2 ${activeTab === 'conspect' ? 'hidden md:block' : 'block'}`}>
+              {tasks.length === 0 && (
+                <p className="text-xs text-mute text-center py-8">Задания загружаются...</p>
+              )}
+              {tasks.map((task) => (
+                <Link
+                  key={task.id}
+                  href={`/practice/${task.id}`}
+                  className="surface surface-hover rounded-xl p-3.5 block text-sm"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-[10px] font-mono text-accent uppercase tracking-wide">{task.type}</div>
+                      <div className="font-semibold text-ink mt-0.5">{task.title}</div>
+                      <div className="text-xs text-mute mt-1 line-clamp-2">{task.instructions_md.slice(0, 120)}...</div>
                     </div>
-                  </Link>
-                ))}
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 ${
+                      task.status === 'completed'
+                        ? 'bg-accent/10 text-accent'
+                        : task.status === 'submitted'
+                        ? 'bg-sand text-mute'
+                        : 'bg-card border border-line text-mute'
+                    }`}>
+                      {task.status}
+                    </span>
+                  </div>
+                </Link>
+              ))}
 
-                {allTasksCompleted && (
-                  <button
-                    onClick={handleComplete}
-                    disabled={completing}
-                    className="mt-4 w-full py-3 rounded-xl bg-accent text-[#06140d] font-semibold text-sm hover:bg-accentdk transition-colors disabled:opacity-50"
-                  >
-                    {completing ? 'Форжим капсулу...' : 'Завершить сессию и создать капсулу →'}
-                  </button>
-                )}
-              </div>
-            ) : null}
+              {allTasksCompleted && (
+                <button
+                  onClick={handleComplete}
+                  disabled={completing}
+                  className="mt-4 w-full py-3 rounded-xl bg-accent text-[#06140d] font-semibold text-sm hover:bg-accentdk transition-colors disabled:opacity-50"
+                >
+                  {completing ? 'Форжим капсулу...' : 'Завершить сессию и создать капсулу →'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -390,6 +365,9 @@ function getChatErrorMessage(err: unknown) {
   }
   if (message.includes('LLM error')) {
     return `AI недоступен: провайдер вернул ошибку. ${message}`
+  }
+  if (message.includes('LLM timeout')) {
+    return 'AI недоступен: провайдер не ответил за 45 секунд. Попробуй еще раз или проверь LLM-провайдера.'
   }
   return `AI недоступен: ${message}`
 }

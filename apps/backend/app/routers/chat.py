@@ -156,26 +156,50 @@ async def chat(data: ChatRequest, db: AsyncSession = Depends(get_db)):
     messages = [{"role": m.role, "content": m.content} for m in data.history]
     messages.append({"role": "user", "content": data.message})
 
-    async with httpx.AsyncClient(timeout=120) as client:
-        resp = await client.post(
-            f"{app_settings.llm_base_url}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {app_settings.llm_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": app_settings.llm_model,
-                "messages": [{"role": "system", "content": system}] + messages,
-                "max_tokens": 2048,
-                "temperature": 0.7,
-            },
-        )
+    try:
+        async with httpx.AsyncClient(timeout=45) as client:
+            resp = await client.post(
+                f"{app_settings.llm_base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {app_settings.llm_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": app_settings.llm_model,
+                    "messages": [{"role": "system", "content": system}] + messages,
+                    "max_tokens": 2048,
+                    "temperature": 0.7,
+                },
+            )
+    except httpx.TimeoutException as exc:
+        raise HTTPException(
+            status_code=504,
+            detail="LLM timeout: провайдер не ответил за 45 секунд",
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"LLM request failed: {str(exc)[:160]}",
+        ) from exc
 
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail=f"LLM error: {resp.text[:200]}")
 
-    result = resp.json()
-    reply = result["choices"][0]["message"]["content"]
+    try:
+        result = resp.json()
+        reply = result["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="LLM error: провайдер вернул некорректный ответ",
+        ) from exc
+
+    if not isinstance(reply, str) or not reply.strip():
+        raise HTTPException(
+            status_code=502,
+            detail="LLM error: провайдер вернул пустой ответ",
+        )
+
     return ChatResponse(message=reply)
 
 

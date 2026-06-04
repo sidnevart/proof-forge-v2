@@ -185,13 +185,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
             placeholder="Спроси ментора..."
             rows={1}
             disabled={sending}
-            className="flex-1 resize-none px-4 py-3 rounded-xl border border-line bg-card text-ink placeholder:text-mute/50 focus:outline-none focus:border-accent/60 transition-colors text-sm disabled:opacity-50"
-            style={{ maxHeight: '120px', overflowY: 'auto' }}
-            onInput={(e) => {
-              const el = e.currentTarget
-              el.style.height = 'auto'
-              el.style.height = Math.min(el.scrollHeight, 120) + 'px'
-            }}
+            className="flex-1 h-10 resize-none overflow-hidden px-4 py-2.5 rounded-xl border border-line bg-card text-ink placeholder:text-mute/50 focus:outline-none focus:border-accent/60 transition-colors text-sm leading-5 disabled:opacity-50"
           />
           <button
             onClick={send}
@@ -216,6 +210,9 @@ function getChatErrorMessage(err: unknown) {
   }
   if (message.includes('LLM error')) {
     return `AI недоступен: провайдер вернул ошибку. ${message}`
+  }
+  if (message.includes('LLM timeout')) {
+    return 'AI недоступен: провайдер не ответил за 45 секунд. Попробуй еще раз или проверь LLM-провайдера.'
   }
   return `AI недоступен: ${message}`
 }

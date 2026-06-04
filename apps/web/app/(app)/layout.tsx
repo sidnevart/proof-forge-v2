@@ -28,6 +28,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [pathname, checked, user])
 
+  const fixedViewport =
+    pathname.startsWith('/study/') || pathname.startsWith('/learn/')
+
   if (!checked || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -39,7 +42,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <AppSidebar user={user} />
-      <main className="flex-1 min-w-0 pb-20 md:pb-0">
+      <main className={`flex-1 min-w-0 pb-20 md:pb-0 ${fixedViewport ? 'h-dvh overflow-hidden' : ''}`}>
         {children}
       </main>
       <AppBottomNav />
