@@ -1,0 +1,11 @@
+<idea-plugin>
+    <id>ru.proofforge.bridge</id>
+    <name>Proof Forge</name>
+    <vendor>Proof Forge</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Proof Forge" anchor="right" factoryClass="ru.proofforge.bridge.ProofForgeToolWindowFactory"/>
+    </extensions>
+</idea-plugin>
