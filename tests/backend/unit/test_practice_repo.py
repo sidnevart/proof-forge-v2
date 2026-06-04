@@ -316,6 +316,50 @@ async def test_create_evaluation_for_missing_submission_raises_value_error(db):
 
 
 @pytest.mark.asyncio
+async def test_create_evaluation_for_missing_practice_task_raises_value_error(db):
+    user = await user_repo.create_user(
+        db, UserCreate(email="missing-task@example.com", display_name="Missing Task")
+    )
+    topic = await topic_repo.start_topic(
+        db, TopicStart(user_id=user.id, name="Missing Task Topic")
+    )
+    session = await practice_repo.create_study_session(
+        db,
+        StudySessionCreate(user_id=user.id, topic_id=topic.id),
+    )
+    task = await practice_repo.create_practice_task(
+        db,
+        PracticeTaskCreate(
+            user_id=user.id,
+            topic_id=topic.id,
+            study_session_id=session.id,
+            type="exercise",
+            title="Deleted task",
+            instructions_md="The task row is deleted before evaluation.",
+        ),
+    )
+    submission = await practice_repo.create_submission(
+        db,
+        IdeSubmissionCreate(practice_task_id=task.id, user_id=user.id),
+    )
+
+    await db.delete(task)
+    await db.commit()
+
+    with pytest.raises(ValueError, match="Practice task not found"):
+        await practice_repo.create_evaluation(
+            db,
+            EvaluationCreate(
+                submission_id=submission.id,
+                score=0.5,
+                status="needs_revision",
+                feedback_md="Task row is missing.",
+                next_action="revise",
+            ),
+        )
+
+
+@pytest.mark.asyncio
 async def test_duplicate_evaluation_reuses_id_and_updates_fields(db):
     user = await user_repo.create_user(
         db, UserCreate(email="idempotent@example.com", display_name="Idempotent")
