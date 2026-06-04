@@ -242,6 +242,7 @@ tailwind.config = { theme: { extend: {
     <nav class="flex items-center gap-1 sm:gap-2 text-sm font-medium">
       <a href="#play" data-en="Demo" class="px-2 py-1.5 text-mute hover:text-ink transition hidden sm:block">Демо</a>
       <a href="#how" data-en="How it works" class="px-2 py-1.5 text-mute hover:text-ink transition hidden md:block">Как работает</a>
+      <a href="#why" data-en="Why" class="px-2 py-1.5 text-mute hover:text-ink transition hidden md:block">Зачем</a>
       <button id="theme" aria-label="theme" class="w-9 h-9 grid place-items-center rounded-lg border border-line text-mute hover:text-ink hover:border-mute transition btn-press">
         <svg class="ic-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/></svg>
         <svg class="ic-sun hidden" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
@@ -518,57 +519,6 @@ tailwind.config = { theme: { extend: {
   </div>
 </section>
 
-<!-- INSTALL -->
-<section id="start" class="max-w-5xl mx-auto px-5 py-24">
-  <div class="font-mono text-xs text-accent tracking-widest text-center">06 — <span data-en="GET STARTED">НАЧАТЬ</span></div>
-  <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 text-center" data-en="Two ways to start">Два способа начать</h2>
-  <p class="text-mute text-center mt-3 max-w-lg mx-auto" data-en="Use the web app right away, or connect Grasp to Claude Desktop for an even deeper experience.">Открой сразу в браузере или подключи Grasp к Claude Desktop для ещё более глубокого опыта.</p>
-
-  <div class="mt-12 grid sm:grid-cols-2 gap-6">
-    <!-- Web App -->
-    <div class="card rounded-2xl p-6 border-accent/30 relative overflow-hidden">
-      <div class="absolute top-4 right-4 text-[11px] font-mono text-accent bg-accentsoft px-2.5 py-1 rounded-full" data-en="Recommended">Рекомендуется</div>
-      <div class="text-3xl mb-4">🖥️</div>
-      <h3 class="font-display text-2xl font-bold" data-en="Web App">Веб-приложение</h3>
-      <p class="text-mute text-sm mt-2 mb-6 leading-relaxed" data-en="Sign in via email — no setup needed. Works on phone and desktop. Your progress is saved in the cloud.">Войди через email — ничего не настраивать. Работает на телефоне и компе. Прогресс хранится в облаке.</p>
-      <div class="space-y-2 text-sm mb-6">
-        <div class="flex items-center gap-2 text-mute"><span class="text-accent">✓</span> <span data-en="No installation">Без установки</span></div>
-        <div class="flex items-center gap-2 text-mute"><span class="text-accent">✓</span> <span data-en="Works on any device">Любое устройство</span></div>
-        <div class="flex items-center gap-2 text-mute"><span class="text-accent">✓</span> <span data-en="Flashcards, capsules, progress">Карточки, капсулы, прогресс</span></div>
-      </div>
-      <a href="https://app.proof-forge.ru/login" class="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition" data-en="Open Grasp →" data-track="install_webapp">
-        Открыть Grasp →
-      </a>
-    </div>
-
-    <!-- Claude Plugin -->
-    <div class="card rounded-2xl p-6">
-      <div class="text-3xl mb-4">⚡</div>
-      <h3 class="font-display text-2xl font-bold" data-en="Claude Plugin">Плагин Claude</h3>
-      <p class="text-mute text-sm mt-2 mb-6 leading-relaxed" data-en="Connect Grasp to Claude Desktop or Code for a fully conversational learning experience right in the chat.">Подключи Grasp к Claude Desktop или Code — полностью разговорное обучение прямо в чате.</p>
-
-      <div class="space-y-3">
-        <div class="card rounded-xl p-3.5">
-          <div class="flex items-center justify-between mb-2"><span class="font-mono text-xs text-mute" data-en="1 · install plugin">1 · поставь плагин</span>
-            <button class="copy font-mono text-xs text-mute hover:text-accent btn-press" data-copy='uv tool install "git+https://github.com/sidnevart/proof-forge-v2.git#subdirectory=apps/mcp-server"' data-en="copy">копировать</button></div>
-          <pre class="codecard rounded-lg p-3 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap">uv tool install "git+https://…/proof-forge-v2.git#subdirectory=apps/mcp-server"</pre>
-        </div>
-        <div class="card rounded-xl p-3.5">
-          <div class="flex items-center justify-between mb-2"><span class="font-mono text-xs text-mute" data-en="2 · Claude config">2 · конфиг Claude</span>
-            <button class="copy font-mono text-xs text-mute hover:text-accent btn-press" data-copy='{"mcpServers":{"grasp":{"command":"proof-forge-mcp","env":{"BACKEND_URL":"https://api.proof-forge.ru"}}}}' data-en="copy">копировать</button></div>
-          <pre class="codecard rounded-lg p-3 font-mono text-[11px] overflow-x-auto">{"mcpServers":{"grasp":{"command":"proof-forge-mcp"}}}</pre>
-        </div>
-        <div class="card rounded-xl p-3.5">
-          <div class="font-mono text-xs text-mute mb-2" data-en="3 · type in Claude">3 · напиши в Claude</div>
-          <pre class="codecard rounded-lg p-3 font-mono text-[13px] text-accent" data-en="help me learn Go interfaces">помоги изучить Go interfaces</pre>
-        </div>
-      </div>
-      <div class="mt-4 text-center">
-        <a href="https://github.com/sidnevart/proof-forge-v2#readme" class="text-sm text-accent hover:text-accentdk font-medium transition" data-en="Full guide →">Полная инструкция →</a>
-      </div>
-    </div>
-  </div>
-</section>
 
 <!-- CTA -->
 <section class="max-w-6xl mx-auto px-5 pb-24">
@@ -578,13 +528,11 @@ tailwind.config = { theme: { extend: {
     </h2>
     <p class="mt-5 max-w-md mx-auto text-base" style="color:rgba(238,244,240,.6)" data-en="Free to use. Open source. Start in 30 seconds.">Бесплатно. Открытый код. Начать за 30 секунд.</p>
     <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-      <a href="https://app.proof-forge.ru/login" class="inline-flex items-center gap-2 px-7 py-4 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition" data-en="Open Grasp →" data-track="cta_bottom_webapp">
+      <a href="https://app.proof-forge.ru/login" class="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition text-lg shadow-[0_14px_40px_-12px_rgba(61,220,145,.45)]" data-en="Open Grasp →" data-track="cta_bottom_webapp">
         Открыть Grasp →
       </a>
-      <a href="#start" class="inline-flex items-center gap-2 px-7 py-4 rounded-xl border border-white/15 text-white/70 font-semibold btn-press hover:border-white/30 hover:text-white transition" data-en="Claude Plugin">
-        Плагин Claude
-      </a>
     </div>
+    <p class="mt-4 text-sm" style="color:rgba(238,244,240,.4)" data-en="Free. No setup. Sign in with email.">Бесплатно. Без настройки. Войди через email.</p>
   </div>
 </section>
 
