@@ -29,7 +29,7 @@ jobs:
           cd apps/backend
           uv run pytest ../../tests/ -q --tb=short
         env:
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           APP_ENV: test
           JWT_SECRET: test-secret-key
           LLM_API_KEY: ""
