@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: proofforge_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    tmpfs: /var/lib/postgresql/data  # ephemeral — no volume needed for tests
+
+  mock-llm:
+    build:
+      context: ./tests/docker
+      dockerfile: Dockerfile.llm
+    ports:
+      - "127.0.0.1:8001:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./apps/backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/proofforge_test
+      APP_ENV: test
+      JWT_SECRET: test-secret-for-docker-integration
+      LLM_API_KEY: test-key
+      LLM_BASE_URL: http://mock-llm:8000/v1
+      LLM_MODEL: mock-model
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-llm:
+        condition: service_started
+    # Override command: install test deps (not in prod image), run migrations, start server
+    command: >
+      sh -c "
+        uv pip install --system -e '.[test]' &&
+        alembic upgrade head &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning
+      "

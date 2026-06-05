@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.repositories import user_repo, auth_repo
 from app.services import jwt as jwt_service, email as email_service
@@ -51,3 +52,30 @@ async def get_me(credentials: HTTPAuthorizationCredentials = Depends(bearer_sche
     if not payload:
         raise HTTPException(status_code=401, detail="Невалидный токен")
     return MeResponse(user_id=payload["sub"], email=payload["email"], display_name=payload.get("display_name", ""))
+
+
+@router.post("/dev-token", response_model=VerifyResponse)
+async def dev_token(data: SendLinkRequest, db: AsyncSession = Depends(get_db)):
+    """Create (or fetch) a user and return an access token directly — bypasses the
+    magic-link email flow. Available ONLY outside production, for E2E tests and local dev.
+    """
+    if settings.app_env == "production":
+        raise HTTPException(status_code=404, detail="Not found")
+
+    _, user = await user_repo.find_or_create_with_flag(db, data.email)
+    if data.display_name and not user.display_name:
+        user.display_name = data.display_name
+    db.add(LearningEvent(
+        user_id=user.id,
+        event_type="user_login",
+        payload={"email": data.email, "dev_token": True},
+    ))
+    await db.commit()
+
+    access_token = jwt_service.create_access_token(user.id, user.email)
+    return VerifyResponse(
+        access_token=access_token,
+        user_id=user.id,
+        email=user.email,
+        display_name=user.display_name,
+    )
