@@ -157,12 +157,14 @@ async def chat(data: ChatRequest, db: AsyncSession = Depends(get_db)):
     messages.append({"role": "user", "content": data.message})
 
     try:
-        async with httpx.AsyncClient(timeout=45) as client:
+        async with httpx.AsyncClient(timeout=90) as client:
             resp = await client.post(
                 f"{app_settings.llm_base_url}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {app_settings.llm_api_key}",
                     "Content-Type": "application/json",
+                    "HTTP-Referer": "https://proof-forge.ru",
+                    "X-Title": "Grasp",
                 },
                 json={
                     "model": app_settings.llm_model,

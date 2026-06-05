@@ -37,6 +37,8 @@ async def _llm_call(
         headers={
             "Authorization": f"Bearer {settings.llm_api_key}",
             "Content-Type": "application/json",
+            "HTTP-Referer": "https://proof-forge.ru",
+            "X-Title": "Grasp",
         },
         json={
             "model": settings.llm_model,
@@ -61,6 +63,8 @@ async def _llm_stream_tokens(
         headers={
             "Authorization": f"Bearer {settings.llm_api_key}",
             "Content-Type": "application/json",
+            "HTTP-Referer": "https://proof-forge.ru",
+            "X-Title": "Grasp",
         },
         json={
             "model": settings.llm_model,
@@ -80,7 +84,7 @@ async def _llm_stream_tokens(
             try:
                 data = json.loads(data_str)
                 delta = data["choices"][0]["delta"]
-                token = delta.get("content") or delta.get("reasoning") or ""
+                token = delta.get("content") or ""
                 if token:
                     yield token
             except (json.JSONDecodeError, KeyError, IndexError):
@@ -111,8 +115,8 @@ def _build_conspect_prompt(topic_name: str, materials: list[dict]) -> str:
 
 ---
 
-Напиши конспект в формате Markdown (500-800 слов).
-Структура: ## Обзор, ## Ключевые концепции (с пояснениями), ## Практическое применение
+Напиши конспект в формате Markdown (600-900 слов).
+Структура: ## Обзор, ## Ключевые концепции (с пояснениями и примерами кода/псевдокода где уместно), ## Практическое применение, ## Типичные ошибки
 Язык: русский (термины на языке оригинала).
 
 Начинай сразу с конспекта, без предисловий:"""
@@ -179,14 +183,14 @@ async def generate_tasks_from_conspect(
 
     prompt_tasks = _build_tasks_prompt(topic.name, conspect_md)
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=120.0) as client:
         raw = await _llm_call(
             client,
             settings,
             prompt_tasks,
             max_tokens=3000,
             temperature=0.1,
-            system="Ты ассистент, который всегда отвечает только валидным JSON. Никаких размышлений, никаких объяснений, никакого markdown. Только JSON.",
+            system="You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations.",
         )
         parsed = _extract_json(raw)
 

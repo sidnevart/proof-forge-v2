@@ -72,12 +72,14 @@ async def generate_and_store_feedback(db: AsyncSession, capsule_id: str) -> Caps
 Будь конкретным и мотивирующим. Не более 350 слов."""
 
     t0 = _time.monotonic()
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=90) as client:
         response = await client.post(
             f"{settings.llm_base_url}/chat/completions",
             headers={
                 "Authorization": f"Bearer {settings.llm_api_key}",
                 "Content-Type": "application/json",
+                "HTTP-Referer": "https://proof-forge.ru",
+                "X-Title": "Grasp",
             },
             json={
                 "model": settings.llm_model,

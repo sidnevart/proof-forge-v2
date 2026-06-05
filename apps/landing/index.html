@@ -117,7 +117,7 @@ tailwind.config = { theme: { extend: {
   /* bezel — the physical body */
   .bezel{position:relative;background:#0b0a09;
     box-shadow:0 50px 95px -45px rgba(0,0,0,.85), inset 0 0 0 1px rgba(255,255,255,.05)}
-  .device[data-mode="desktop"] .bezel{width:min(980px,100%);padding:15px 14px;border-radius:16px 16px 4px 4px}
+  .device[data-mode="desktop"] .bezel{width:min(980px,100%);max-width:100%;padding:15px 14px;border-radius:16px 16px 4px 4px}
   .device[data-mode="desktop"] .bezel::before{content:"";position:absolute;top:6px;left:50%;transform:translateX(-50%);
     width:6px;height:6px;border-radius:50%;background:#23211d;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
   .device[data-mode="mobile"] .bezel{width:386px;max-width:94vw;padding:13px;border-radius:60px;
@@ -126,7 +126,7 @@ tailwind.config = { theme: { extend: {
   /* screen */
   .screen{position:relative;overflow:hidden;background:rgb(var(--paper));transition:background .4s ease}
   .device[data-mode="desktop"] .screen{border-radius:5px;overflow:hidden}
-  .device[data-mode="desktop"] .screen-inner{width:960px;transform-origin:top left;will-change:transform}
+  .device[data-mode="desktop"] .screen-inner{width:960px;max-width:100%;transform-origin:top left;will-change:transform}
   .device[data-mode="mobile"] .screen{border-radius:46px}
 
   /* MacBook base */
@@ -414,7 +414,7 @@ tailwind.config = { theme: { extend: {
 
   <div class="grid md:grid-cols-2 gap-5">
     <!-- Web App -->
-    <div class="card rounded-3xl p-8 flex flex-col" style="border-color:rgba(61,220,145,.35);background:linear-gradient(135deg,rgba(61,220,145,.06) 0%,transparent 60%)">
+    <div class="card rounded-3xl p-5 sm:p-8 flex flex-col" style="border-color:rgba(61,220,145,.35);background:linear-gradient(135deg,rgba(61,220,145,.06) 0%,transparent 60%)">
       <div class="flex items-center gap-3 mb-5">
         <div class="w-10 h-10 rounded-xl bg-accentsoft flex items-center justify-center">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18"/><circle cx="7.5" cy="6" r=".5" fill="rgb(var(--accent))"/><circle cx="10" cy="6" r=".5" fill="rgb(var(--accent))"/></svg>
@@ -452,7 +452,7 @@ tailwind.config = { theme: { extend: {
     </div>
 
     <!-- Claude Plugin -->
-    <div class="card rounded-3xl p-8 flex flex-col">
+    <div class="card rounded-3xl p-5 sm:p-8 flex flex-col min-w-0">
       <div class="flex items-center gap-3 mb-5">
         <div class="w-10 h-10 rounded-xl bg-card border border-line flex items-center justify-center">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--mute))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
@@ -482,7 +482,7 @@ tailwind.config = { theme: { extend: {
         </li>
       </ul>
 
-      <div class="codecard rounded-xl p-4 mt-4">
+      <div class="codecard rounded-xl p-4 mt-4 min-w-0 overflow-hidden">
         <div class="flex justify-between items-center mb-2">
           <span class="text-mute text-xs font-mono">claude_desktop_config.json</span>
           <button class="copy text-accent text-xs font-mono" data-copy='{"mcpServers":{"grasp":{"command":"uvx","args":["proof-forge-mcp"]}}}'>скопировать</button>
@@ -625,7 +625,7 @@ tailwind.config = { theme: { extend: {
   <div class="grid md:grid-cols-2 gap-5">
 
     <!-- VS Code -->
-    <div class="card rounded-3xl p-8 flex flex-col reveal">
+    <div class="card rounded-3xl p-5 sm:p-8 flex flex-col reveal">
       <div class="flex items-center gap-3 mb-5">
         <div class="w-10 h-10 rounded-xl bg-[#007ACC]/15 flex items-center justify-center shrink-0">
           <svg width="20" height="20" viewBox="0 0 100 100" fill="none">
@@ -650,7 +650,7 @@ tailwind.config = { theme: { extend: {
         </li>
       </ol>
 
-      <div class="codecard rounded-xl p-4 mb-5">
+      <div class="codecard rounded-xl p-4 mb-5 min-w-0 overflow-hidden">
         <div class="flex justify-between items-center mb-2">
           <span class="text-mute/60 text-xs font-mono">terminal</span>
           <button class="copy text-accent text-xs font-mono" data-copy="code --install-extension grasp-learning-0.1.0.vsix" data-en="copy">скопировать</button>
@@ -666,7 +666,7 @@ tailwind.config = { theme: { extend: {
     </div>
 
     <!-- JetBrains -->
-    <div class="card rounded-3xl p-8 flex flex-col reveal">
+    <div class="card rounded-3xl p-5 sm:p-8 flex flex-col reveal">
       <div class="flex items-center gap-3 mb-5">
         <div class="w-10 h-10 rounded-xl overflow-hidden shrink-0">
           <svg width="40" height="40" viewBox="0 0 100 100" fill="none">

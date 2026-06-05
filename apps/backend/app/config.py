@@ -12,11 +12,11 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     from_email: str = "noreply@proof-forge.ru"
 
-    # LLM (OpenAI-compatible, works with Together/OpenRouter/local Ollama)
+    # LLM (OpenAI-compatible, via OpenRouter)
     llm_api_key: str = ""
-    llm_base_url: str = "https://api.together.xyz/v1"
-    llm_model: str = "meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo"
-    llm_cost_per_1k_tokens: float = 0.001  # USD per 1K tokens (GLM-4-flash ≈ $0.001/1K)
+    llm_base_url: str = "https://openrouter.ai/api/v1"
+    llm_model: str = "moonshotai/kimi-k2.6:free"
+    llm_cost_per_1k_tokens: float = 0.0  # free tier
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
