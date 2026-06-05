@@ -80,11 +80,25 @@ async def _llm_stream_tokens(
 
 
 def _extract_json(text: str) -> dict:
+    # Strip markdown code fences and backticks
     text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
+    # Find the outermost JSON object (handles reasoning-model preamble)
     start = text.find("{")
-    end = text.rfind("}") + 1
-    if start == -1 or end == 0:
-        raise ValueError("No JSON object found in LLM response")
+    if start == -1:
+        raise ValueError(f"No JSON object found in LLM response (len={len(text)})")
+    # Find matching closing brace
+    depth = 0
+    end = -1
+    for i, ch in enumerate(text[start:], start):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                break
+    if end == -1:
+        raise ValueError("Unmatched braces in LLM response")
     return json.loads(text[start:end])
 
 
@@ -96,41 +110,64 @@ def _build_conspect_prompt(topic_name: str, materials: list[dict]) -> str:
         preview = m["content_text"][:3000].replace("\n", " ")
         materials_block += f"\n\n--- Материал: {m['name']} ({m['type']}) ---\n{preview}"
 
-    return f"""Ты — эксперт-методист для IT-специалистов. На основе материалов по теме «{topic_name}» напиши структурированный конспект.
+    return f"""Ты — учебный ментор для IT-специалистов. Принцип: наблюдение → гипотеза → эксперимент → решение.
+
+На основе материалов по теме «{topic_name}» напиши структурированный конспект.
 
 ## Материалы
 {materials_block if materials_block else "(материалов нет — используй свои знания о теме)"}
 
 ---
 
-Напиши конспект в формате Markdown (600-900 слов).
-Структура: ## Обзор, ## Ключевые концепции (с пояснениями и примерами кода/псевдокода где уместно), ## Практическое применение, ## Типичные ошибки
-Язык: русский (термины на языке оригинала).
+Напиши конспект в формате Markdown (600-900 слов). Используй эту структуру:
 
-Начинай сразу с конспекта, без предисловий:"""
+## Обзор
+[2-3 предложения: что это и зачем нужно]
+
+Аналогия: [бытовой образ, который объясняет суть одним предложением]
+
+## Ключевые концепции
+[Для каждой концепции: название → объяснение → пример кода если уместно]
+
+## Практическое применение
+[Когда и как используется, типичные паттерны, реальные сценарии]
+
+## Типичные ошибки
+[2-3 частых ошибки и как их избежать — конкретно, с примером неправильного и правильного кода где применимо]
+
+## Важно запомнить
+[3-5 ключевых тезисов — коротко]
+
+Язык: русский (технические термины на языке оригинала).
+Включай примеры кода где они реально помогают пониманию.
+Начинай сразу с конспекта, без предисловий."""
 
 
 def _build_tasks_prompt(topic_name: str, conspect_md: str) -> str:
-    return f"""На основе конспекта по теме «{topic_name}» создай учебные задания.
+    return f"""На основе конспекта по теме «{topic_name}» создай учебные задания в трёх уровнях.
 
 ## Конспект
-{conspect_md[:2000]}
+{conspect_md[:2500]}
 
 ---
 
-ВАЖНО: ответь ТОЛЬКО валидным JSON. Никаких размышлений, никаких объяснений, только JSON.
+Ответь ТОЛЬКО валидным JSON объектом. Без markdown-блоков, без текста вне JSON.
 
 {{
-  "learning_goals": ["цель 1", "цель 2", "цель 3"],
+  "learning_goals": [
+    "Понять [ключевую концепцию 1] и объяснить своими словами",
+    "Применить [концепцию 2] в реальном сценарии",
+    "Разобрать типичные ошибки и как их избегать"
+  ],
   "theory_task": {{
-    "title": "Краткое название теоретического задания",
-    "instructions_md": "Инструкция для теоретического задания (150-300 слов)"
+    "title": "Проверь себя: {topic_name}",
+    "instructions_md": "# Проверь себя\\n\\nОтветь своими словами, не заглядывая в конспект:\\n\\n1. [Концептуальный вопрос — что происходит внутри и почему]\\n2. [Trade-off вопрос — когда работает, когда нет]\\n3. [Практический вопрос — что изменится если убрать/изменить X]\\n4. [Вопрос на связь с другими концепциями]\\n\\n<details><summary>Ответы</summary>\\n\\n**1.** [Ответ 1-2 предложения с объяснением почему]\\n\\n**2.** [Ответ]\\n\\n**3.** [Ответ]\\n\\n**4.** [Ответ]\\n\\n</details>\\n\\n---\\n\\n## Вопросы уровня собеседования\\n\\n**[Middle]** [Вопрос на механизм или поведение]\\n\\n<details><summary>Ответ</summary>[Ответ как дал бы сильный кандидат: факт + механизм + пример]</details>\\n\\n**[Senior]** [Вопрос на дизайн с нефункциональными требованиями]\\n\\n<details><summary>Ответ</summary>[Ответ с trade-offs и обоснованием]</details>"
   }},
   "mini_project_task": {{
-    "title": "Краткое название практического задания",
-    "instructions_md": "Инструкция для mini-project (200-400 слов)",
+    "title": "Практика: {topic_name}",
+    "instructions_md": "# Практические задания\\n\\n## Уровень 1: База (5-10 мин)\\n\\n### Задание 1 (новичок)\\n\\n```\\n// Стартовый код — скопируй и запусти как есть\\n// TODO: [конкретное однозначное действие]\\n```\\n\\nЗадача: [глагол + что конкретно сделать]\\nАртефакт: [что должен вывести или показать]\\n\\n<details><summary>Ответ</summary>\\n\\n```\\n// Решение:\\n// Вывод: [что напечатает]\\n```\\n[1-2 предложения почему так]</details>\\n\\n### Задание 2 (новичок)\\n\\n[аналогично]\\n\\n---\\n\\n## Уровень 2: Применение (20-35 мин)\\n\\n### Задание 3 (средний)\\n\\n```\\n// Весь стартовый код — запускается без дополнений\\n// TODO: реализуй функцию ниже\\n```\\n\\nЗадача: [реалистичный сценарий + конкретные требования]\\nEdge cases: [2-3 случая которые решение обязано обработать]\\nАртефакт: рабочий код + ожидаемый вывод\\n\\n<details><summary>Ответ</summary>\\n\\n```\\n// Решение + вывод:\\n```\\n[Объяснение выбора]</details>\\n\\n---\\n\\n## Уровень 3: Собеседование (45+ мин)\\n\\n### Мини-проект / Capstone (Middle+/Senior)\\n\\nКонтекст: [реалистичный production сценарий]\\nЗадача: [конкретное требование с ограничениями]\\nAcceptance checks:\\n- [happy path]\\n- [edge case]\\n- [failure case]\\n\\n<details><summary>Разбор</summary>[Эталонное решение + типичные ошибки + альтернативы]</details>",
     "expected_evidence": ["source_files", "diff", "test_output", "reflection"],
-    "target_concepts": ["концепт 1", "концепт 2"]
+    "target_concepts": ["концепт 1 из темы", "концепт 2 из темы"]
   }}
 }}"""
 
@@ -167,11 +204,13 @@ async def generate_tasks_from_conspect(
     q: asyncio.Queue,
 ) -> tuple[list[str], list[PracticeTaskCreate]]:
     """Generate tasks from conspect. Returns (learning_goals, task_creates)."""
+    # Brief pause to avoid hitting rate limits immediately after conspect streaming
+    await asyncio.sleep(4)
     await q.put(("phase_change", {"phase": "tasks", "label": "Создаю задания..."}))
 
     prompt_tasks = _build_tasks_prompt(topic.name, conspect_md)
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=180.0) as client:
         raw = await _llm_call(
             client,
             settings,

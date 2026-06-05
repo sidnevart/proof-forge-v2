@@ -1,7 +1,10 @@
 import asyncio
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+logger = logging.getLogger(__name__)
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -172,6 +175,7 @@ async def _run_session_generation(
         await q.put(("complete", {"session_id": session_id}))
 
     except Exception as exc:
+        logger.error("Task generation failed for session %s: %s", session_id, exc, exc_info=True)
         await q.put(("error", {"message": str(exc), "fallback": False}))
         await q.put(("complete", {"session_id": session_id}))
 
