@@ -14,8 +14,14 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<CardStats | null>(null)
   const [ctx, setCtx] = useState<AgentContext | null>(null)
   const [loading, setLoading] = useState(true)
+  const [greeting, setGreeting] = useState('')
   const t = useT()
   const { locale } = useLocale()
+
+  useEffect(() => {
+    const hour = new Date().getHours()
+    setGreeting(hour < 12 ? t('dash.morning') : hour < 18 ? t('dash.afternoon') : t('dash.evening'))
+  }, [t])
 
   useEffect(() => {
     if (!user) return
@@ -27,9 +33,6 @@ export default function DashboardPage() {
       setCtx(c)
     }).catch(console.error).finally(() => setLoading(false))
   }, [user?.user_id])
-
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? t('dash.morning') : hour < 18 ? t('dash.afternoon') : t('dash.evening')
 
   return (
     <div className="max-w-3xl mx-auto px-5 py-8">

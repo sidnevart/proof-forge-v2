@@ -26,7 +26,13 @@ function detectLocale(): Locale {
 }
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(detectLocale)
+  const [locale, setLocaleState] = useState<Locale>('en')
+
+  useEffect(() => {
+    const detected = detectLocale()
+    setLocaleState(detected)
+    document.documentElement.lang = detected
+  }, [])
 
   useEffect(() => {
     document.documentElement.lang = locale
