@@ -80,7 +80,7 @@ jobs:
             echo ".env OK ($(wc -l < $APP_DIR/.env) lines)"
 
             echo "==> Deploying landing page..."
-            cp $APP_DIR/apps/landing/index.html /var/www/html/index.html
+            cp $APP_DIR/apps/landing/index.html /var/www/proof-forge-landing/index.html
 
             echo "==> Building and restarting services..."
             docker compose -f docker-compose.prod.yml build --parallel
