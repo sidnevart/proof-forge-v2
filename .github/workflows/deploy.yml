@@ -96,6 +96,10 @@ jobs:
               sleep 4
             done
 
+            echo "==> Ensure nginx points to new backend (8002)..."
+            sed -i "s|proxy_pass.*127.0.0.1:8001;|proxy_pass         http://127.0.0.1:8002;|" /etc/nginx/conf.d/02-proof-forge-api.conf || true
+            nginx -t && systemctl reload nginx || true
+
             echo "==> Health check..."
             curl -sf http://127.0.0.1:8002/health | grep -q '"status":"ok"'
             curl -sf -X OPTIONS http://127.0.0.1:8002/api/chat \
