@@ -20,8 +20,18 @@ class TopicInfo:
 # ── LLM helpers ───────────────────────────────────────────────────────────────
 
 async def _llm_call(
-    client: httpx.AsyncClient, settings: Any, prompt: str, max_tokens: int = 2000
+    client: httpx.AsyncClient,
+    settings: Any,
+    prompt: str,
+    max_tokens: int = 2000,
+    temperature: float = 0.5,
+    system: str | None = None,
 ) -> str:
+    messages: list[dict[str, str]] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
     response = await client.post(
         f"{settings.llm_base_url}/chat/completions",
         headers={
@@ -30,14 +40,15 @@ async def _llm_call(
         },
         json={
             "model": settings.llm_model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "max_tokens": max_tokens,
-            "temperature": 0.5,
+            "temperature": temperature,
         },
     )
     response.raise_for_status()
     data = response.json()
-    return data["choices"][0]["message"]["content"]
+    msg = data["choices"][0]["message"]
+    return msg.get("content") or msg.get("reasoning") or ""
 
 
 async def _llm_stream_tokens(
@@ -68,7 +79,8 @@ async def _llm_stream_tokens(
                 break
             try:
                 data = json.loads(data_str)
-                token = data["choices"][0]["delta"].get("content", "")
+                delta = data["choices"][0]["delta"]
+                token = delta.get("content") or delta.get("reasoning") or ""
                 if token:
                     yield token
             except (json.JSONDecodeError, KeyError, IndexError):
@@ -114,7 +126,7 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str) -> str:
 
 ---
 
-Ответь ТОЛЬКО валидным JSON без markdown-блоков:
+ВАЖНО: ответь ТОЛЬКО валидным JSON. Никаких размышлений, никаких объяснений, только JSON.
 
 {{
   "learning_goals": ["цель 1", "цель 2", "цель 3"],
@@ -133,18 +145,13 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str) -> str:
 
 # ── Streaming generation ───────────────────────────────────────────────────────
 
-async def stream_study_content_to_queue(
+async def stream_conspect_to_queue(
     settings: Any,
     topic: TopicInfo,
     materials: list[dict],
     q: asyncio.Queue,
-) -> tuple[str, list[str], list[PracticeTaskCreate]]:
-    """Stream conspect tokens to SSE queue, then generate tasks.
-    Returns (conspect_md, learning_goals, task_creates).
-    """
-    if not settings.llm_api_key:
-        raise RuntimeError("LLM не настроен")
-
+) -> str:
+    """Stream conspect tokens to SSE queue. Returns conspect_md."""
     await q.put(("phase_change", {"phase": "conspect", "label": "Пишу конспект..."}))
 
     conspect_md = ""
@@ -158,12 +165,29 @@ async def stream_study_content_to_queue(
     if not conspect_md.strip():
         raise ValueError("LLM вернул пустой конспект")
 
+    return conspect_md
+
+
+async def generate_tasks_from_conspect(
+    settings: Any,
+    topic: TopicInfo,
+    conspect_md: str,
+    q: asyncio.Queue,
+) -> tuple[list[str], list[PracticeTaskCreate]]:
+    """Generate tasks from conspect. Returns (learning_goals, task_creates)."""
     await q.put(("phase_change", {"phase": "tasks", "label": "Создаю задания..."}))
 
     prompt_tasks = _build_tasks_prompt(topic.name, conspect_md)
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        raw = await _llm_call(client, settings, prompt_tasks, max_tokens=1000)
+        raw = await _llm_call(
+            client,
+            settings,
+            prompt_tasks,
+            max_tokens=3000,
+            temperature=0.1,
+            system="Ты ассистент, который всегда отвечает только валидным JSON. Никаких размышлений, никаких объяснений, никакого markdown. Только JSON.",
+        )
         parsed = _extract_json(raw)
 
     theory_raw = parsed.get("theory_task", {})
@@ -204,7 +228,26 @@ async def stream_study_content_to_queue(
     )
 
     learning_goals = parsed.get("learning_goals", [f"Изучить {topic.name}"])
-    return conspect_md, learning_goals, [theory, mini]
+    return learning_goals, [theory, mini]
+
+
+async def stream_study_content_to_queue(
+    settings: Any,
+    topic: TopicInfo,
+    materials: list[dict],
+    q: asyncio.Queue,
+) -> tuple[str, list[str], list[PracticeTaskCreate]]:
+    """Stream conspect tokens to SSE queue, then generate tasks.
+    Returns (conspect_md, learning_goals, task_creates).
+    """
+    if not settings.llm_api_key:
+        raise RuntimeError("LLM не настроен")
+
+    conspect_md = await stream_conspect_to_queue(settings, topic, materials, q)
+    learning_goals, task_creates = await generate_tasks_from_conspect(
+        settings, topic, conspect_md, q
+    )
+    return conspect_md, learning_goals, task_creates
 
 
 # ── Fallback builders ──────────────────────────────────────────────────────────

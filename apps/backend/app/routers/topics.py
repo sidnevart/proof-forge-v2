@@ -251,7 +251,8 @@ async def _llm_call(
     prompt_tokens = usage.get("prompt_tokens", 0)
     completion_tokens = usage.get("completion_tokens", 0)
     total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
-    return data["choices"][0]["message"]["content"], {
+    msg = data["choices"][0]["message"]
+    return msg.get("content") or msg.get("reasoning") or "", {
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
         "total_tokens": total_tokens,
