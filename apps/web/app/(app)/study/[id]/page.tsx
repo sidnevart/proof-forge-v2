@@ -389,7 +389,21 @@ export default function StudySessionPage() {
                 </div>
               )}
               {!isStreaming && tasks.length === 0 && (
-                <p className="text-xs text-mute text-center py-8">{t('study.tasksLoading')}</p>
+                <div className="text-center py-8">
+                  {session?.status === 'generating' ? (
+                    <p className="text-xs text-mute">{t('study.tasksLoading')}</p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-mute mb-2">{t('study.noTasks')}</p>
+                      <button
+                        onClick={() => window.location.reload()}
+                        className="text-xs text-accent hover:text-accentdk underline"
+                      >
+                        Обновить страницу
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
               {tasks.map((task) => (
                 <Link

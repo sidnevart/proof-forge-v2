@@ -193,6 +193,7 @@ export const dict: Dict = {
   'study.notFound': 'Сессия не найдена',
   'study.chatError': 'Ошибка чата',
   'study.tasksLoading': 'Задания загружаются...',
+  'study.noTasks': 'Задания не созданы. Возможно, генерация завершилась с ошибкой. Попробуй обновить страницу или начать новую сессию.',
   'study.hint': 'Enter ↵ отправить · Shift+Enter новая строка',
 
   // Learn page

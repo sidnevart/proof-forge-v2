@@ -191,6 +191,7 @@ export const dict = {
   'study.notFound': 'Session not found',
   'study.chatError': 'Chat error',
   'study.tasksLoading': 'Loading tasks...',
+  'study.noTasks': 'No tasks created. The AI generation may have failed. Try refreshing the page or starting a new session.',
   'study.hint': 'Enter ↵ send · Shift+Enter new line',
 
   // Learn page
