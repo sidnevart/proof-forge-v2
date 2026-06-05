@@ -36,6 +36,10 @@ export default function StudySessionPage() {
   const [chatInitError, setChatInitError] = useState('')
   const [chatError, setChatError] = useState('')
 
+  // Practice tab: selected task for inline view
+  const [selectedTask, setSelectedTask] = useState<PracticeTask | null>(null)
+  const [solution, setSolution] = useState('')
+
   // Streaming state for generating sessions
   const [streamingConspect, setStreamingConspect] = useState('')
   const [streamingPhase, setStreamingPhase] = useState('')
@@ -202,12 +206,20 @@ export default function StudySessionPage() {
   const generationFallback = searchParams.get('generation') === 'fallback'
   const generationReason = searchParams.get('reason')
 
+  // Reset selected task when switching away from practice tab
+  useEffect(() => {
+    if (activeTab !== 'practice') {
+      setSelectedTask(null)
+      setSolution('')
+    }
+  }, [activeTab])
+
   const TABS = ['chat', 'theory', 'practice', 'capsule'] as const
 
   return (
     <div className="flex flex-col h-[calc(100dvh-5rem)] md:h-[100dvh] max-h-[100dvh] overflow-hidden">
-      {/* Header */}
-      <div className="shrink-0 border-b border-line px-4 py-3 flex items-center gap-3 bg-paper/80 backdrop-blur-md z-10">
+      {/* Header — extra left padding on mobile to clear the hamburger button */}
+      <div className="shrink-0 border-b border-line pl-14 pr-4 md:pl-4 py-3 flex items-center gap-3 bg-paper/80 backdrop-blur-md z-10">
         <Link href="/dashboard" className="text-mute hover:text-ink transition-colors shrink-0">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6"/>
@@ -399,54 +411,98 @@ export default function StudySessionPage() {
         {/* ── Practice tab ── */}
         {activeTab === 'practice' && (
           <div className="h-full overflow-y-auto">
-            <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-3">
-              {isStreaming && tasks.length === 0 && (
-                <div className="flex items-center gap-2 py-8 justify-center">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                  <span className="text-xs text-mute font-mono">Создаю задания...</span>
-                </div>
-              )}
-              {!isStreaming && tasks.length === 0 && (
-                <div className="text-center py-12">
-                  {session?.status === 'generating' ? (
-                    <p className="text-xs text-mute">{t('study.tasksLoading')}</p>
-                  ) : (
-                    <>
-                      <p className="text-xs text-mute mb-2">{t('study.noTasks')}</p>
-                      <button
-                        onClick={() => window.location.reload()}
-                        className="text-xs text-accent hover:text-accentdk underline"
-                      >
-                        Обновить страницу
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-              {tasks.map((task) => (
-                <Link
-                  key={task.id}
-                  href={`/practice/${task.id}`}
-                  className="surface surface-hover rounded-xl p-4 block"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-[10px] font-mono text-accent uppercase tracking-wide">{task.type}</div>
-                      <div className="font-semibold text-ink mt-0.5">{task.title}</div>
-                      <div className="text-xs text-mute mt-1 line-clamp-2">{task.instructions_md.slice(0, 120)}...</div>
-                    </div>
-                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 ${
-                      task.status === 'completed'
-                        ? 'bg-accent/10 text-accent'
-                        : task.status === 'submitted'
-                        ? 'bg-sand text-mute'
-                        : 'bg-card border border-line text-mute'
-                    }`}>
-                      {task.status}
-                    </span>
+            <div className="max-w-3xl mx-auto p-4 md:p-6">
+              {/* Inline task detail */}
+              {selectedTask ? (
+                <div>
+                  <button
+                    onClick={() => { setSelectedTask(null); setSolution('') }}
+                    className="text-sm text-mute hover:text-ink font-mono mb-4 inline-flex items-center gap-1"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                    {t('practice.back')}
+                  </button>
+                  <div className="mb-6">
+                    <div className="text-xs font-mono text-accent mb-2">{selectedTask.type}</div>
+                    <h1 className="font-display text-2xl font-bold text-ink">{selectedTask.title}</h1>
                   </div>
-                </Link>
-              ))}
+                  <div className="surface rounded-2xl p-5 mb-6">
+                    <MarkdownRenderer>{selectedTask.instructions_md}</MarkdownRenderer>
+                  </div>
+                  <div className="surface rounded-2xl p-5 mb-6">
+                    <label className="text-xs font-mono text-mute mb-2 block">
+                      {t('practice.submit')}
+                    </label>
+                    <textarea
+                      rows={8}
+                      value={solution}
+                      onChange={(e) => setSolution(e.target.value)}
+                      placeholder={t('practice.submitHint')}
+                      className="w-full resize-y rounded-xl border border-line bg-card text-ink placeholder:text-mute/50 px-4 py-3 text-sm font-mono focus:outline-none focus:border-accent/60 transition-colors"
+                    />
+                    <button
+                      disabled
+                      className="mt-3 px-4 py-2 rounded-xl bg-accent text-[#06140d] text-sm font-semibold hover:bg-accentdk transition-colors disabled:opacity-50"
+                    >
+                      {t('practice.submit')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {isStreaming && tasks.length === 0 && (
+                    <div className="flex items-center gap-2 py-8 justify-center">
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                      <span className="text-xs text-mute font-mono">Создаю задания...</span>
+                    </div>
+                  )}
+                  {!isStreaming && tasks.length === 0 && (
+                    <div className="text-center py-12">
+                      {session?.status === 'generating' ? (
+                        <p className="text-xs text-mute">{t('study.tasksLoading')}</p>
+                      ) : (
+                        <>
+                          <p className="text-xs text-mute mb-2">{t('study.noTasks')}</p>
+                          <button
+                            onClick={() => window.location.reload()}
+                            className="text-xs text-accent hover:text-accentdk underline"
+                          >
+                            Обновить страницу
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <div className="space-y-3">
+                    {tasks.map((task) => (
+                      <button
+                        key={task.id}
+                        onClick={() => setSelectedTask(task)}
+                        className="surface surface-hover rounded-xl p-4 block w-full text-left"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="text-[10px] font-mono text-accent uppercase tracking-wide">{task.type}</div>
+                            <div className="font-semibold text-ink mt-0.5">{task.title}</div>
+                            <div className="text-xs text-mute mt-1 line-clamp-2">{task.instructions_md.slice(0, 120)}...</div>
+                          </div>
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 ${
+                            task.status === 'completed'
+                              ? 'bg-accent/10 text-accent'
+                              : task.status === 'submitted'
+                              ? 'bg-sand text-mute'
+                              : 'bg-card border border-line text-mute'
+                          }`}>
+                            {task.status}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
