@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { auth } from '@/lib/api'
 import { saveSession } from '@/lib/auth'
 import { Suspense } from 'react'
+import { useT } from '@/lib/i18n'
 
 function VerifyContent() {
   const params = useSearchParams()
@@ -12,12 +13,13 @@ function VerifyContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [errorMsg, setErrorMsg] = useState('')
   const [accessToken, setAccessToken] = useState('')
+  const t = useT()
 
   useEffect(() => {
     const token = params.get('token')
     if (!token) {
       setStatus('error')
-      setErrorMsg('Ссылка недействительна — токен не найден.')
+      setErrorMsg(t('verify.error.noToken'))
       return
     }
 
@@ -34,16 +36,16 @@ function VerifyContent() {
       })
       .catch((err) => {
         setStatus('error')
-        setErrorMsg(err.message ?? 'Ссылка недействительна или уже использована.')
+        setErrorMsg(err.message ?? t('verify.error.fallback'))
       })
-  }, [params, router])
+  }, [params, router, t])
 
   if (status === 'loading') {
     return (
       <div className="text-center">
         <div className="w-12 h-12 rounded-full border-2 border-line border-t-accent animate-spin mx-auto mb-6" />
-        <h2 className="font-display text-2xl font-bold text-ink mb-2">Входим...</h2>
-        <p className="text-mute">Проверяем ссылку</p>
+        <h2 className="font-display text-2xl font-bold text-ink mb-2">{t('verify.loading.title')}</h2>
+        <p className="text-mute">{t('verify.loading.sub')}</p>
       </div>
     )
   }
@@ -56,8 +58,8 @@ function VerifyContent() {
             <polyline points="20 6 9 17 4 12"/>
           </svg>
         </div>
-        <h2 className="font-display text-2xl font-bold text-ink mb-2">Добро пожаловать!</h2>
-        <p className="text-mute mb-6">Переходим на главную...</p>
+        <h2 className="font-display text-2xl font-bold text-ink mb-2">{t('verify.success.title')}</h2>
+        <p className="text-mute mb-6">{t('verify.success.sub')}</p>
         {accessToken && (
           <a
             href={`vscode://grasp.grasp-learning/auth?token=${accessToken}`}
@@ -66,7 +68,7 @@ function VerifyContent() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9l6 6M15 9l-6 6"/>
             </svg>
-            Открыть в VS Code →
+            {t('verify.success.vscode')}
           </a>
         )}
       </div>
@@ -81,13 +83,13 @@ function VerifyContent() {
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
       </div>
-      <h2 className="font-display text-2xl font-bold text-ink mb-3">Ссылка не работает</h2>
+      <h2 className="font-display text-2xl font-bold text-ink mb-3">{t('verify.error.title')}</h2>
       <p className="text-mute mb-6 max-w-xs mx-auto">{errorMsg}</p>
       <a
         href="/login"
         className="inline-block px-6 py-3 rounded-xl bg-accent text-[#06140d] font-semibold hover:bg-accentdk transition-colors"
       >
-        Запросить новую ссылку
+        {t('verify.error.cta')}
       </a>
     </div>
   )

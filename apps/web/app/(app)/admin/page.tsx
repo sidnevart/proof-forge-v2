@@ -71,13 +71,13 @@ export default function AdminPage() {
   if (loading) return (
     <div className="max-w-5xl mx-auto px-5 py-12 text-center">
       <div className="w-8 h-8 rounded-full border-2 border-line border-t-accent animate-spin mx-auto" />
-      <p className="text-mute text-sm mt-4">Загружаем метрики...</p>
+      <p className="text-mute text-sm mt-4">Loading metrics...</p>
     </div>
   )
 
   if (error) return (
     <div className="max-w-5xl mx-auto px-5 py-12 text-center">
-      <p className="text-danger text-sm">Ошибка загрузки метрик: {error}</p>
+      <p className="text-danger text-sm">Failed to load metrics: {error}</p>
     </div>
   )
 

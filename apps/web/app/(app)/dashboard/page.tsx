@@ -7,12 +7,15 @@ import { cards, mastery, context, type CardStats, type AgentContext } from '@/li
 import { MasteryBadge } from '@/components/MasteryBadge'
 import { StreakBar } from '@/components/StreakCounter'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { useT, useLocale, ruPlural } from '@/lib/i18n'
 
 export default function DashboardPage() {
   const user = getStoredUser()
   const [stats, setStats] = useState<CardStats | null>(null)
   const [ctx, setCtx] = useState<AgentContext | null>(null)
   const [loading, setLoading] = useState(true)
+  const t = useT()
+  const { locale } = useLocale()
 
   useEffect(() => {
     if (!user) return
@@ -26,7 +29,7 @@ export default function DashboardPage() {
   }, [user?.user_id])
 
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер'
+  const greeting = hour < 12 ? t('dash.morning') : hour < 18 ? t('dash.afternoon') : t('dash.evening')
 
   return (
     <div className="max-w-3xl mx-auto px-5 py-8">
@@ -34,28 +37,28 @@ export default function DashboardPage() {
       <div className="mb-8">
         <p className="text-sm text-mute font-mono mb-1">{greeting}</p>
         <h1 className="font-display text-3xl font-bold text-ink">
-          {user?.display_name || 'Привет'} <span className="text-mute">👋</span>
+          {user?.display_name || t('dash.fallbackName')} <span className="text-mute">👋</span>
         </h1>
       </div>
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
         <StatCard
-          label="К повторению"
+          label={t('dash.stat.due')}
           value={loading ? null : stats?.due_today ?? 0}
-          unit="карточек"
+          unit={t('dash.stat.cards')}
           accent={!loading && (stats?.due_today ?? 0) > 0}
           href="/cards"
         />
         <StatCard
-          label="Сегодня"
+          label={t('dash.stat.today')}
           value={loading ? null : stats?.reviewed_today ?? 0}
-          unit="повторено"
+          unit={t('dash.stat.reviewed')}
         />
         <StatCard
-          label="Тем изучено"
+          label={t('dash.stat.topics')}
           value={loading ? null : ctx?.profile?.known_topics?.length ?? 0}
-          unit="тем"
+          unit={t('dash.stat.topicsUnit')}
           className="col-span-2 sm:col-span-1"
         />
       </div>
@@ -75,9 +78,13 @@ export default function DashboardPage() {
           className="flex items-center justify-between w-full surface surface-hover rounded-2xl p-5 mb-6 group"
         >
           <div>
-            <div className="text-sm font-mono text-accent mb-0.5">Пора повторить</div>
+            <div className="text-sm font-mono text-accent mb-0.5">{t('dash.cta.label')}</div>
             <div className="text-lg font-semibold text-ink">
-              {stats!.due_today} {pluralCards(stats!.due_today)} ждут тебя
+              {stats!.due_today}{' '}
+              {locale === 'ru'
+                ? ruPlural(stats!.due_today, ['карточка', 'карточки', 'карточек'])
+                : `card${stats!.due_today !== 1 ? 's' : ''}`}{' '}
+              {t('dash.cta.waiting')}
             </div>
           </div>
           <div className="w-10 h-10 rounded-xl bg-accentsoft flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-[#06140d] transition-all">
@@ -91,7 +98,7 @@ export default function DashboardPage() {
       {/* Weak spots */}
       {!loading && (ctx?.weak_spots?.length ?? 0) > 0 && (
         <div className="mb-6">
-          <h2 className="text-sm font-mono text-mute mb-3">Слабые места — подтянуть</h2>
+          <h2 className="text-sm font-mono text-mute mb-3">{t('dash.weakSpots')}</h2>
           <div className="flex flex-wrap gap-2">
             {ctx!.weak_spots.slice(0, 6).map((ws) => (
               <div
@@ -112,7 +119,7 @@ export default function DashboardPage() {
       {/* Recent capsules */}
       {!loading && (ctx?.capsules?.length ?? 0) > 0 && (
         <div>
-          <h2 className="text-sm font-mono text-mute mb-3">Последние капсулы</h2>
+          <h2 className="text-sm font-mono text-mute mb-3">{t('dash.recentCapsules')}</h2>
           <div className="space-y-2">
             {ctx!.capsules.slice(0, 4).map((c) => (
               <Link
@@ -130,7 +137,7 @@ export default function DashboardPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-ink line-clamp-2">{c.summary}</p>
                   <p className="text-xs text-mute mt-1 font-mono">
-                    {new Date(c.created_at).toLocaleDateString('ru', { day: 'numeric', month: 'short' })}
+                    {new Date(c.created_at).toLocaleDateString(locale === 'ru' ? 'ru' : 'en-US', { day: 'numeric', month: 'short' })}
                   </p>
                 </div>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-mute shrink-0 group-hover:text-accent transition-colors mt-1">
@@ -156,11 +163,9 @@ export default function DashboardPage() {
               </svg>
             </div>
             <div className="flex-1 text-left">
-              <div className="text-xs font-mono text-accent mb-1">Начать здесь</div>
-              <div className="font-semibold text-ink">Начать изучение темы</div>
-              <div className="text-sm text-mute mt-0.5">
-                Загрузи файлы или ссылки — платформа создаст капсулу и карточки
-              </div>
+              <div className="text-xs font-mono text-accent mb-1">{t('dash.empty.tag')}</div>
+              <div className="font-semibold text-ink">{t('dash.empty.title')}</div>
+              <div className="text-sm text-mute mt-0.5">{t('dash.empty.desc')}</div>
             </div>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-accent shrink-0 mt-1 group-hover:translate-x-0.5 transition-transform">
               <polyline points="9 18 15 12 9 6"/>
@@ -174,17 +179,15 @@ export default function DashboardPage() {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--mute))" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-5"/></svg>
               </div>
               <div>
-                <div className="font-medium text-ink text-sm">Используешь Claude Desktop?</div>
-                <div className="text-sm text-mute mt-0.5">
-                  Установи Grasp-плагин — учись прямо в Claude с доступом к кодовой базе и YouTube.
-                </div>
+                <div className="font-medium text-ink text-sm">{t('dash.claude.title')}</div>
+                <div className="text-sm text-mute mt-0.5">{t('dash.claude.desc')}</div>
                 <a
                   href="https://github.com/sidnevart/proof-forge-v2"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs text-accent hover:text-accentdk transition-colors mt-2 font-mono"
                 >
-                  Установить плагин →
+                  {t('dash.claude.install')}
                 </a>
               </div>
             </div>
@@ -200,7 +203,7 @@ export default function DashboardPage() {
             className="flex items-center gap-2 text-sm text-mute hover:text-accent transition-colors font-mono"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Начать изучение новой темы
+            {t('dash.newTopic')}
           </Link>
         </div>
       )}
@@ -223,10 +226,4 @@ function StatCard({ label, value, unit, accent, href, className = '' }: {
   )
   if (href) return <Link href={href}>{content}</Link>
   return content
-}
-
-function pluralCards(n: number) {
-  if (n % 10 === 1 && n % 100 !== 11) return 'карточка'
-  if ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) return 'карточки'
-  return 'карточек'
 }

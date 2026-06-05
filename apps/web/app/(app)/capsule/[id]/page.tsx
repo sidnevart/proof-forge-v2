@@ -9,6 +9,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Skeleton, SkeletonText } from '@/components/ui/Skeleton'
 import Link from 'next/link'
+import { useT, useLocale } from '@/lib/i18n'
 
 function extractHeadings(md: string): { id: string; text: string; level: number }[] {
   const lines = md.split('\n')
@@ -38,6 +39,8 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
   const [activeHeading, setActiveHeading] = useState('')
   const [showFeedback, setShowFeedback] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
+  const t = useT()
+  const { locale } = useLocale()
 
   useEffect(() => {
     Promise.all([
@@ -73,10 +76,10 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
     if (!capsule) return []
     const h = extractHeadings(capsule.content_md)
     if (capsule.review_questions.length > 0) {
-      h.push({ id: 'review-questions', text: 'Вопросы для повторения', level: 2 })
+      h.push({ id: 'review-questions', text: t('capsule.reviewQuestions'), level: 2 })
     }
     return h
-  }, [capsule])
+  }, [capsule, t])
 
   const requestFeedback = async () => {
     if (!user) return
@@ -110,8 +113,8 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
 
   if (!capsule) return (
     <div className="max-w-xl mx-auto px-5 py-20 text-center">
-      <p className="text-mute">Капсула не найдена</p>
-      <Link href="/dashboard" className="mt-4 inline-block text-accent hover:text-accentdk">← Назад</Link>
+      <p className="text-mute">{t('capsule.notFound')}</p>
+      <Link href="/dashboard" className="mt-4 inline-block text-accent hover:text-accentdk">{t('capsule.back')}</Link>
     </div>
   )
 
@@ -124,6 +127,11 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
   }
   headingCounter.clear()
 
+  const questionsCount = capsule.review_questions.length
+  const questionsLabel = locale === 'ru'
+    ? `${questionsCount} ${questionsCount % 10 === 1 && questionsCount % 100 !== 11 ? 'вопрос' : questionsCount % 10 >= 2 && questionsCount % 10 <= 4 && (questionsCount % 100 < 10 || questionsCount % 100 >= 20) ? 'вопроса' : 'вопросов'}`
+    : `${questionsCount} question${questionsCount !== 1 ? 's' : ''}`
+
   return (
     <div className="flex h-[calc(100vh-1px)] max-h-screen">
       {/* TOC Sidebar */}
@@ -135,7 +143,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
             </svg>
             Dashboard
           </Link>
-          <div className="text-[10px] font-mono text-mute uppercase tracking-wider mb-3">Оглавление</div>
+          <div className="text-[10px] font-mono text-mute uppercase tracking-wider mb-3">{t('capsule.toc')}</div>
           <nav className="space-y-0.5">
             {headings.map((h) => (
               <button
@@ -163,11 +171,11 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
           <div className="max-w-3xl mx-auto">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-[10px] font-mono text-accent uppercase tracking-wider mb-1">Капсула знаний</div>
+                <div className="text-[10px] font-mono text-accent uppercase tracking-wider mb-1">{t('capsule.tag')}</div>
                 <h1 className="font-display text-xl sm:text-2xl font-bold text-ink leading-tight">{capsule.summary}</h1>
                 <p className="text-xs text-mute mt-1 font-mono">
-                  {new Date(capsule.created_at).toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  {' · '}{capsule.review_questions.length} вопросов
+                  {new Date(capsule.created_at).toLocaleDateString(locale === 'ru' ? 'ru' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  {' · '}{questionsLabel}
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -178,7 +186,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/>
                   </svg>
-                  Ментор
+                  {t('capsule.mentor')}
                 </Link>
                 <button
                   onClick={() => setShowFeedback((v) => !v)}
@@ -207,8 +215,8 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                   ),
                   h2: ({ children }) => {
                     const text = String(children).trim()
-                    const id = getHeadingId(text)
-                    return <h2 id={id} className="font-display text-lg font-bold text-ink mt-8 mb-3 scroll-mt-20">{children}</h2>
+                    const hId = getHeadingId(text)
+                    return <h2 id={hId} className="font-display text-lg font-bold text-ink mt-8 mb-3 scroll-mt-20">{children}</h2>
                   },
                   h3: ({ children }) => (
                     <h3 className="font-semibold text-ink mt-5 mb-2 text-sm">{children}</h3>
@@ -234,7 +242,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
             {/* Review questions inline */}
             {capsule.review_questions.length > 0 && (
               <div id="review-questions" className="mt-10 pt-6 border-t border-line scroll-mt-20">
-                <h2 className="font-display text-lg font-bold text-ink mb-4">Вопросы для повторения</h2>
+                <h2 className="font-display text-lg font-bold text-ink mb-4">{t('capsule.reviewQuestions')}</h2>
                 <div className="space-y-2">
                   {capsule.review_questions.map((q, i) => (
                     <details key={q.id} className="surface surface-hover rounded-xl overflow-hidden group">
@@ -245,7 +253,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                         <div className="flex-1">
                           <p className="text-sm font-medium text-ink">{q.question}</p>
                           <p className="text-xs text-mute mt-1 font-mono">
-                            сложность: {'◆'.repeat(q.difficulty)}{'◇'.repeat(3 - q.difficulty)}
+                            {t('capsule.difficultyLabel')}: {'◆'.repeat(q.difficulty)}{'◇'.repeat(3 - q.difficulty)}
                           </p>
                         </div>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-mute group-open:rotate-90 transition-transform shrink-0 mt-1">
@@ -254,7 +262,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                       </summary>
                       <div className="px-4 pb-4 pt-0">
                         <div className="bg-accentsoft border border-accent/20 rounded-lg p-3">
-                          <p className="text-xs font-mono text-accent mb-1">ответ</p>
+                          <p className="text-xs font-mono text-accent mb-1">{t('capsule.answerLabel')}</p>
                           <p className="text-sm text-ink">{q.correct_answer}</p>
                         </div>
                       </div>
@@ -272,7 +280,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
         <div className="hidden xl:flex flex-col w-80 shrink-0 border-l border-line bg-sand/20 overflow-y-auto">
           <div className="px-5 py-6">
             <div className="flex items-center justify-between mb-4">
-              <div className="text-[10px] font-mono text-mute uppercase tracking-wider">AI-фидбэк</div>
+              <div className="text-[10px] font-mono text-mute uppercase tracking-wider">{t('capsule.feedback.title')}</div>
               <button onClick={() => setShowFeedback(false)} className="text-mute hover:text-ink">✕</button>
             </div>
             {feedback === undefined || loadingFeedback ? (
@@ -282,7 +290,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                 <div className="flex items-center gap-2 text-xs font-mono text-mute">
                   <span>{feedback.model_version}</span>
                   <span>·</span>
-                  <span>{new Date(feedback.generated_at).toLocaleDateString('ru')}</span>
+                  <span>{new Date(feedback.generated_at).toLocaleDateString(locale === 'ru' ? 'ru' : 'en-US')}</span>
                 </div>
                 <div className="surface rounded-2xl p-4">
                   <ReactMarkdown
@@ -302,19 +310,19 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                   disabled={loadingFeedback}
                   className="text-xs text-mute hover:text-accent transition-colors font-mono"
                 >
-                  ↻ обновить
+                  {t('capsule.feedback.refresh')}
                 </button>
               </div>
             ) : (
               <div className="text-center py-8">
                 <div className="text-3xl mb-3">🤖</div>
-                <p className="text-xs text-mute mb-4">Получи AI-анализ слабых мест</p>
+                <p className="text-xs text-mute mb-4">{t('capsule.feedback.empty')}</p>
                 <button
                   onClick={requestFeedback}
                   disabled={loadingFeedback}
                   className="px-4 py-2 rounded-xl bg-accent text-[#06140d] text-xs font-semibold hover:bg-accentdk transition-colors disabled:opacity-60"
                 >
-                  {loadingFeedback ? 'Анализируем...' : 'Получить фидбэк'}
+                  {loadingFeedback ? t('capsule.feedback.analyzing') : t('capsule.feedback.get')}
                 </button>
               </div>
             )}

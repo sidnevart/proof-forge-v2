@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { auth } from '@/lib/api'
 import { isLoggedIn, saveSession } from '@/lib/auth'
 import { track } from '@/lib/analytics'
+import { useT } from '@/lib/i18n'
+import { LocaleToggle } from '@/components/LocaleToggle'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -13,6 +15,7 @@ export default function LoginPage() {
   const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const t = useT()
 
   useEffect(() => {
     if (isLoggedIn()) router.replace('/dashboard')
@@ -44,14 +47,19 @@ export default function LoginPage() {
       setSent(true)
       track({ name: 'magic_link_sent' })
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ошибка отправки')
+      setError(err instanceof Error ? err.message : t('login.errorFallback'))
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-5 py-12">
+    <div className="min-h-screen flex flex-col items-center justify-center px-5 py-12 relative">
+      {/* Language toggle */}
+      <div className="absolute top-4 right-4">
+        <LocaleToggle />
+      </div>
+
       {/* Logo */}
       <a href="https://proof-forge.ru" className="flex items-center gap-2.5 mb-12 group">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -64,22 +72,22 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {!sent ? (
           <>
-            <h1 className="font-display text-3xl font-bold text-ink mb-2">Войти в Grasp</h1>
-            <p className="text-mute mb-8">Введи email — пришлём одноразовую ссылку для входа.</p>
+            <h1 className="font-display text-3xl font-bold text-ink mb-2">{t('login.title')}</h1>
+            <p className="text-mute mb-8">{t('login.subtitle')}</p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-mute mb-1.5">Имя (необязательно)</label>
+                <label className="block text-sm font-medium text-mute mb-1.5">{t('login.nameLabel')}</label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Как к тебе обращаться?"
+                  placeholder={t('login.namePlaceholder')}
                   className="w-full px-4 py-3 rounded-xl border border-line bg-card text-ink placeholder:text-mute/60 focus:outline-none focus:border-accent/60 transition-colors"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-mute mb-1.5">Email</label>
+                <label className="block text-sm font-medium text-mute mb-1.5">{t('login.emailLabel')}</label>
                 <input
                   type="email"
                   value={email}
@@ -100,12 +108,12 @@ export default function LoginPage() {
                 disabled={loading || !email.trim()}
                 className="w-full py-3.5 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Отправляем...' : 'Получить ссылку для входа →'}
+                {loading ? t('login.sending') : t('login.submit')}
               </button>
             </form>
 
             <p className="mt-6 text-xs text-center text-mute">
-              Нет аккаунта? Он создастся автоматически при первом входе.
+              {t('login.noAccount')}
             </p>
           </>
         ) : (
@@ -116,16 +124,16 @@ export default function LoginPage() {
                 <polyline points="22,6 12,13 2,6"/>
               </svg>
             </div>
-            <h2 className="font-display text-2xl font-bold text-ink mb-3">Письмо отправлено!</h2>
+            <h2 className="font-display text-2xl font-bold text-ink mb-3">{t('login.sent.title')}</h2>
             <p className="text-mute mb-2">
-              Проверь <span className="text-ink font-medium">{email}</span> — там ссылка для входа.
+              {t('login.sent.check')} <span className="text-ink font-medium">{email}</span> {t('login.sent.suffix')}
             </p>
-            <p className="text-sm text-mute">Ссылка действительна 10 минут.</p>
+            <p className="text-sm text-mute">{t('login.sent.expiry')}</p>
             <button
               onClick={() => setSent(false)}
               className="mt-8 text-sm text-accent hover:text-accentdk transition-colors"
             >
-              ← Изменить email
+              {t('login.sent.change')}
             </button>
           </div>
         )}

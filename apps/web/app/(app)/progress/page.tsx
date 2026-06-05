@@ -6,22 +6,11 @@ import { mastery, cards, type MasteryProgress, type CardStats } from '@/lib/api'
 import { MasteryBadge } from '@/components/MasteryBadge'
 import { StreakCounter } from '@/components/StreakCounter'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { useT } from '@/lib/i18n'
 
 type Level = 'unknown' | 'recognize' | 'apply' | 'explain'
 
 const LEVEL_ORDER: Level[] = ['unknown', 'recognize', 'apply', 'explain']
-const LEVEL_LABEL: Record<Level, string> = {
-  unknown: 'Не изучено',
-  recognize: 'Узнаю',
-  apply: 'Применяю',
-  explain: 'Объясню',
-}
-const LEVEL_DESC: Record<Level, string> = {
-  unknown: 'Ещё не знакомился',
-  recognize: 'Теория прочитана',
-  apply: '2+ практики с качеством ≥ 60%',
-  explain: 'Могу объяснить другому',
-}
 
 export default function ProgressPage() {
   const user = getStoredUser()
@@ -29,6 +18,21 @@ export default function ProgressPage() {
   const [stats, setStats] = useState<CardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Level | 'all'>('all')
+  const t = useT()
+
+  const LEVEL_LABEL: Record<Level, string> = {
+    unknown: t('progress.level.unknown'),
+    recognize: t('progress.level.recognize'),
+    apply: t('progress.level.apply'),
+    explain: t('progress.level.explain'),
+  }
+
+  const LEVEL_DESC: Record<Level, string> = {
+    unknown: t('progress.desc.unknown'),
+    recognize: t('progress.desc.recognize'),
+    apply: t('progress.desc.apply'),
+    explain: t('progress.desc.explain'),
+  }
 
   useEffect(() => {
     if (!user) return
@@ -52,8 +56,8 @@ export default function ProgressPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
-          <p className="text-xs font-mono text-accent mb-1">Прогресс</p>
-          <h1 className="font-display text-3xl font-bold text-ink">Твои знания</h1>
+          <p className="text-xs font-mono text-accent mb-1">{t('progress.breadcrumb')}</p>
+          <h1 className="font-display text-3xl font-bold text-ink">{t('progress.title')}</h1>
         </div>
         {stats && <StreakCounter streak={stats.streak} />}
       </div>
@@ -65,10 +69,10 @@ export default function ProgressPage() {
         </div>
       ) : rollup && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-          <RollupCard label="Концептов" value={rollup.total_concepts} />
-          <RollupCard label="Применяю +" value={rollup.apply_plus} accent />
-          <RollupCard label="Качество" value={`${Math.round(rollup.avg_quality * 100)}%`} />
-          <RollupCard label="Повторений" value={rollup.total_practice_reps} />
+          <RollupCard label={t('progress.rollup.concepts')} value={rollup.total_concepts} />
+          <RollupCard label={t('progress.rollup.applyPlus')} value={rollup.apply_plus} accent />
+          <RollupCard label={t('progress.rollup.quality')} value={`${Math.round(rollup.avg_quality * 100)}%`} />
+          <RollupCard label={t('progress.rollup.reps')} value={rollup.total_practice_reps} />
         </div>
       )}
 
@@ -76,7 +80,7 @@ export default function ProgressPage() {
       {!loading && rollup && rollup.total_concepts > 0 && (
         <div className="surface rounded-2xl p-5 mb-6">
           <div className="flex justify-between text-xs font-mono text-mute mb-2">
-            <span>Применяю и выше</span>
+            <span>{t('progress.bar.label')}</span>
             <span>{rollup.apply_plus_pct.toFixed(0)}%</span>
           </div>
           <div className="h-2 bg-sand rounded-full overflow-hidden">
@@ -103,7 +107,7 @@ export default function ProgressPage() {
       {/* Blocking expert */}
       {!loading && (rollup?.blocking_expert?.length ?? 0) > 0 && (
         <div className="surface rounded-2xl p-5 mb-6 border-warn/30">
-          <div className="text-xs font-mono text-warn mb-3">⚠ Блокируют уровень "Объясню"</div>
+          <div className="text-xs font-mono text-warn mb-3">{t('progress.blocking')}</div>
           <div className="flex flex-wrap gap-2">
             {rollup!.blocking_expert.map(({ concept, level }) => (
               <MasteryBadge key={concept} level={level as Level} concept={concept} />
@@ -115,7 +119,7 @@ export default function ProgressPage() {
       {/* Filter */}
       {!loading && (progress?.concepts.length ?? 0) > 0 && (
         <div className="flex flex-wrap gap-2 mb-5">
-          <FilterChip label="Все" active={filter === 'all'} onClick={() => setFilter('all')} />
+          <FilterChip label={t('progress.filter.all')} active={filter === 'all'} onClick={() => setFilter('all')} />
           {LEVEL_ORDER.map((level) => {
             const count = progress!.concepts.filter(c => c.mastery_level === level).length
             if (count === 0) return null
@@ -139,13 +143,15 @@ export default function ProgressPage() {
       ) : filtered.length > 0 ? (
         <div className="space-y-2">
           {filtered.map((concept) => (
-            <ConceptRow key={concept.concept} concept={concept} />
+            <ConceptRow key={concept.concept} concept={concept} t={t} />
           ))}
         </div>
       ) : (
         <div className="text-center py-12">
           <p className="text-mute text-sm">
-            {filter === 'all' ? 'Концептов пока нет — начни учиться!' : `Концептов с уровнем "${LEVEL_LABEL[filter]}" нет`}
+            {filter === 'all'
+              ? t('progress.empty.all')
+              : `${t('progress.empty.filteredPrefix')} "${LEVEL_LABEL[filter as Level]}"`}
           </p>
         </div>
       )}
@@ -153,7 +159,7 @@ export default function ProgressPage() {
       {/* Legend */}
       {!loading && (progress?.concepts.length ?? 0) > 0 && (
         <div className="mt-10 surface rounded-2xl p-5">
-          <div className="text-xs font-mono text-mute mb-4">Уровни владения</div>
+          <div className="text-xs font-mono text-mute mb-4">{t('progress.legend.title')}</div>
           <div className="space-y-3">
             {LEVEL_ORDER.map((level) => (
               <div key={level} className="flex items-center gap-3">
@@ -168,19 +174,19 @@ export default function ProgressPage() {
   )
 }
 
-function ConceptRow({ concept }: { concept: MasteryProgress['concepts'][0] }) {
+function ConceptRow({ concept, t }: { concept: MasteryProgress['concepts'][0]; t: (k: string) => string }) {
   const quality = Math.round(concept.practice_quality * 100)
   return (
     <div className="surface surface-hover rounded-xl p-4 flex items-center gap-4">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-sm font-medium text-ink truncate">{concept.concept}</span>
-          <MasteryBadge level={concept.mastery_level as Level} size="sm" />
+          <MasteryBadge level={concept.mastery_level as 'unknown' | 'recognize' | 'apply' | 'explain'} size="sm" />
         </div>
         <div className="flex items-center gap-3 text-xs font-mono text-mute">
-          <span>теория: {concept.theory_reps}</span>
-          <span>практика: {concept.practice_reps}</span>
-          {concept.practice_reps > 0 && <span>качество: {quality}%</span>}
+          <span>{t('progress.concept.theory')}: {concept.theory_reps}</span>
+          <span>{t('progress.concept.practice')}: {concept.practice_reps}</span>
+          {concept.practice_reps > 0 && <span>{t('progress.concept.quality')}: {quality}%</span>}
         </div>
       </div>
       {/* Mini quality bar */}

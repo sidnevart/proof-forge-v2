@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { getStoredUser } from '@/lib/auth'
 import { topics, practice } from '@/lib/api'
 import { track } from '@/lib/analytics'
+import { useT } from '@/lib/i18n'
 
 const ACCEPT = '.md,.py,.java,.csv,.txt,.js,.ts,.go,.rs,.c,.cpp,.h,.json,.yaml,.yml,.toml,.sh,.sql,.rb,.php,.kt,.pdf'
 
@@ -42,20 +43,12 @@ type PendingFile = { id: string; file: File; name: string }
 type PendingLink = { id: string; url: string; title: string }
 type Pending = { files: PendingFile[]; links: PendingLink[] }
 
-// ── Submitting steps ─────────────────────────────────────────────────────────
-const STEPS = [
-  'Готовим обучение',
-  'Загружаем файлы',
-  'Сохраняем ссылки',
-  'Читаем материалы',
-  'Запускаем обучение',
-]
-
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function NewTopicPage() {
   const router = useRouter()
   const user = getStoredUser()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const t = useT()
 
   const [name, setName] = useState('')
   const [pending, setPending] = useState<Pending>({ files: [], links: [] })
@@ -148,14 +141,14 @@ export default function NewTopicPage() {
         router.push(`/study/${result.session.id}`)
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Ошибка создания темы')
+      setError(err instanceof Error ? err.message : t('topicNew.errorFallback'))
       setSubmitting(false)
       setSubmitStep(0)
     }
   }
 
   if (submitting) {
-    return <SubmittingScreen step={submitStep} name={name} total={totalMaterials} />
+    return <SubmittingScreen step={submitStep} name={name} total={totalMaterials} t={t} />
   }
 
   return (
@@ -170,14 +163,14 @@ export default function NewTopicPage() {
         {/* ── Header ───────────────────────────────────────────────────────── */}
         <div className="mb-8">
           <h1 className="font-display text-3xl sm:text-4xl font-bold text-ink leading-tight mb-6">
-            Новая тема
+            {t('topicNew.title')}
           </h1>
 
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Название темы — например, Go горутины и каналы"
+            placeholder={t('topicNew.placeholder')}
             required
             autoFocus
             maxLength={120}
@@ -190,12 +183,12 @@ export default function NewTopicPage() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <span className="text-sm font-medium text-ink">Материалы для изучения</span>
-              <span className="text-xs text-mute ml-2 font-mono">необязательно</span>
+              <span className="text-sm font-medium text-ink">{t('topicNew.materials')}</span>
+              <span className="text-xs text-mute ml-2 font-mono">{t('topicNew.optional')}</span>
             </div>
             {totalMaterials > 0 && (
               <span className="text-xs font-mono text-accent">
-                {totalMaterials} добавлено
+                {totalMaterials} {t('topicNew.added')}
               </span>
             )}
           </div>
@@ -223,10 +216,8 @@ export default function NewTopicPage() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-ink">Перетащи файлы сюда</p>
-                  <p className="text-xs text-mute mt-1">
-                    .py, .go, .java, .md, .pdf, .csv, .ts и другие
-                  </p>
+                  <p className="text-sm font-medium text-ink">{t('topicNew.dropHint')}</p>
+                  <p className="text-xs text-mute mt-1">{t('topicNew.dropFormats')}</p>
                 </div>
               </div>
             ) : (
@@ -241,14 +232,14 @@ export default function NewTopicPage() {
                 {/* Add more hint */}
                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-line text-xs text-mute col-span-full sm:col-span-1">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Добавить ещё файлы
+                  {t('topicNew.addMore')}
                 </div>
               </div>
             )}
 
             {dragOver && (
               <div className="absolute inset-0 rounded-2xl flex items-center justify-center bg-accentsoft/60 pointer-events-none">
-                <p className="text-accent font-semibold">Отпусти файлы</p>
+                <p className="text-accent font-semibold">{t('topicNew.dropRelease')}</p>
               </div>
             )}
           </div>
@@ -270,7 +261,7 @@ export default function NewTopicPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-card text-xs text-mute hover:text-ink hover:border-accent/40 transition-colors"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Файл
+              {t('topicNew.file')}
             </button>
             <button
               type="button"
@@ -278,7 +269,7 @@ export default function NewTopicPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-card text-xs text-mute hover:text-ink hover:border-accent/40 transition-colors"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-              Ссылка
+              {t('topicNew.link')}
             </button>
             <span className="text-xs text-mute ml-auto">.py .go .java .md .pdf .csv .ts ...</span>
           </div>
@@ -300,7 +291,7 @@ export default function NewTopicPage() {
                 disabled={!linkUrl.trim()}
                 className="px-3 py-2 rounded-xl bg-accent text-[#06140d] text-sm font-semibold hover:bg-accentdk transition-colors disabled:opacity-40"
               >
-                ОК
+                OK
               </button>
               <button
                 type="button"
@@ -325,14 +316,14 @@ export default function NewTopicPage() {
           className="w-full py-4 rounded-xl bg-accent text-[#06140d] font-semibold text-base hover:bg-accentdk transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {submitting
-            ? 'Создаём...'
+            ? t('topicNew.creating')
             : totalMaterials > 0
-            ? `Создать тему с материалами (${totalMaterials}) →`
-            : 'Создать тему →'}
+            ? `${t('topicNew.submitMaterials')} (${totalMaterials}) →`
+            : t('topicNew.submit')}
         </button>
         {totalMaterials === 0 && (
           <p className="text-center text-xs text-mute mt-3">
-            Материалы можно добавить сейчас или после создания темы
+            {t('topicNew.hint')}
           </p>
         )}
       </form>
@@ -350,21 +341,16 @@ function FileChip({ name, size, onRemove }: { name: string; size: number; onRemo
       className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all group"
       style={{ borderColor: `${ft.color}40`, background: ft.bg }}
     >
-      {/* Type badge */}
       <div
         className="w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold font-mono shrink-0"
         style={{ background: ft.bg, color: ft.color, border: `1px solid ${ft.color}50` }}
       >
         {ext.toUpperCase().slice(0, 3)}
       </div>
-
-      {/* Name + size */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-ink truncate leading-tight">{name}</p>
         <p className="text-xs text-mute mt-0.5">{formatSize(size)}</p>
       </div>
-
-      {/* Remove */}
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onRemove() }}
@@ -387,21 +373,16 @@ function LinkChip({ url, title, onRemove }: { url: string; title: string; onRemo
       className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-accent/30 group transition-all"
       style={{ background: 'rgba(61,220,145,.08)' }}
     >
-      {/* Icon */}
       <div className="w-8 h-8 rounded-lg bg-accentsoft border border-accent/30 flex items-center justify-center shrink-0">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" strokeWidth="2">
           <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
           <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
         </svg>
       </div>
-
-      {/* Domain + url */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-ink truncate leading-tight">{title}</p>
         <p className="text-xs text-mute truncate mt-0.5">{domain}</p>
       </div>
-
-      {/* Remove */}
       <button
         type="button"
         onClick={onRemove}
@@ -416,8 +397,21 @@ function LinkChip({ url, title, onRemove }: { url: string; title: string; onRemo
 }
 
 // ── Submitting overlay ────────────────────────────────────────────────────────
-function SubmittingScreen({ step, name, total }: { step: number; name: string; total: number }) {
-  const label = getSubmittingLabel(step, total)
+function SubmittingScreen({ step, name, total, t }: { step: number; name: string; total: number; t: (k: string) => string }) {
+  const steps = [
+    t('topicNew.step0'),
+    t('topicNew.step1'),
+    t('topicNew.step2'),
+    t('topicNew.step3'),
+    t('topicNew.step4'),
+  ]
+
+  function getLabel(s: number, tot: number) {
+    if (s === 0) return steps[0]
+    if (tot > 0 && s === 1) return steps[1]
+    if (tot > 0 && s === 2) return steps[2]
+    return t('topicNew.stepGenerate')
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 py-12">
@@ -425,29 +419,20 @@ function SubmittingScreen({ step, name, total }: { step: number; name: string; t
         <div className="w-14 h-14 rounded-2xl bg-accentsoft flex items-center justify-center mx-auto mb-5">
           <div className="w-7 h-7 rounded-full border-2 border-accentdk border-t-accent animate-spin" />
         </div>
-        <h2 className="font-display text-xl font-bold text-ink mb-1">Запускаем обучение</h2>
+        <h2 className="font-display text-xl font-bold text-ink mb-1">{t('topicNew.launching')}</h2>
         <p className="text-mute text-sm mb-6 font-mono truncate">«{name}»</p>
         <div className="rounded-xl border border-line bg-card px-4 py-3 text-left">
           <div className="flex items-center gap-3">
             <span className="w-2 h-2 rounded-full bg-accent animate-pulse shrink-0" />
-            <span className="text-sm font-medium text-ink">{label}</span>
+            <span className="text-sm font-medium text-ink">{getLabel(step, total)}</span>
           </div>
           <p className="text-xs text-mute mt-2">
-            {total > 0
-              ? 'Сначала сохраняем материалы, затем AI подготовит конспект и задания.'
-              : 'AI готовит конспект и первые задания по теме.'}
+            {total > 0 ? t('topicNew.withMaterials') : t('topicNew.withoutMaterials')}
           </p>
         </div>
       </div>
     </div>
   )
-}
-
-function getSubmittingLabel(step: number, total: number) {
-  if (step === 0) return STEPS[0]
-  if (total > 0 && step === 1) return STEPS[1]
-  if (total > 0 && step === 2) return STEPS[2]
-  return 'Генерируем конспект и задания'
 }
 
 function formatSize(bytes: number) {

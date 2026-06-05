@@ -8,6 +8,7 @@ import { StreakCounter } from '@/components/StreakCounter'
 import { Skeleton } from '@/components/ui/Skeleton'
 import Link from 'next/link'
 import { track } from '@/lib/analytics'
+import { useT, useLocale, ruPlural } from '@/lib/i18n'
 
 type SessionStats = { reviewed: number; again: number; hard: number; good: number; easy: number }
 
@@ -20,6 +21,8 @@ export default function CardsPage() {
   const [done, setDone] = useState(false)
   const [streak, setStreak] = useState(0)
   const [session, setSession] = useState<SessionStats>({ reviewed: 0, again: 0, hard: 0, good: 0, easy: 0 })
+  const t = useT()
+  const { locale } = useLocale()
 
   const loadCards = useCallback(async () => {
     if (!user) return
@@ -82,7 +85,7 @@ export default function CardsPage() {
       const pctGood = Math.round(((session.good + session.easy) / session.reviewed) * 100)
       track({ name: 'card_session_end', props: { reviewed: session.reviewed, good_pct: pctGood, streak } })
     }
-    return <DoneScreen session={session} streak={streak} onRestart={() => { setDone(false); setCurrent(0); loadCards() }} />
+    return <DoneScreen session={session} streak={streak} locale={locale} t={t} onRestart={() => { setDone(false); setCurrent(0); loadCards() }} />
   }
 
   const card = queue[current]
@@ -95,7 +98,7 @@ export default function CardsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Повторение</h1>
+          <h1 className="font-display text-2xl font-bold text-ink">{t('cards.title')}</h1>
           <p className="text-sm text-mute font-mono mt-0.5">{current + 1} / {queue.length}</p>
         </div>
         <StreakCounter streak={streak} size="sm" />
@@ -122,19 +125,23 @@ export default function CardsPage() {
       {/* Skip link */}
       <div className="mt-8 text-center">
         <Link href="/dashboard" className="text-xs text-mute hover:text-ink transition-colors font-mono">
-          ← вернуться на главную
+          {t('cards.back')}
         </Link>
       </div>
     </div>
   )
 }
 
-function DoneScreen({ session, streak, onRestart }: {
-  session: SessionStats; streak: number; onRestart: () => void
+function DoneScreen({ session, streak, locale, t, onRestart }: {
+  session: SessionStats; streak: number; locale: string; t: (k: string) => string; onRestart: () => void
 }) {
   const pctGood = session.reviewed > 0
     ? Math.round(((session.good + session.easy) / session.reviewed) * 100)
     : 0
+
+  const reviewedWord = locale === 'ru'
+    ? ruPlural(session.reviewed, ['карточку', 'карточки', 'карточек'])
+    : `card${session.reviewed !== 1 ? 's' : ''}`
 
   return (
     <div className="max-w-md mx-auto px-5 py-12 text-center">
@@ -142,25 +149,25 @@ function DoneScreen({ session, streak, onRestart }: {
         {pctGood >= 80 ? '🔥' : pctGood >= 50 ? '💪' : '📚'}
       </div>
       <h1 className="font-display text-3xl font-bold text-ink mb-2">
-        {session.reviewed === 0 ? 'Всё повторено!' : 'Сессия завершена!'}
+        {session.reviewed === 0 ? t('cards.done.allReviewed') : t('cards.done.sessionComplete')}
       </h1>
       <p className="text-mute mb-8">
         {session.reviewed === 0
-          ? 'На сегодня карточек нет. Возвращайся завтра.'
-          : `Повторил ${session.reviewed} карточек`}
+          ? t('cards.done.empty')
+          : `${t('cards.done.reviewedPrefix')} ${session.reviewed} ${reviewedWord}`}
       </p>
 
       {session.reviewed > 0 && (
         <div className="surface rounded-2xl p-6 mb-8 text-left">
-          <div className="text-xs font-mono text-mute mb-4">Результаты сессии</div>
+          <div className="text-xs font-mono text-mute mb-4">{t('cards.done.results')}</div>
           <div className="grid grid-cols-2 gap-3">
-            <Stat label="Снова" value={session.again} color="text-danger" />
-            <Stat label="Сложно" value={session.hard} color="text-warn" />
-            <Stat label="Хорошо" value={session.good} color="text-accent" />
-            <Stat label="Легко" value={session.easy} color="text-info" />
+            <Stat label={t('cards.done.again')} value={session.again} color="text-danger" />
+            <Stat label={t('cards.done.hard')} value={session.hard} color="text-warn" />
+            <Stat label={t('cards.done.good')} value={session.good} color="text-accent" />
+            <Stat label={t('cards.done.easy')} value={session.easy} color="text-info" />
           </div>
           <div className="mt-4 pt-4 border-t border-line flex items-center justify-between">
-            <span className="text-sm text-mute">Хорошо/Легко</span>
+            <span className="text-sm text-mute">{t('cards.done.accuracy')}</span>
             <span className={`text-lg font-mono font-bold ${pctGood >= 70 ? 'text-accent' : 'text-warn'}`}>
               {pctGood}%
             </span>
@@ -170,10 +177,10 @@ function DoneScreen({ session, streak, onRestart }: {
 
       <div className="flex flex-col gap-3">
         <Link href="/dashboard" className="w-full py-3.5 rounded-xl bg-accent text-[#06140d] font-semibold hover:bg-accentdk transition-colors text-center">
-          На главную
+          {t('cards.done.home')}
         </Link>
         <Link href="/progress" className="w-full py-3.5 rounded-xl surface text-ink font-medium hover:border-accent/40 transition-colors text-center">
-          Посмотреть прогресс
+          {t('cards.done.progress')}
         </Link>
       </div>
     </div>

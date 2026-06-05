@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useT } from '@/lib/i18n'
 
 type Props = {
   question: string
@@ -11,17 +12,18 @@ type Props = {
   isLoading?: boolean
 }
 
-const RATINGS = [
-  { value: 1 as const, label: 'Снова', sublabel: '<1 дня', className: 'rating-1' },
-  { value: 2 as const, label: 'Сложно', sublabel: '+25%', className: 'rating-2' },
-  { value: 3 as const, label: 'Хорошо', sublabel: '×2.5', className: 'rating-3' },
-  { value: 4 as const, label: 'Легко', sublabel: '×3.5', className: 'rating-4' },
-]
-
-const DIFFICULTY_LABEL = ['', 'Базовый', 'Средний', 'Сложный']
-
 export function FlipCard({ question, answer, difficulty, topic, onRate, isLoading }: Props) {
   const [flipped, setFlipped] = useState(false)
+  const t = useT()
+
+  const RATINGS = [
+    { value: 1 as const, label: t('flip.again'), sublabel: t('flip.again.sub'), className: 'rating-1' },
+    { value: 2 as const, label: t('flip.hard'), sublabel: '+25%', className: 'rating-2' },
+    { value: 3 as const, label: t('flip.good'), sublabel: '×2.5', className: 'rating-3' },
+    { value: 4 as const, label: t('flip.easy'), sublabel: '×3.5', className: 'rating-4' },
+  ]
+
+  const DIFFICULTY_LABEL = ['', t('flip.diff.basic'), t('flip.diff.medium'), t('flip.diff.hard')]
 
   const handleFlip = () => {
     if (!flipped) setFlipped(true)
@@ -40,7 +42,7 @@ export function FlipCard({ question, answer, difficulty, topic, onRate, isLoadin
         style={{ height: 260 }}
         onClick={handleFlip}
         role="button"
-        aria-label={flipped ? 'Показан ответ' : 'Нажми чтобы увидеть ответ'}
+        aria-label={flipped ? t('flip.aria.shown') : t('flip.aria.tap')}
       >
         <div className="flip-inner">
           {/* Front — question */}
@@ -48,21 +50,21 @@ export function FlipCard({ question, answer, difficulty, topic, onRate, isLoadin
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs font-mono text-mute">{topic}</span>
               <span className="text-xs font-mono text-mute bg-sand px-2 py-0.5 rounded-full">
-                {DIFFICULTY_LABEL[difficulty] ?? 'Базовый'}
+                {DIFFICULTY_LABEL[difficulty] ?? t('flip.diff.basic')}
               </span>
             </div>
             <div className="flex-1 flex items-center justify-center">
               <p className="text-lg font-medium text-ink leading-relaxed text-center">{question}</p>
             </div>
             <div className="mt-4 text-center">
-              <span className="text-xs text-mute font-mono">нажми чтобы увидеть ответ →</span>
+              <span className="text-xs text-mute font-mono">{t('flip.tapHint')}</span>
             </div>
           </div>
 
           {/* Back — answer */}
           <div className="flip-face flip-back surface rounded-2xl flex flex-col p-6 border-accent/30">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono text-accent">ответ</span>
+              <span className="text-xs font-mono text-accent">{t('flip.answerLabel')}</span>
               <span className="text-xs font-mono text-mute">{topic}</span>
             </div>
             <div className="flex-1 overflow-y-auto">
@@ -78,7 +80,7 @@ export function FlipCard({ question, answer, difficulty, topic, onRate, isLoadin
           flipped ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
         }`}
       >
-        <p className="text-xs text-center text-mute font-mono mb-3">Насколько хорошо ответил?</p>
+        <p className="text-xs text-center text-mute font-mono mb-3">{t('flip.ratePrompt')}</p>
         <div className="flex gap-2">
           {RATINGS.map((r) => (
             <button
@@ -97,7 +99,7 @@ export function FlipCard({ question, answer, difficulty, topic, onRate, isLoadin
       {/* Hint when not flipped */}
       {!flipped && (
         <p className="mt-3 text-xs text-center text-mute/60 font-mono">
-          Подумай перед тем как смотреть ответ
+          {t('flip.thinkHint')}
         </p>
       )}
     </div>

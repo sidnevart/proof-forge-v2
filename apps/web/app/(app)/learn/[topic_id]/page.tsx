@@ -1,11 +1,12 @@
 'use client'
 
-import { use, useEffect, useRef, useState } from 'react'
+import { use, useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { getStoredUser } from '@/lib/auth'
 import { chat, topics, type Topic } from '@/lib/api'
+import { useT } from '@/lib/i18n'
 
 type Message = { role: 'user' | 'assistant'; content: string }
 
@@ -19,6 +20,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
   const [chatError, setChatError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const t = useT()
 
   useEffect(() => {
     topics.get(topic_id).then(setTopic).catch(console.error)
@@ -28,7 +30,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, sending])
 
-  const send = async () => {
+  const send = useCallback(async () => {
     const text = input.trim()
     if (!text || sending || !user) return
 
@@ -43,12 +45,12 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
       const res = await chat.send(user.user_id, text, history, topic_id)
       setMessages((prev) => [...prev, { role: 'assistant', content: res.message }])
     } catch (err) {
-      setChatError(getChatErrorMessage(err))
+      setChatError(getChatErrorMessage(err, t))
     } finally {
       setSending(false)
       textareaRef.current?.focus()
     }
-  }
+  }, [input, sending, user, messages, topic_id, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -70,12 +72,12 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
           </svg>
         </Link>
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-mono text-accent">Ментор</div>
+          <div className="text-xs font-mono text-accent">{t('learn.mentor')}</div>
           <div className="text-sm font-semibold text-ink truncate">
-            {topic?.name ?? 'Загрузка...'}
+            {topic?.name ?? t('learn.loading')}
           </div>
         </div>
-        <div className="text-xs font-mono text-mute/60 hidden sm:block">Enter ↵ отправить · Shift+Enter новая строка</div>
+        <div className="text-xs font-mono text-mute/60 hidden sm:block">{t('learn.hint')}</div>
       </div>
 
       {/* Messages */}
@@ -88,10 +90,8 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
                 <circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/>
               </svg>
             </div>
-            <h2 className="font-display text-xl font-bold text-ink mb-2">Привет! Я твой ментор.</h2>
-            <p className="text-mute text-sm">
-              Задавай вопросы по теме, проси объяснить концепцию, дать задание или разобрать код.
-            </p>
+            <h2 className="font-display text-xl font-bold text-ink mb-2">{t('learn.empty.title')}</h2>
+            <p className="text-mute text-sm">{t('learn.empty.desc')}</p>
           </div>
         )}
 
@@ -182,7 +182,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Спроси ментора..."
+            placeholder={t('learn.placeholder')}
             rows={1}
             disabled={sending}
             className="flex-1 h-10 resize-none overflow-hidden px-4 py-2.5 rounded-xl border border-line bg-card text-ink placeholder:text-mute/50 focus:outline-none focus:border-accent/60 transition-colors text-sm leading-5 disabled:opacity-50"
@@ -203,16 +203,16 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
   )
 }
 
-function getChatErrorMessage(err: unknown) {
-  const message = err instanceof Error ? err.message : 'что-то пошло не так'
-  if (message.includes('LLM не настроен')) {
-    return 'AI недоступен: на backend не настроен LLM_API_KEY. Проверь переменные окружения деплоя.'
+function getChatErrorMessage(err: unknown, t: (k: string) => string) {
+  const message = err instanceof Error ? err.message : t('chat.fallback')
+  if (message.includes('LLM не настроен') || message.includes('LLM not configured')) {
+    return t('chat.err.notConfigured')
   }
   if (message.includes('LLM error')) {
-    return `AI недоступен: провайдер вернул ошибку. ${message}`
+    return `${t('chat.err.providerError')} ${message}`
   }
   if (message.includes('LLM timeout')) {
-    return 'AI недоступен: провайдер не ответил за 45 секунд. Попробуй еще раз или проверь LLM-провайдера.'
+    return t('chat.err.timeout')
   }
-  return `AI недоступен: ${message}`
+  return `${t('chat.err.prefix')}: ${message}`
 }
