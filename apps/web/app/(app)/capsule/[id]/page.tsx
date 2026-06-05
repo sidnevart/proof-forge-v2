@@ -5,9 +5,8 @@ import { use } from 'react'
 import { capsules, type Capsule, type CapsuleFeedback } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 import { track } from '@/lib/analytics'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { Skeleton, SkeletonText } from '@/components/ui/Skeleton'
+import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n'
 
@@ -207,8 +206,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-5 py-6 pb-24">
             <div ref={contentRef} className="prose-grasp">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+              <MarkdownRenderer
                 components={{
                   h1: ({ children }) => (
                     <h1 className="font-display text-2xl font-bold text-ink mt-2 mb-4">{children}</h1>
@@ -222,12 +220,6 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                     <h3 className="font-semibold text-ink mt-5 mb-2 text-sm">{children}</h3>
                   ),
                   p: ({ children }) => <p className="text-ink/90 leading-relaxed mb-3 text-sm">{children}</p>,
-                  code: ({ children, className }) =>
-                    className ? (
-                      <code className="code-surface block p-4 rounded-xl font-mono text-xs my-3 overflow-x-auto whitespace-pre">{children}</code>
-                    ) : (
-                      <code className="font-mono text-accent bg-accentsoft px-1 py-0.5 rounded text-xs">{children}</code>
-                    ),
                   ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-ink/90 text-sm">{children}</ul>,
                   ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-ink/90 text-sm">{children}</ol>,
                   blockquote: ({ children }) => (
@@ -236,7 +228,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                 }}
               >
                 {capsule.content_md}
-              </ReactMarkdown>
+              </MarkdownRenderer>
             </div>
 
             {/* Review questions inline */}
@@ -293,8 +285,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                   <span>{new Date(feedback.generated_at).toLocaleDateString(locale === 'ru' ? 'ru' : 'en-US')}</span>
                 </div>
                 <div className="surface rounded-2xl p-4">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
+                  <MarkdownRenderer
                     components={{
                       h2: ({ children }) => <h2 className="font-semibold text-ink mt-3 mb-1 text-sm">{children}</h2>,
                       h3: ({ children }) => <h3 className="font-medium text-ink mt-2 mb-1 text-xs">{children}</h3>,
@@ -303,7 +294,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                     }}
                   >
                     {feedback.suggestions_md}
-                  </ReactMarkdown>
+                  </MarkdownRenderer>
                 </div>
                 <button
                   onClick={requestFeedback}

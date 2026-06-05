@@ -3,15 +3,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { getStoredUser } from '@/lib/auth'
 import { practice, chat, type PracticeTask, type StudySession, type ChatMessage, type ChatSession } from '@/lib/api'
 import { SkeletonText } from '@/components/ui/Skeleton'
+import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { useT } from '@/lib/i18n'
 import { useSSEStream } from '@/hooks/useSSEStream'
 
-type Tab = 'chat' | 'conspect' | 'tasks'
+type Tab = 'chat' | 'materials'
 
 export default function StudySessionPage() {
   const { id } = useParams<{ id: string }>()
@@ -205,7 +204,7 @@ export default function StudySessionPage() {
 
       {/* Mobile tabs */}
       <div className="md:hidden shrink-0 flex border-b border-line bg-paper">
-        {(['chat', 'conspect', 'tasks'] as const).map((tab) => (
+        {(['chat', 'materials'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -213,7 +212,7 @@ export default function StudySessionPage() {
               activeTab === tab ? 'text-accent border-b-2 border-accent bg-accentsoft/20' : 'text-mute'
             }`}
           >
-            {tab === 'chat' ? t('study.tab.chat') : tab === 'conspect' ? t('study.tab.conspect') : t('study.tab.tasks')}
+            {tab === 'chat' ? t('study.tab.chat') : t('study.tab.materials')}
           </button>
         ))}
       </div>
@@ -282,25 +281,18 @@ export default function StudySessionPage() {
                 }`}>
                   {msg.role === 'assistant' ? (
                     <div className="prose-grasp">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
+                      <MarkdownRenderer
                         components={{
                           h1: ({ children }) => <h1 className="font-display text-base font-bold text-ink mt-3 mb-1">{children}</h1>,
                           h2: ({ children }) => <h2 className="font-display text-sm font-bold text-ink mt-2 mb-1">{children}</h2>,
                           h3: ({ children }) => <h3 className="font-semibold text-ink mt-1.5 mb-0.5 text-xs">{children}</h3>,
                           p: ({ children }) => <p className="text-ink/90 leading-relaxed mb-1.5 last:mb-0">{children}</p>,
-                          code: ({ children, className }) =>
-                            className ? (
-                              <code className="code-surface block p-2 rounded-lg font-mono text-xs my-1.5 overflow-x-auto whitespace-pre">{children}</code>
-                            ) : (
-                              <code className="font-mono text-accent bg-accentsoft px-1 py-0.5 rounded text-xs">{children}</code>
-                            ),
                           ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 mb-1.5 text-ink/90 text-xs">{children}</ul>,
                           ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 mb-1.5 text-ink/90 text-xs">{children}</ol>,
                         }}
                       >
                         {msg.content}
-                      </ReactMarkdown>
+                      </MarkdownRenderer>
                     </div>
                   ) : (
                     <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -356,9 +348,9 @@ export default function StudySessionPage() {
         </div>
 
         {/* Right panel: conspect + tasks */}
-        <div className={`w-full md:w-[380px] lg:w-[420px] shrink-0 flex flex-col min-h-0 bg-sand/20 border-l border-line ${activeTab !== 'conspect' && activeTab !== 'tasks' ? 'hidden md:flex' : ''}`}>
+        <div className={`w-full md:w-[380px] lg:w-[420px] shrink-0 flex flex-col min-h-0 bg-sand/20 border-l border-line ${activeTab !== 'materials' ? 'hidden md:flex' : ''}`}>
           <div className="flex-1 overflow-y-auto">
-            <div className={`p-4 ${activeTab === 'tasks' ? 'hidden md:block' : 'block'}`}>
+            <div className="p-4">
               {/* Streaming phase label */}
               {isStreaming && streamingPhase && (
                 <div className="flex items-center gap-2 mb-3 px-1">
@@ -372,16 +364,16 @@ export default function StudySessionPage() {
                 </div>
               )}
               <div className="prose-grasp text-sm">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <MarkdownRenderer>
                   {streamingConspect || session.conspect_md}
-                </ReactMarkdown>
+                </MarkdownRenderer>
                 {isStreaming && (
                   <span className="inline-block w-0.5 h-4 bg-accent animate-pulse ml-0.5 align-middle" />
                 )}
               </div>
             </div>
 
-            <div className={`p-4 space-y-2 ${activeTab === 'conspect' ? 'hidden md:block' : 'block'}`}>
+            <div className="p-4 space-y-2 border-t border-line">
               {isStreaming && tasks.length === 0 && (
                 <div className="flex items-center gap-2 py-8 justify-center">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
