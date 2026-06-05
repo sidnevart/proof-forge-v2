@@ -1,7 +1,7 @@
 from datetime import datetime
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,8 +10,10 @@ from app.config import settings as app_settings
 from app.database import get_db
 from app.models import PracticeTask, StudySession, Topic
 from app.repositories import capsule_repo, chat_repo
+from app.services.card_generation import generate_cards_for_topic_background
 
 router = APIRouter(tags=["chat"])
+_CARD_GENERATION_MESSAGE_INTERVAL = 5
 
 
 def _load_system_prompt() -> str:
@@ -255,10 +257,30 @@ class ChatMessageOut(BaseModel):
     created_at: datetime
 
 
+def _format_chat_card_context(messages: list[ChatMessageOut] | list) -> str:
+    lines = []
+    for message in messages[-16:]:
+        role = getattr(message, "role", "")
+        content = getattr(message, "content", "")
+        label = "Пользователь" if role == "user" else "Ментор"
+        lines.append(f"{label}: {_clip(content, 1200)}")
+    return "\n".join(lines)
+
+
 @router.post("/chat/sessions", response_model=ChatSessionOut, status_code=201)
-async def create_session(data: ChatSessionCreate, db: AsyncSession = Depends(get_db)):
+async def create_session(
+    data: ChatSessionCreate,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
     session = await chat_repo.create_chat_session(
         db, data.user_id, data.topic_id, data.study_session_id, data.title
+    )
+    background_tasks.add_task(
+        generate_cards_for_topic_background,
+        data.topic_id,
+        data.user_id,
+        "",
     )
     return ChatSessionOut.model_validate(session)
 
@@ -278,11 +300,27 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/chat/sessions/{session_id}/messages", response_model=ChatMessageOut, status_code=201)
-async def create_message(session_id: str, data: ChatMessageIn, db: AsyncSession = Depends(get_db)):
+async def create_message(
+    session_id: str,
+    data: ChatMessageIn,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
     session = await chat_repo.get_chat_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
     msg = await chat_repo.create_chat_message(db, session_id, data.role, data.content)
+    if msg.role == "user":
+        messages = await chat_repo.list_chat_messages(db, session_id)
+        user_message_count = sum(1 for message in messages if message.role == "user")
+        if user_message_count > 0 and user_message_count % _CARD_GENERATION_MESSAGE_INTERVAL == 0:
+            background_tasks.add_task(
+                generate_cards_for_topic_background,
+                session.topic_id,
+                session.user_id,
+                _format_chat_card_context(messages),
+                2,
+            )
     return ChatMessageOut.model_validate(msg)
 
 

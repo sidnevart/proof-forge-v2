@@ -12,8 +12,10 @@ class CardFromCapsuleOut(BaseModel):
 
 
 class DueCardOut(BaseModel):
+    source: str
+    card_type: str
     card_id: str
-    question_id: str
+    question_id: str | None = None
     question: str
     correct_answer: str
     difficulty: int

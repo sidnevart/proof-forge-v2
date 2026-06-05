@@ -122,6 +122,12 @@ body::after {
 }
 .flip-back { transform: rotateY(180deg); }
 
+.card-markdown p { margin: 0.35rem 0; }
+.card-markdown ul,
+.card-markdown ol { margin: 0.5rem 0; padding-left: 1.15rem; text-align: left; }
+.card-markdown pre { text-align: left; }
+.card-markdown code { white-space: pre-wrap; }
+
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

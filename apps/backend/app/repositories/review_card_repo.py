@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ReviewCard, ReviewQuestion, Capsule, Topic
+from app.models import Capsule, ReviewCard, ReviewQuestion, Topic, TopicCard
 
 
 async def create_cards_from_capsule(db: AsyncSession, user_id: str, capsule_id: str) -> int:
@@ -33,7 +33,7 @@ async def create_cards_from_capsule(db: AsyncSession, user_id: str, capsule_id: 
 
 async def get_due_cards(db: AsyncSession, user_id: str, limit: int = 10) -> list[dict]:
     now = datetime.now(timezone.utc)
-    result = await db.execute(
+    review_result = await db.execute(
         select(ReviewCard, ReviewQuestion, Capsule, Topic)
         .join(ReviewQuestion, ReviewCard.question_id == ReviewQuestion.id)
         .join(Capsule, ReviewQuestion.capsule_id == Capsule.id)
@@ -43,9 +43,11 @@ async def get_due_cards(db: AsyncSession, user_id: str, limit: int = 10) -> list
         .order_by(ReviewCard.next_review_at)
         .limit(limit)
     )
-    rows = result.all()
-    return [
+    review_rows = review_result.all()
+    due_cards = [
         {
+            "source": "capsule",
+            "card_type": "FLASHCARD",
             "card_id": card.id,
             "question_id": question.id,
             "question": question.question,
@@ -54,8 +56,42 @@ async def get_due_cards(db: AsyncSession, user_id: str, limit: int = 10) -> list
             "topic_name": topic.name,
             "interval_days": card.interval_days,
             "repetitions": card.repetitions,
+            "_next_review_at": card.next_review_at,
+            "_source_order": 0,
         }
-        for card, question, capsule, topic in rows
+        for card, question, capsule, topic in review_rows
+    ]
+
+    topic_result = await db.execute(
+        select(TopicCard, Topic)
+        .join(Topic, TopicCard.topic_id == Topic.id)
+        .where(TopicCard.user_id == user_id)
+        .where(TopicCard.next_review_at <= now)
+        .order_by(TopicCard.next_review_at)
+        .limit(limit)
+    )
+    topic_rows = topic_result.all()
+    due_cards.extend(
+        {
+            "source": "topic",
+            "card_type": card.card_type,
+            "card_id": card.id,
+            "question_id": None,
+            "question": card.front,
+            "correct_answer": card.back,
+            "difficulty": card.difficulty,
+            "topic_name": topic.name,
+            "interval_days": card.interval_days,
+            "repetitions": card.repetitions,
+            "_next_review_at": card.next_review_at,
+            "_source_order": 1,
+        }
+        for card, topic in topic_rows
+    )
+    due_cards.sort(key=lambda item: (item["_next_review_at"], item["_source_order"]))
+    return [
+        {key: value for key, value in item.items() if not key.startswith("_")}
+        for item in due_cards[:limit]
     ]
 
 
@@ -64,6 +100,25 @@ async def log_card_attempt(
 ) -> ReviewCard | None:
     result = await db.execute(
         select(ReviewCard).where(ReviewCard.id == card_id, ReviewCard.user_id == user_id)
+    )
+    card = result.scalar_one_or_none()
+    if not card:
+        return None
+
+    card.ease_factor, card.interval_days, card.repetitions = _sm2(
+        card.ease_factor, card.interval_days, card.repetitions, rating
+    )
+    card.next_review_at = datetime.now(timezone.utc) + timedelta(days=card.interval_days)
+    await db.commit()
+    await db.refresh(card)
+    return card
+
+
+async def log_topic_card_attempt(
+    db: AsyncSession, card_id: str, user_id: str, rating: int
+) -> TopicCard | None:
+    result = await db.execute(
+        select(TopicCard).where(TopicCard.id == card_id, TopicCard.user_id == user_id)
     )
     card = result.scalar_one_or_none()
     if not card:
@@ -89,4 +144,4 @@ def _sm2(ease: float, interval: int, reps: int, rating: int) -> tuple[float, int
         return ease, new_interval, reps + 1
     # rating == 4
     new_interval = 1 if reps == 0 else (6 if reps == 1 else int(interval * ease * 1.3))
-    return min(2.5, ease + 0.1), new_interval, reps + 1
+    return ease + 0.1, new_interval, reps + 1

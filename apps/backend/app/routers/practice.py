@@ -37,10 +37,23 @@ from app.services.practice_generation import (
     stream_conspect_to_queue,
     stream_study_content_to_queue,
 )
+from app.services.card_generation import generate_cards_for_topic_background
 from app.services.sse_bridge import create_stream, get_stream, remove_stream, stream_from_queue
 from app.services.study_completion import forge_capsule_from_session
 
 router = APIRouter(tags=["practice"])
+
+
+def _format_card_context_from_materials(topic_name: str, materials_list: list[dict]) -> str:
+    if not materials_list:
+        return f"Тема: {topic_name}"
+    blocks = []
+    for material in materials_list[:6]:
+        blocks.append(
+            f"### {material['name']} ({material.get('type', 'material')})\n"
+            f"{material['content_text'][:3000]}"
+        )
+    return f"## Тема\n{topic_name}\n\n## Материалы\n\n" + "\n\n---\n\n".join(blocks)
 
 
 # ── Background generation task ─────────────────────────────────────────────────
@@ -217,6 +230,13 @@ async def create_study_session(data: dict, db: AsyncSession = Depends(get_db)):
     topic_info = TopicInfo(id=topic.id, name=topic.name, user_id=topic.user_id)
     create_stream(session_obj.id)
     asyncio.create_task(_run_session_generation(session_obj.id, topic_info, materials_list))
+    asyncio.create_task(
+        generate_cards_for_topic_background(
+            topic.id,
+            topic.user_id,
+            _format_card_context_from_materials(topic.name, materials_list),
+        )
+    )
 
     return {
         "session": StudySessionOut.model_validate(session_obj),

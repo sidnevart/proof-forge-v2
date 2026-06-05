@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { track } from '@/lib/analytics'
 import { useT, useLocale, ruPlural } from '@/lib/i18n'
 
-type SessionStats = { reviewed: number; again: number; hard: number; good: number; easy: number }
+type SessionStats = { reviewed: number; again: number; hard: number; easy: number }
 
 export default function CardsPage() {
   const user = getStoredUser()
@@ -20,7 +20,7 @@ export default function CardsPage() {
   const [rating, setRating] = useState(false)
   const [done, setDone] = useState(false)
   const [streak, setStreak] = useState(0)
-  const [session, setSession] = useState<SessionStats>({ reviewed: 0, again: 0, hard: 0, good: 0, easy: 0 })
+  const [session, setSession] = useState<SessionStats>({ reviewed: 0, again: 0, hard: 0, easy: 0 })
   const t = useT()
   const { locale } = useLocale()
 
@@ -53,9 +53,14 @@ export default function CardsPage() {
     const card = queue[current]
     setRating(true)
     try {
-      await cards.attempt(card.card_id, user.user_id, ratingVal)
-      const key = ratingVal === 1 ? 'again' : ratingVal === 2 ? 'hard' : ratingVal === 3 ? 'good' : 'easy'
-      setSession((s) => ({ ...s, reviewed: s.reviewed + 1, [key]: s[key] + 1 }))
+      await cards.attempt(card.card_id, user.user_id, ratingVal, '', card.source)
+      setSession((s) => {
+        const next = { ...s, reviewed: s.reviewed + 1 }
+        if (ratingVal === 1) next.again += 1
+        else if (ratingVal === 2) next.hard += 1
+        else next.easy += 1
+        return next
+      })
       track({ name: 'card_rated', props: { rating: ratingVal, topic: card.topic_name } })
 
       if (current + 1 >= queue.length) {
@@ -75,15 +80,15 @@ export default function CardsPage() {
       <Skeleton className="h-6 w-32" />
       <Skeleton className="h-64 w-full" />
       <div className="flex gap-2">
-        {[0,1,2,3].map(i => <Skeleton key={i} className="h-12 flex-1" />)}
+        {[0,1,2].map(i => <Skeleton key={i} className="h-12 flex-1" />)}
       </div>
     </div>
   )
 
   if (done) {
     if (session.reviewed > 0) {
-      const pctGood = Math.round(((session.good + session.easy) / session.reviewed) * 100)
-      track({ name: 'card_session_end', props: { reviewed: session.reviewed, good_pct: pctGood, streak } })
+      const pctEasy = Math.round((session.easy / session.reviewed) * 100)
+      track({ name: 'card_session_end', props: { reviewed: session.reviewed, easy_pct: pctEasy, streak } })
     }
     return <DoneScreen session={session} streak={streak} locale={locale} t={t} onRestart={() => { setDone(false); setCurrent(0); loadCards() }} />
   }
@@ -91,7 +96,7 @@ export default function CardsPage() {
   const card = queue[current]
   if (!card) return null
 
-  const progress = current / queue.length
+  const progress = (current + 1) / queue.length
 
   return (
     <div className="max-w-lg mx-auto px-5 py-8">
@@ -118,6 +123,7 @@ export default function CardsPage() {
         answer={card.correct_answer}
         difficulty={card.difficulty}
         topic={card.topic_name}
+        cardType={card.card_type}
         onRate={handleRate}
         isLoading={rating}
       />
@@ -135,8 +141,8 @@ export default function CardsPage() {
 function DoneScreen({ session, streak, locale, t, onRestart }: {
   session: SessionStats; streak: number; locale: string; t: (k: string) => string; onRestart: () => void
 }) {
-  const pctGood = session.reviewed > 0
-    ? Math.round(((session.good + session.easy) / session.reviewed) * 100)
+  const pctEasy = session.reviewed > 0
+    ? Math.round((session.easy / session.reviewed) * 100)
     : 0
 
   const reviewedWord = locale === 'ru'
@@ -146,7 +152,7 @@ function DoneScreen({ session, streak, locale, t, onRestart }: {
   return (
     <div className="max-w-md mx-auto px-5 py-12 text-center">
       <div className="text-5xl mb-6">
-        {pctGood >= 80 ? '🔥' : pctGood >= 50 ? '💪' : '📚'}
+        {pctEasy >= 80 ? '🔥' : pctEasy >= 50 ? '💪' : '📚'}
       </div>
       <h1 className="font-display text-3xl font-bold text-ink mb-2">
         {session.reviewed === 0 ? t('cards.done.allReviewed') : t('cards.done.sessionComplete')}
@@ -160,16 +166,15 @@ function DoneScreen({ session, streak, locale, t, onRestart }: {
       {session.reviewed > 0 && (
         <div className="surface rounded-2xl p-6 mb-8 text-left">
           <div className="text-xs font-mono text-mute mb-4">{t('cards.done.results')}</div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Stat label={t('cards.done.again')} value={session.again} color="text-danger" />
             <Stat label={t('cards.done.hard')} value={session.hard} color="text-warn" />
-            <Stat label={t('cards.done.good')} value={session.good} color="text-accent" />
             <Stat label={t('cards.done.easy')} value={session.easy} color="text-info" />
           </div>
           <div className="mt-4 pt-4 border-t border-line flex items-center justify-between">
             <span className="text-sm text-mute">{t('cards.done.accuracy')}</span>
-            <span className={`text-lg font-mono font-bold ${pctGood >= 70 ? 'text-accent' : 'text-warn'}`}>
-              {pctGood}%
+            <span className={`text-lg font-mono font-bold ${pctEasy >= 70 ? 'text-accent' : 'text-warn'}`}>
+              {pctEasy}%
             </span>
           </div>
         </div>

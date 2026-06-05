@@ -44,8 +44,10 @@ export const auth = {
 
 // ── Cards ──
 export type DueCard = {
+  source: 'capsule' | 'topic'
+  card_type: 'FLASHCARD' | 'FILL_BLANK' | 'CODE_REVIEW' | 'PRACTICAL' | string
   card_id: string
-  question_id: string
+  question_id: string | null
   question: string
   correct_answer: string
   difficulty: number
@@ -65,9 +67,15 @@ export type CardStats = {
 export const cards = {
   due: (userId: string, limit = 20) =>
     req<DueCard[]>(`/api/cards/due?userId=${userId}&limit=${limit}`),
-  attempt: (cardId: string, userId: string, rating: 1 | 2 | 3 | 4, user_answer?: string) =>
+  attempt: (
+    cardId: string,
+    userId: string,
+    rating: 1 | 2 | 3 | 4,
+    user_answer?: string,
+    source: DueCard['source'] = 'capsule',
+  ) =>
     req<{ card_id: string; next_review_at: string; interval_days: number; ease_factor: number }>(
-      `/api/cards/${cardId}/attempt`,
+      source === 'topic' ? `/api/cards/topic/${cardId}/attempt` : `/api/cards/${cardId}/attempt`,
       { method: 'POST', body: JSON.stringify({ user_id: userId, rating, user_answer: user_answer ?? '' }) }
     ),
   stats: (userId: string) =>

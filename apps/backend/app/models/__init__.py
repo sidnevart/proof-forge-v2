@@ -9,6 +9,7 @@ from app.models.learning_event import LearningEvent
 from app.models.code_artifact import CodeArtifact
 from app.models.agent_context_export import AgentContextExport
 from app.models.review_card import ReviewCard
+from app.models.topic_card import TopicCard
 from app.models.concept_mastery import ConceptMastery
 from app.models.auth_token import AuthToken
 from app.models.web_event import WebEvent
@@ -27,7 +28,7 @@ __all__ = [
     "User", "LearnerProfile", "Topic", "Capsule",
     "ReviewQuestion", "ReviewAttempt", "WeakSpot",
     "LearningEvent", "CodeArtifact", "AgentContextExport",
-    "ReviewCard", "ConceptMastery",
+    "ReviewCard", "TopicCard", "ConceptMastery",
     "AuthToken", "WebEvent", "CapsuleFeedback", "UserStreak", "CardSession",
     "TopicMaterial", "LlmUsageLog",
     "StudySession", "PracticeTask", "IdeSession", "IdeSubmission", "Evaluation", "FollowUp",

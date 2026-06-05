@@ -42,6 +42,23 @@ async def log_card_attempt(card_id: str, data: CardAttemptCreate, db: AsyncSessi
     )
 
 
+@router.post("/cards/topic/{card_id}/attempt", response_model=CardAttemptOut)
+async def log_topic_card_attempt(card_id: str, data: CardAttemptCreate, db: AsyncSession = Depends(get_db)):
+    if data.rating not in (1, 2, 3, 4):
+        raise HTTPException(status_code=422, detail="rating must be 1-4")
+    card = await review_card_repo.log_topic_card_attempt(db, card_id, data.user_id, data.rating)
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    await streak_repo.update_streak_after_review(db, data.user_id)
+    await streak_repo.record_card_session(db, data.user_id, data.rating)
+    return CardAttemptOut(
+        card_id=card.id,
+        next_review_at=card.next_review_at,
+        interval_days=card.interval_days,
+        ease_factor=card.ease_factor,
+    )
+
+
 @router.get("/cards/stats", response_model=CardStatsOut)
 async def get_card_stats(userId: str = Query(...), db: AsyncSession = Depends(get_db)):
     stats = await streak_repo.get_card_stats(db, userId)
