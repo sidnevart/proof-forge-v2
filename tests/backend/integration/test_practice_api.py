@@ -1,8 +1,21 @@
+import asyncio
 import pytest
 
 from app.repositories import topic_repo, user_repo
 from app.schemas.topic import TopicStart
 from app.schemas.user import UserCreate
+
+
+async def _wait_for_tasks(client, user_id: str, session_id: str, timeout: float = 3.0) -> list:
+    """Poll until background generation creates tasks for the given session (asc order)."""
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        await asyncio.sleep(0.1)
+        res = await client.get(f"/api/practice-tasks?user_id={user_id}&status=active")
+        tasks = [t for t in res.json() if t["study_session_id"] == session_id]
+        if tasks:
+            return sorted(tasks, key=lambda t: t["created_at"])
+    return []
 
 
 @pytest.mark.asyncio
@@ -18,12 +31,19 @@ async def test_create_study_session_generates_conspect_and_task(client, db):
     assert res.status_code == 201
     body = res.json()
     assert body["session"]["topic_id"] == topic.id
-    assert body["generation_status"] == "fallback"
-    assert body["generation_error"] == "LLM не настроен"
-    assert "Go interfaces" in body["session"]["conspect_md"]
-    assert len(body["tasks"]) == 2
-    assert body["tasks"][0]["type"] == "theory"
-    assert body["tasks"][1]["type"] == "mini_project"
+    assert body["generation_status"] == "generating"
+    assert body["generation_error"] is None
+
+    session_id = body["session"]["id"]
+
+    # Wait for background task (fails with no LLM key → fallback content created)
+    tasks = await _wait_for_tasks(client, user.id, session_id)
+    assert len(tasks) == 2
+    assert tasks[0]["type"] == "theory"
+    assert tasks[1]["type"] == "mini_project"
+
+    session_res = await client.get(f"/api/study-sessions/{session_id}")
+    assert "Go interfaces" in session_res.json()["conspect_md"]
 
 
 @pytest.mark.asyncio
@@ -32,8 +52,12 @@ async def test_plugin_can_pair_list_tasks_and_submit(client, db):
     topic = await topic_repo.start_topic(db, TopicStart(user_id=user.id, name="Python async"))
 
     created = await client.post("/api/study-sessions", json={"user_id": user.id, "topic_id": topic.id})
+    session_id = created.json()["session"]["id"]
+
+    # Wait for background generation to create tasks
+    tasks = await _wait_for_tasks(client, user.id, session_id)
     # Select the mini_project task (second task after theory)
-    task_id = created.json()["tasks"][1]["id"]
+    task_id = tasks[1]["id"]
 
     paired = await client.post(
         "/api/ide-sessions/pair",
@@ -43,7 +67,8 @@ async def test_plugin_can_pair_list_tasks_and_submit(client, db):
 
     listed = await client.get(f"/api/practice-tasks?user_id={user.id}&status=active")
     assert listed.status_code == 200
-    assert listed.json()[0]["id"] == task_id
+    listed_ids = [t["id"] for t in listed.json()]
+    assert task_id in listed_ids
 
     submission = await client.post(
         f"/api/practice-tasks/{task_id}/submissions",
@@ -72,8 +97,9 @@ async def test_passing_submission_updates_mastery(client, db):
     topic = await topic_repo.start_topic(db, TopicStart(user_id=user.id, name="TypeScript narrowing"))
 
     created = await client.post("/api/study-sessions", json={"user_id": user.id, "topic_id": topic.id})
-    # Select the mini_project task (second task after theory)
-    task_id = created.json()["tasks"][1]["id"]
+    session_id = created.json()["session"]["id"]
+    tasks = await _wait_for_tasks(client, user.id, session_id)
+    task_id = tasks[1]["id"]
 
     submission = await client.post(
         f"/api/practice-tasks/{task_id}/submissions",
@@ -117,6 +143,9 @@ async def test_complete_study_session_forges_capsule(client, db):
 
     created = await client.post("/api/study-sessions", json={"user_id": user.id, "topic_id": topic.id})
     session_id = created.json()["session"]["id"]
+
+    # Wait for background generation to complete (fallback content in test env)
+    await _wait_for_tasks(client, user.id, session_id)
 
     completed = await client.post(f"/api/study-sessions/{session_id}/complete", json={"user_id": user.id})
 

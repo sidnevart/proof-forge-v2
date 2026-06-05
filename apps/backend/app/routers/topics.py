@@ -1,20 +1,25 @@
+import asyncio
 import json
 import re
 import time as _time
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import get_db, async_session_factory
 from app.repositories import topic_repo, capsule_repo
 from app.schemas.topic import TopicStart, TopicOut
 from app.schemas.capsule import CapsuleCreate, CapsuleOut, ReviewQuestionIn, ReviewQuestionOut
+from app.models.capsule import Capsule
+from app.models.review_question import ReviewQuestion
 from app.models.topic_material import TopicMaterial
 from app.models.learning_event import LearningEvent
 from app.models.llm_usage_log import LlmUsageLog
+from app.services.sse_bridge import create_stream, get_stream, remove_stream, stream_from_queue
 
 router = APIRouter(tags=["topics"])
 
@@ -350,13 +355,172 @@ async def _generate_chunked(
     return _extract_json(raw), total_usage
 
 
-@router.post("/topics/{topic_id}/capsule/generate", response_model=GenerateTopicOut, status_code=201)
+async def _run_capsule_generation(
+    capsule_id: str,
+    topic_id: str,
+    topic_name: str,
+    user_id: str,
+    materials_snapshot: list,
+) -> None:
+    """Background task: generate capsule content and stream progress via SSE bridge."""
+    from app.config import settings
+
+    q = get_stream(capsule_id)
+    if q is None:
+        return
+
+    t0 = _time.monotonic()
+    usage: dict = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "latency_ms": 0}
+
+    try:
+        total_chars = sum(len(m["content_text"]) for m in materials_snapshot)
+        use_chunked = total_chars > _SINGLE_PASS_LIMIT
+        est_chunks = max(1, total_chars // _CHUNK_SIZE)
+        timeout = 90 + est_chunks * 30
+
+        parsed: dict = {}
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            if use_chunked:
+                total_chunks = sum(
+                    len(_split_chunks(m["content_text"], _CHUNK_SIZE)) for m in materials_snapshot
+                )
+                chunk_idx = 0
+                extracts: list[str] = []
+
+                for mat in materials_snapshot:
+                    chunks = _split_chunks(mat["content_text"], _CHUNK_SIZE)
+                    for chunk in chunks:
+                        chunk_idx += 1
+                        await q.put(("progress", {
+                            "phase": "extract",
+                            "label": f"Обрабатываю материал {chunk_idx}/{total_chunks}...",
+                            "current": chunk_idx,
+                            "total": total_chunks,
+                        }))
+                        extract, u = await _extract_concepts_from_chunk(
+                            client, settings, topic_name, mat["name"], chunk
+                        )
+                        extracts.append(extract)
+                        for k in ("prompt_tokens", "completion_tokens", "total_tokens", "latency_ms"):
+                            usage[k] = usage.get(k, 0) + u.get(k, 0)
+
+                await q.put(("progress", {"phase": "synthesize", "label": "Синтезирую капсулу..."}))
+                combined = "\n\n---\n\n".join(extracts)
+                reduce_prompt = f"""Ты — эксперт-преподаватель. На основе этих концепций по теме «{topic_name}» создай обучающую капсулу.
+
+## Извлечённые концепции из всех материалов
+
+{combined[:20_000]}
+
+---
+
+Ответь ТОЛЬКО валидным JSON без markdown-блоков:
+
+{{
+  "summary": "Одно предложение — что охватывает капсула",
+  "content_md": "Структурированный markdown (700-1000 слов). Разделы: ## Обзор, ## Ключевые концепции, ## Практические примеры, ## Важно запомнить",
+  "review_questions": [
+    {{"question": "...", "correct_answer": "...", "difficulty": 1}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 1}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 2}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 2}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 3}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 3}}
+  ]
+}}
+
+Язык: русский (термины на языке оригинала). 6 вопросов разной сложности."""
+                raw, reduce_u = await _llm_call(client, settings, reduce_prompt, max_tokens=4000)
+                for k in ("prompt_tokens", "completion_tokens", "total_tokens", "latency_ms"):
+                    usage[k] = usage.get(k, 0) + reduce_u.get(k, 0)
+                parsed = _extract_json(raw)
+            else:
+                await q.put(("progress", {"phase": "synthesize", "label": "Генерирую капсулу..."}))
+                materials_block = "\n\n---\n\n".join(
+                    f"### Материал: {m['name']}\n\n{m['content_text']}"
+                    for m in materials_snapshot
+                )
+                parsed, u = await _generate_single_pass(client, settings, topic_name, materials_block)
+                for k in ("prompt_tokens", "completion_tokens", "total_tokens", "latency_ms"):
+                    usage[k] = usage.get(k, 0) + u.get(k, 0)
+
+        total_latency_ms = int((_time.monotonic() - t0) * 1000)
+        total_tokens = usage.get("total_tokens", 0)
+        cost_usd = total_tokens * settings.llm_cost_per_1k_tokens / 1000
+
+        import markdown as _md
+        content_md = parsed.get("content_md", "")
+        content_html = _md.markdown(content_md, extensions=["fenced_code", "tables"])
+        summary = parsed.get("summary", "")
+
+        async with async_session_factory() as db:
+            result = await db.execute(select(Capsule).where(Capsule.id == capsule_id))
+            capsule = result.scalar_one_or_none()
+            if capsule:
+                capsule.content_md = content_md
+                capsule.content_html = content_html
+                capsule.summary = summary
+                capsule.status = "ready"
+
+                for rq in parsed.get("review_questions", []):
+                    db.add(ReviewQuestion(
+                        capsule_id=capsule_id,
+                        question=rq.get("question", ""),
+                        correct_answer=rq.get("correct_answer", rq.get("answer", "")),
+                        difficulty=rq.get("difficulty", 1),
+                    ))
+
+                db.add(LlmUsageLog(
+                    user_id=user_id,
+                    call_type="capsule_gen",
+                    topic_id=topic_id,
+                    capsule_id=capsule_id,
+                    model=settings.llm_model,
+                    prompt_tokens=usage.get("prompt_tokens", 0),
+                    completion_tokens=usage.get("completion_tokens", 0),
+                    total_tokens=total_tokens,
+                    cost_usd=cost_usd,
+                    latency_ms=total_latency_ms,
+                    status="success",
+                ))
+                db.add(LearningEvent(
+                    user_id=user_id,
+                    event_type="capsule_generated",
+                    payload={
+                        "topic_id": topic_id,
+                        "capsule_id": capsule_id,
+                        "total_tokens": total_tokens,
+                        "cost_usd": round(cost_usd, 6),
+                        "latency_ms": total_latency_ms,
+                        "chunked": use_chunked,
+                        "material_count": len(materials_snapshot),
+                    },
+                ))
+                await db.commit()
+
+        await q.put(("complete", {"capsule_id": capsule_id}))
+
+    except Exception as exc:
+        async with async_session_factory() as db:
+            result = await db.execute(select(Capsule).where(Capsule.id == capsule_id))
+            capsule = result.scalar_one_or_none()
+            if capsule:
+                capsule.status = "error"
+                await db.commit()
+        await q.put(("error", {"message": str(exc)}))
+
+    finally:
+        remove_stream(capsule_id)
+
+
+@router.post("/topics/{topic_id}/capsule/generate", status_code=201)
 async def generate_capsule_from_materials(
     topic_id: str,
     data: GenerateCapsuleRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate a capsule from all materials. Automatically uses chunked map-reduce for large inputs."""
+    """Start capsule generation asynchronously. Returns capsule_id immediately; stream progress via /events."""
     from app.config import settings
 
     if not settings.llm_api_key:
@@ -375,78 +539,53 @@ async def generate_capsule_from_materials(
     if not materials:
         raise HTTPException(status_code=422, detail="Добавь материалы перед генерацией капсулы")
 
-    total_chars = sum(len(m.content_text) for m in materials)
-    use_chunked = total_chars > _SINGLE_PASS_LIMIT
+    materials_snapshot = [
+        {"name": m.name, "content_text": m.content_text}
+        for m in materials
+    ]
 
-    # Timeout scales with number of chunks needed
-    est_chunks = max(1, total_chars // _CHUNK_SIZE)
-    timeout = 90 + est_chunks * 30  # ~30s per chunk + base
-
-    usage: dict = {}
-    t0 = _time.monotonic()
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        try:
-            if use_chunked:
-                parsed, usage = await _generate_chunked(client, settings, topic.name, list(materials))
-            else:
-                materials_block = "\n\n---\n\n".join(
-                    f"### Материал: {m.name}\n\n{m.content_text}"
-                    for m in materials
-                )
-                parsed, usage = await _generate_single_pass(client, settings, topic.name, materials_block)
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Ошибка генерации: {e}")
-
-    if "content_md" not in parsed:
-        raise HTTPException(status_code=502, detail="LLM вернул невалидный JSON: missing content_md")
-
-    total_latency_ms = int((_time.monotonic() - t0) * 1000)
-    total_tokens = usage.get("total_tokens", 0)
-    cost_usd = total_tokens * settings.llm_cost_per_1k_tokens / 1000
-
-    questions = [ReviewQuestionIn(**q) for q in parsed.get("review_questions", [])]
-    capsule_data = CapsuleCreate(
+    # Create skeleton capsule immediately
+    capsule = Capsule(
         user_id=data.user_id,
         topic_id=topic_id,
-        content_md=parsed["content_md"],
-        summary=parsed["summary"],
-        review_questions=questions,
+        content_md="",
+        content_html="",
+        summary="",
+        status="generating",
     )
-    capsule = await capsule_repo.store_capsule(db, capsule_data)
-    capsule_questions = await capsule_repo.get_capsule_questions(db, capsule.id)
-
-    # Log LLM usage
-    db.add(LlmUsageLog(
-        user_id=data.user_id,
-        call_type="capsule_gen",
-        topic_id=topic_id,
-        capsule_id=capsule.id,
-        model=settings.llm_model,
-        prompt_tokens=usage.get("prompt_tokens", 0),
-        completion_tokens=usage.get("completion_tokens", 0),
-        total_tokens=total_tokens,
-        cost_usd=cost_usd,
-        latency_ms=total_latency_ms,
-        status="success",
-    ))
-
-    # Log business event
-    db.add(LearningEvent(
-        user_id=data.user_id,
-        event_type="capsule_generated",
-        payload={
-            "topic_id": topic_id,
-            "capsule_id": capsule.id,
-            "total_tokens": total_tokens,
-            "cost_usd": round(cost_usd, 6),
-            "latency_ms": total_latency_ms,
-            "chunked": use_chunked,
-            "material_count": len(materials),
-        },
-    ))
+    db.add(capsule)
     await db.commit()
+    await db.refresh(capsule)
 
-    capsule_out = CapsuleOut.model_validate(capsule)
-    capsule_out.review_questions = [ReviewQuestionOut.model_validate(q) for q in capsule_questions]
+    create_stream(capsule.id)
+    asyncio.create_task(_run_capsule_generation(
+        capsule.id, topic_id, topic.name, data.user_id, materials_snapshot
+    ))
 
-    return GenerateTopicOut(topic_id=topic_id, capsule_id=capsule.id, capsule=capsule_out)
+    return {"topic_id": topic_id, "capsule_id": capsule.id, "status": "generating"}
+
+
+@router.get("/topics/{topic_id}/capsule/events")
+async def capsule_events(topic_id: str, capsule_id: str, db: AsyncSession = Depends(get_db)):
+    """SSE stream for capsule generation progress."""
+    q = get_stream(capsule_id)
+
+    if q is None:
+        capsule = await capsule_repo.get_capsule(db, capsule_id)
+        if not capsule:
+            raise HTTPException(status_code=404, detail="Capsule not found")
+
+        async def _immediate():
+            yield f"event: complete\ndata: {json.dumps({'capsule_id': capsule_id})}\n\n"
+
+        return StreamingResponse(
+            _immediate(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    return StreamingResponse(
+        stream_from_queue(q),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

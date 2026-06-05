@@ -8,6 +8,8 @@ import remarkGfm from 'remark-gfm'
 import { getStoredUser } from '@/lib/auth'
 import { practice, chat, type PracticeTask, type StudySession, type ChatMessage, type ChatSession } from '@/lib/api'
 import { SkeletonText } from '@/components/ui/Skeleton'
+import { useT } from '@/lib/i18n'
+import { useSSEStream } from '@/hooks/useSSEStream'
 
 type Tab = 'chat' | 'conspect' | 'tasks'
 
@@ -15,6 +17,7 @@ export default function StudySessionPage() {
   const { id } = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const user = getStoredUser()
+  const t = useT()
 
   const [session, setSession] = useState<StudySession | null>(null)
   const [tasks, setTasks] = useState<PracticeTask[]>([])
@@ -28,8 +31,45 @@ export default function StudySessionPage() {
   const [chatInitError, setChatInitError] = useState('')
   const [chatError, setChatError] = useState('')
 
+  // Streaming state for generating sessions
+  const [streamingConspect, setStreamingConspect] = useState('')
+  const [streamingPhase, setStreamingPhase] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [streamError, setStreamError] = useState('')
+
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // SSE stream for generating sessions
+  useSSEStream(
+    isStreaming ? practice.sessionEventsUrl(id) : null,
+    (event) => {
+      if (event.type === 'phase_change') {
+        setStreamingPhase((event.data.label as string) ?? '')
+      } else if (event.type === 'token') {
+        setStreamingConspect((prev) => prev + ((event.data.content as string) ?? ''))
+      } else if (event.type === 'task_ready') {
+        const task = event.data as unknown as PracticeTask
+        setTasks((prev) => {
+          if (prev.some((t) => t.id === task.id)) return prev
+          return [...prev, task]
+        })
+      } else if (event.type === 'complete') {
+        setIsStreaming(false)
+        // Reload session to get final conspect_md and status
+        practice.getSession(id).then((s) => {
+          setSession(s)
+          setStreamingConspect('')
+        }).catch(() => {})
+        practice.listActiveTasks(user?.user_id ?? '').then((all) => {
+          setTasks(all.filter((t) => t.study_session_id === id))
+        }).catch(() => {})
+      } else if (event.type === 'error') {
+        setStreamError((event.data.message as string) ?? 'Ошибка генерации')
+        setIsStreaming(false)
+      }
+    }
+  )
 
   // Load study session, tasks, and chat
   useEffect(() => {
@@ -39,7 +79,11 @@ export default function StudySessionPage() {
       practice.listActiveTasks(user.user_id),
     ]).then(async ([s, activeTasks]) => {
       setSession(s)
-      setTasks(activeTasks.filter((t) => t.study_session_id === s.id))
+      setTasks(activeTasks.filter((task) => task.study_session_id === s.id))
+      if (s.status === 'generating') {
+        setIsStreaming(true)
+        setStreamingPhase('Готовлю материал...')
+      }
 
       // Load or create chat session
       try {
@@ -54,7 +98,7 @@ export default function StudySessionPage() {
           setChatSession(newSession)
         }
       } catch (e) {
-        setChatInitError(e instanceof Error ? e.message : 'Ошибка чата')
+        setChatInitError(e instanceof Error ? e.message : t('study.chatError'))
       }
     }).finally(() => setLoading(false))
   }, [id, user?.user_id])
@@ -88,12 +132,12 @@ export default function StudySessionPage() {
       } catch {}
       setMessages((prev) => [...prev, { id: crypto.randomUUID(), session_id: chatSession.id, role: 'assistant', content: res.message, created_at: new Date().toISOString() }])
     } catch (err) {
-      setChatError(getChatErrorMessage(err))
+      setChatError(getChatErrorMessage(err, t))
     } finally {
       setSending(false)
       textareaRef.current?.focus()
     }
-  }, [input, sending, user, chatSession, messages])
+  }, [input, sending, user, chatSession, messages, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -124,12 +168,12 @@ export default function StudySessionPage() {
   if (!session) {
     return (
       <div className="max-w-3xl mx-auto px-5 py-16 text-center text-mute">
-        Сессия не найдена
+        {t('study.notFound')}
       </div>
     )
   }
 
-  const allTasksCompleted = tasks.length > 0 && tasks.every((t) => t.status === 'completed')
+  const allTasksCompleted = tasks.length > 0 && tasks.every((task) => task.status === 'completed')
   const generationFallback = searchParams.get('generation') === 'fallback'
   const generationReason = searchParams.get('reason')
 
@@ -145,7 +189,7 @@ export default function StudySessionPage() {
         <div className="flex-1 min-w-0">
           <div className="text-xs font-mono text-accent truncate">Study Session</div>
           <div className="text-sm font-semibold text-ink truncate">
-            {session.conspect_md.slice(0, 60).replace(/^#+\s*/, '') || 'Учебная сессия'}
+            {session.conspect_md.slice(0, 60).replace(/^#+\s*/, '') || t('study.sessionFallback')}
           </div>
         </div>
         {allTasksCompleted && (
@@ -154,22 +198,22 @@ export default function StudySessionPage() {
             disabled={completing}
             className="shrink-0 px-3 py-1.5 rounded-lg bg-accent text-[#06140d] text-xs font-semibold hover:bg-accentdk transition-colors disabled:opacity-50"
           >
-            {completing ? '...' : 'Капсула →'}
+            {completing ? '...' : t('study.capsuleCta')}
           </button>
         )}
       </div>
 
       {/* Mobile tabs */}
       <div className="md:hidden shrink-0 flex border-b border-line bg-paper">
-        {(['chat', 'conspect', 'tasks'] as const).map((t) => (
+        {(['chat', 'conspect', 'tasks'] as const).map((tab) => (
           <button
-            key={t}
-            onClick={() => setActiveTab(t)}
+            key={tab}
+            onClick={() => setActiveTab(tab)}
             className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
-              activeTab === t ? 'text-accent border-b-2 border-accent bg-accentsoft/20' : 'text-mute'
+              activeTab === tab ? 'text-accent border-b-2 border-accent bg-accentsoft/20' : 'text-mute'
             }`}
           >
-            {t === 'chat' ? 'Чат' : t === 'conspect' ? 'Конспект' : 'Задания'}
+            {tab === 'chat' ? t('study.tab.chat') : tab === 'conspect' ? t('study.tab.conspect') : t('study.tab.tasks')}
           </button>
         ))}
       </div>
@@ -179,7 +223,17 @@ export default function StudySessionPage() {
         {/* Chat panel */}
         <div className={`flex-1 flex flex-col min-h-0 md:border-r border-line ${activeTab !== 'chat' ? 'hidden md:flex' : ''}`}>
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-            {messages.length === 0 && !sending && (
+            {isStreaming && messages.length === 0 && (
+              <div className="max-w-md mx-auto text-center py-12">
+                <div className="w-12 h-12 rounded-2xl bg-accentsoft border border-accent/20 flex items-center justify-center mx-auto mb-3">
+                  <div className="w-5 h-5 rounded-full border-2 border-accentdk border-t-accent animate-spin" />
+                </div>
+                <p className="text-sm font-medium text-ink mb-1">AI готовит материал</p>
+                <p className="text-xs text-mute font-mono">{streamingPhase || 'Подожди немного...'}</p>
+                <p className="text-xs text-mute mt-2">Конспект уже пишется на вкладке справа →</p>
+              </div>
+            )}
+            {!isStreaming && messages.length === 0 && !sending && (
               <div className="max-w-md mx-auto text-center py-12">
                 <div className="w-12 h-12 rounded-2xl bg-accentsoft border border-accent/20 flex items-center justify-center mx-auto mb-3">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" strokeWidth="2">
@@ -187,10 +241,8 @@ export default function StudySessionPage() {
                     <circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/>
                   </svg>
                 </div>
-                <h2 className="font-display text-lg font-bold text-ink mb-1">Ментор</h2>
-                <p className="text-mute text-xs">
-                  Задавай вопросы по теме, проси объяснить или дать задание.
-                </p>
+                <h2 className="font-display text-lg font-bold text-ink mb-1">{t('study.mentor.title')}</h2>
+                <p className="text-mute text-xs">{t('study.mentor.empty')}</p>
               </div>
             )}
 
@@ -202,8 +254,8 @@ export default function StudySessionPage() {
 
             {generationFallback && (
               <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
-                AI-конспект не был сгенерирован. Сейчас показан шаблонный план.
-                {generationReason ? ` Причина: ${generationReason}` : ''}
+                {t('study.fallback')}
+                {generationReason ? ` Reason: ${generationReason}` : ''}
               </div>
             )}
 
@@ -284,7 +336,7 @@ export default function StudySessionPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Спроси ментора..."
+                placeholder={t('study.input.placeholder')}
                 rows={1}
                 disabled={sending || !chatSession}
                 className="flex-1 h-9 resize-none overflow-hidden px-3 py-2 rounded-xl border border-line bg-card text-ink placeholder:text-mute/50 focus:outline-none focus:border-accent/60 transition-colors text-sm leading-5 disabled:opacity-50"
@@ -307,14 +359,37 @@ export default function StudySessionPage() {
         <div className={`w-full md:w-[380px] lg:w-[420px] shrink-0 flex flex-col min-h-0 bg-sand/20 border-l border-line ${activeTab !== 'conspect' && activeTab !== 'tasks' ? 'hidden md:flex' : ''}`}>
           <div className="flex-1 overflow-y-auto">
             <div className={`p-4 ${activeTab === 'tasks' ? 'hidden md:block' : 'block'}`}>
+              {/* Streaming phase label */}
+              {isStreaming && streamingPhase && (
+                <div className="flex items-center gap-2 mb-3 px-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" />
+                  <span className="text-xs font-mono text-accent">{streamingPhase}</span>
+                </div>
+              )}
+              {streamError && (
+                <div className="mb-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+                  {streamError} — показан шаблонный контент.
+                </div>
+              )}
               <div className="prose-grasp text-sm">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{session.conspect_md}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {streamingConspect || session.conspect_md}
+                </ReactMarkdown>
+                {isStreaming && (
+                  <span className="inline-block w-0.5 h-4 bg-accent animate-pulse ml-0.5 align-middle" />
+                )}
               </div>
             </div>
 
             <div className={`p-4 space-y-2 ${activeTab === 'conspect' ? 'hidden md:block' : 'block'}`}>
-              {tasks.length === 0 && (
-                <p className="text-xs text-mute text-center py-8">Задания загружаются...</p>
+              {isStreaming && tasks.length === 0 && (
+                <div className="flex items-center gap-2 py-8 justify-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                  <span className="text-xs text-mute font-mono">Создаю задания...</span>
+                </div>
+              )}
+              {!isStreaming && tasks.length === 0 && (
+                <p className="text-xs text-mute text-center py-8">{t('study.tasksLoading')}</p>
               )}
               {tasks.map((task) => (
                 <Link
@@ -347,7 +422,7 @@ export default function StudySessionPage() {
                   disabled={completing}
                   className="mt-4 w-full py-3 rounded-xl bg-accent text-[#06140d] font-semibold text-sm hover:bg-accentdk transition-colors disabled:opacity-50"
                 >
-                  {completing ? 'Форжим капсулу...' : 'Завершить сессию и создать капсулу →'}
+                  {completing ? t('study.completing') : t('study.complete')}
                 </button>
               )}
             </div>
@@ -358,16 +433,16 @@ export default function StudySessionPage() {
   )
 }
 
-function getChatErrorMessage(err: unknown) {
-  const message = err instanceof Error ? err.message : 'что-то пошло не так'
-  if (message.includes('LLM не настроен')) {
-    return 'AI недоступен: на backend не настроен LLM_API_KEY. Проверь переменные окружения деплоя.'
+function getChatErrorMessage(err: unknown, t: (k: string) => string) {
+  const message = err instanceof Error ? err.message : t('chat.fallback')
+  if (message.includes('LLM не настроен') || message.includes('LLM not configured')) {
+    return t('chat.err.notConfigured')
   }
   if (message.includes('LLM error')) {
-    return `AI недоступен: провайдер вернул ошибку. ${message}`
+    return `${t('chat.err.providerError')} ${message}`
   }
   if (message.includes('LLM timeout')) {
-    return 'AI недоступен: провайдер не ответил за 45 секунд. Попробуй еще раз или проверь LLM-провайдера.'
+    return t('chat.err.timeout')
   }
-  return `AI недоступен: ${message}`
+  return `${t('chat.err.prefix')}: ${message}`
 }

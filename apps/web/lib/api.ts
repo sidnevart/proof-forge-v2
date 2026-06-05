@@ -1,5 +1,9 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://api.proof-forge.ru'
 
+export function sseUrl(path: string): string {
+  return `${BASE}${path}`
+}
+
 function getToken(): string | null {
   if (typeof window === 'undefined') return null
   return localStorage.getItem('grasp_token')
@@ -160,10 +164,12 @@ export const topics = {
   deleteMaterial: (topicId: string, materialId: string) =>
     req<void>(`/api/topics/${topicId}/materials/${materialId}`, { method: 'DELETE' }),
   generateCapsule: (topicId: string, userId: string) =>
-    req<GeneratedTopic>(`/api/topics/${topicId}/capsule/generate`, {
-      method: 'POST',
-      body: JSON.stringify({ user_id: userId }),
-    }),
+    req<{ topic_id: string; capsule_id: string; status: string }>(
+      `/api/topics/${topicId}/capsule/generate`,
+      { method: 'POST', body: JSON.stringify({ user_id: userId }) }
+    ),
+  capsuleEventsUrl: (topicId: string, capsuleId: string) =>
+    sseUrl(`/api/topics/${topicId}/capsule/events?capsule_id=${capsuleId}`),
 }
 
 // ── Capsules ──
@@ -219,7 +225,7 @@ export type StudySession = {
   id: string
   user_id: string
   topic_id: string
-  status: 'active' | 'paused' | 'completed'
+  status: 'generating' | 'active' | 'paused' | 'completed' | 'error'
   conspect_md: string
   learning_goals: string[]
   created_at: string
@@ -285,12 +291,13 @@ export const practice = {
     req<{
       session: StudySession
       tasks: PracticeTask[]
-      generation_status: 'ai' | 'fallback'
+      generation_status: 'generating' | 'ai' | 'fallback'
       generation_error: string | null
     }>('/api/study-sessions', {
       method: 'POST',
       body: JSON.stringify({ user_id: userId, topic_id: topicId }),
     }),
+  sessionEventsUrl: (sessionId: string) => sseUrl(`/api/study-sessions/${sessionId}/events`),
   listSessions: (userId: string) =>
     req<StudySession[]>(`/api/study-sessions?user_id=${userId}`),
   getSession: (sessionId: string) =>

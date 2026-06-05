@@ -28,6 +28,24 @@ async def db():
         yield session
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def patch_bg_session_factory():
+    """Route background tasks to the test DB and drain them after each test."""
+    import asyncio
+    import app.routers.practice as pr
+    import app.routers.topics as tr
+    from app.database import async_session_factory as orig
+    pr.async_session_factory = test_session_factory
+    tr.async_session_factory = test_session_factory
+    yield
+    # Drain any background asyncio tasks spawned during the test to avoid DB locking
+    pending = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+    pr.async_session_factory = orig
+    tr.async_session_factory = orig
+
+
 @pytest_asyncio.fixture
 async def client(db):
     async def override_get_db():

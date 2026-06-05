@@ -7,6 +7,8 @@ import { getStoredUser } from '@/lib/auth'
 import { topics, practice, type Topic, type TopicMaterial } from '@/lib/api'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { track } from '@/lib/analytics'
+import { useT, useLocale, ruPlural } from '@/lib/i18n'
+import { useSSEStream } from '@/hooks/useSSEStream'
 
 const ACCEPT = '.md,.py,.java,.csv,.txt,.js,.ts,.go,.rs,.c,.cpp,.h,.json,.yaml,.yml,.toml,.sh,.sql,.rb,.php,.kt,.pdf'
 
@@ -17,6 +19,8 @@ export default function TopicPage() {
   const router = useRouter()
   const user = getStoredUser()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const t = useT()
+  const { locale } = useLocale()
 
   const [topic, setTopic] = useState<Topic | null>(null)
   const [materials, setMaterials] = useState<TopicMaterial[]>([])
@@ -31,6 +35,23 @@ export default function TopicPage() {
   const [genStep, setGenStep] = useState<GeneratingStep>(0)
   const [genError, setGenError] = useState('')
   const [dragOver, setDragOver] = useState(false)
+  const [capsuleEventsUrl, setCapsuleEventsUrl] = useState<string | null>(null)
+  const pendingCapsuleId = useRef<string | null>(null)
+
+  useSSEStream(capsuleEventsUrl, (event) => {
+    if (event.type === 'progress') {
+      setGenStep((s) => (s < 3 ? (s + 1) as GeneratingStep : 3))
+    } else if (event.type === 'complete') {
+      setCapsuleEventsUrl(null)
+      const capsuleId = (event.data.capsule_id as string) ?? pendingCapsuleId.current
+      if (capsuleId) router.push(`/capsule/${capsuleId}`)
+    } else if (event.type === 'error') {
+      setCapsuleEventsUrl(null)
+      setGenError((event.data.message as string) ?? 'Ошибка генерации')
+      setGenerating(false)
+      setGenStep(0)
+    }
+  })
 
   const [startingStudy, setStartingStudy] = useState(false)
   const [studyError, setStudyError] = useState('')
@@ -38,11 +59,11 @@ export default function TopicPage() {
   const loadTopic = useCallback(async () => {
     if (!user) return
     try {
-      const [t, mats] = await Promise.all([
+      const [tp, mats] = await Promise.all([
         topics.get(topicId),
         topics.getMaterials(topicId),
       ])
-      setTopic(t)
+      setTopic(tp)
       setMaterials(mats)
     } catch {
       // topic not found
@@ -60,7 +81,7 @@ export default function TopicPage() {
       const mat = await topics.uploadFile(topicId, user.user_id, file)
       setMaterials((prev) => [...prev, mat])
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Ошибка загрузки файла')
+      alert(err instanceof Error ? err.message : t('topic.uploadError'))
     } finally {
       setUploadingFile(false)
     }
@@ -89,7 +110,7 @@ export default function TopicPage() {
       setLinkUrl('')
       setShowLinkInput(false)
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Ошибка добавления ссылки')
+      alert(err instanceof Error ? err.message : t('topic.addLinkError'))
     } finally {
       setAddingLink(false)
     }
@@ -112,7 +133,7 @@ export default function TopicPage() {
       const result = await practice.startSession(user.user_id, topic.id)
       router.push(`/study/${result.session.id}`)
     } catch (err: unknown) {
-      setStudyError(err instanceof Error ? err.message : 'Ошибка запуска обучения')
+      setStudyError(err instanceof Error ? err.message : t('topic.startError'))
     } finally {
       setStartingStudy(false)
     }
@@ -124,16 +145,12 @@ export default function TopicPage() {
     setGenError('')
     setGenStep(0)
     track({ name: 'capsule_generation_started', props: { material_count: materials.length } })
-    const stepInterval = setInterval(() => {
-      setGenStep((s) => (s < 3 ? (s + 1) as GeneratingStep : 3))
-    }, 3000)
     try {
       const result = await topics.generateCapsule(topicId, user.user_id)
-      clearInterval(stepInterval)
-      router.push(`/capsule/${result.capsule_id}`)
+      pendingCapsuleId.current = result.capsule_id
+      setCapsuleEventsUrl(topics.capsuleEventsUrl(topicId, result.capsule_id))
     } catch (err: unknown) {
-      clearInterval(stepInterval)
-      setGenError(err instanceof Error ? err.message : 'Ошибка генерации')
+      setGenError(err instanceof Error ? err.message : t('topic.genError'))
       setGenerating(false)
       setGenStep(0)
     }
@@ -152,15 +169,24 @@ export default function TopicPage() {
   if (!topic) {
     return (
       <div className="max-w-2xl mx-auto px-5 py-16 text-center">
-        <p className="text-mute">Тема не найдена.</p>
-        <Link href="/dashboard" className="text-accent text-sm mt-4 inline-block">← На главную</Link>
+        <p className="text-mute">{t('topic.notFound')}</p>
+        <Link href="/dashboard" className="text-accent text-sm mt-4 inline-block">{t('topic.back')}</Link>
       </div>
     )
   }
 
   if (generating) {
-    return <GeneratingScreen step={genStep} topicName={topic.name} />
+    return <GeneratingScreen step={genStep} topicName={topic.name} t={t} />
   }
+
+  const materialsLabel = (() => {
+    const n = materials.length
+    if (locale === 'ru') {
+      const suffix = ruPlural(n, ['', 'а', 'ов'])
+      return `${n} материал${suffix}`
+    }
+    return `${n} material${n !== 1 ? 's' : ''}`
+  })()
 
   return (
     <div className="max-w-2xl mx-auto px-5 py-8">
@@ -172,9 +198,7 @@ export default function TopicPage() {
         </Link>
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-ink">{topic.name}</h1>
         <p className="text-sm text-mute font-mono mt-1">
-          {materials.length === 0
-            ? 'Добавь материалы для изучения'
-            : `${materials.length} материал${pluralMaterials(materials.length)}`}
+          {materials.length === 0 ? t('topic.noMaterials') : materialsLabel}
         </p>
       </div>
 
@@ -201,7 +225,7 @@ export default function TopicPage() {
             ) : (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             )}
-            {uploadingFile ? 'Загружаем...' : 'Загрузить файл'}
+            {uploadingFile ? t('topic.uploading') : t('topic.uploadFile')}
           </button>
 
           <button
@@ -210,16 +234,16 @@ export default function TopicPage() {
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-sm font-medium text-ink hover:border-accent/40 hover:text-accent transition-colors"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-            Добавить ссылку
+            {t('topic.addLink')}
           </button>
 
           <p className="text-xs text-mute sm:ml-auto text-center sm:text-right">
-            .md .py .pdf .csv .java<br className="hidden sm:block" /><span className="sm:hidden"> </span>и другие
+            .md .py .pdf .csv .java<br className="hidden sm:block" /><span className="sm:hidden"> </span>and more
           </p>
         </div>
 
         {dragOver && (
-          <p className="text-center text-sm text-accent mt-3 font-medium">Отпусти файл здесь</p>
+          <p className="text-center text-sm text-accent mt-3 font-medium">{t('topic.dropRelease')}</p>
         )}
 
         {showLinkInput && (
@@ -238,7 +262,7 @@ export default function TopicPage() {
               disabled={addingLink || !linkUrl.trim()}
               className="px-4 py-2.5 rounded-xl bg-accent text-[#06140d] text-sm font-semibold hover:bg-accentdk transition-colors disabled:opacity-50"
             >
-              {addingLink ? '...' : 'Добавить'}
+              {addingLink ? '...' : t('topic.add')}
             </button>
             <button
               type="button"
@@ -251,9 +275,7 @@ export default function TopicPage() {
         )}
 
         {materials.length === 0 && !showLinkInput && (
-          <p className="text-center text-sm text-mute mt-4">
-            Перетащи файл или нажми «Загрузить файл»
-          </p>
+          <p className="text-center text-sm text-mute mt-4">{t('topic.dropHint')}</p>
         )}
       </div>
 
@@ -269,12 +291,12 @@ export default function TopicPage() {
       {materials.length > 0 && (
         <div className="space-y-2 mb-8">
           {materials.map((m) => (
-            <MaterialCard key={m.id} material={m} onDelete={() => handleDelete(m.id)} />
+            <MaterialCard key={m.id} material={m} onDelete={() => handleDelete(m.id)} t={t} />
           ))}
         </div>
       )}
 
-      {/* Generate button */}
+      {/* Study error */}
       {studyError && (
         <div className="mb-4 px-4 py-3 rounded-xl bg-danger/10 border border-danger/20 text-sm text-danger">
           {studyError}
@@ -282,17 +304,15 @@ export default function TopicPage() {
       )}
 
       <div className="surface rounded-2xl p-5 mb-6 border border-accent/20 bg-accentsoft/20">
-        <div className="text-xs font-mono text-accent mb-1">Новый flow</div>
-        <h2 className="font-display text-xl font-bold text-ink mb-2">Учиться с практикой</h2>
-        <p className="text-sm text-mute mb-4">
-          Создай конспект и mini-project. Решение отправишь из JetBrains без ручной загрузки файлов.
-        </p>
+        <div className="text-xs font-mono text-accent mb-1">New flow</div>
+        <h2 className="font-display text-xl font-bold text-ink mb-2">{t('topic.study.title')}</h2>
+        <p className="text-sm text-mute mb-4">{t('topic.study.desc')}</p>
         <button
           onClick={handleStartStudy}
           disabled={startingStudy}
           className="w-full py-3 rounded-xl bg-accent text-[#06140d] font-semibold text-sm hover:bg-accentdk transition-colors disabled:opacity-50"
         >
-          {startingStudy ? 'Запускаем...' : 'Начать обучение →'}
+          {startingStudy ? t('topic.study.launching') : t('topic.study.cta')}
         </button>
       </div>
 
@@ -308,21 +328,17 @@ export default function TopicPage() {
           disabled={materials.length === 0 || generating}
           className="w-full py-4 rounded-xl bg-accent text-[#06140d] font-semibold text-base hover:bg-accentdk transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {materials.length === 0
-            ? 'Добавь материалы чтобы продолжить'
-            : 'Создать капсулу из материалов →'}
+          {materials.length === 0 ? t('topic.noMaterialsCta') : t('topic.createCapsule')}
         </button>
         {materials.length > 0 && (
-          <p className="text-center text-xs text-mute mt-3">
-            AI прочитает все материалы и создаст структурированную капсулу + 6 карточек
-          </p>
+          <p className="text-center text-xs text-mute mt-3">{t('topic.aiHint')}</p>
         )}
       </div>
     </div>
   )
 }
 
-function MaterialCard({ material, onDelete }: { material: TopicMaterial; onDelete: () => void }) {
+function MaterialCard({ material, onDelete, t }: { material: TopicMaterial; onDelete: () => void; t: (k: string) => string }) {
   const [expanded, setExpanded] = useState(false)
   const preview = material.content_text.slice(0, 200).replace(/\n+/g, ' ').trim()
   const hasMore = material.content_text.length > 200
@@ -330,7 +346,6 @@ function MaterialCard({ material, onDelete }: { material: TopicMaterial; onDelet
   return (
     <div className="surface rounded-xl p-4">
       <div className="flex items-start gap-3">
-        {/* Icon */}
         <div className="w-8 h-8 rounded-lg bg-card border border-line flex items-center justify-center shrink-0 mt-0.5">
           {material.type === 'link' ? (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
@@ -365,7 +380,7 @@ function MaterialCard({ material, onDelete }: { material: TopicMaterial; onDelet
                   onClick={() => setExpanded((v) => !v)}
                   className="text-xs text-accent hover:text-accentdk mt-1 font-mono"
                 >
-                  {expanded ? 'Свернуть' : `Показать всё (${formatChars(material.content_text.length)})`}
+                  {expanded ? t('topic.collapse') : `${t('topic.showAll')} (${formatChars(material.content_text.length)})`}
                 </button>
               )}
             </div>
@@ -376,7 +391,7 @@ function MaterialCard({ material, onDelete }: { material: TopicMaterial; onDelet
           type="button"
           onClick={onDelete}
           className="text-mute hover:text-danger transition-colors shrink-0 mt-0.5 p-1"
-          title="Удалить"
+          title={t('topic.delete')}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
         </button>
@@ -385,21 +400,21 @@ function MaterialCard({ material, onDelete }: { material: TopicMaterial; onDelet
   )
 }
 
-const GEN_STEPS = [
-  { label: 'Читаю загруженные материалы', icon: '📖' },
-  { label: 'Анализирую ключевые концепции', icon: '🔍' },
-  { label: 'Пишу структурированную капсулу', icon: '📝' },
-  { label: 'Составляю карточки для повторения', icon: '🃏' },
-]
+function GeneratingScreen({ step, topicName, t }: { step: GeneratingStep; topicName: string; t: (k: string) => string }) {
+  const GEN_STEPS = [
+    { label: t('topic.gen.step0'), icon: '📖' },
+    { label: t('topic.gen.step1'), icon: '🔍' },
+    { label: t('topic.gen.step2'), icon: '📝' },
+    { label: t('topic.gen.step3'), icon: '🃏' },
+  ]
 
-function GeneratingScreen({ step, topicName }: { step: GeneratingStep; topicName: string }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 py-12">
       <div className="w-full max-w-sm text-center">
         <div className="w-16 h-16 rounded-2xl bg-accentsoft flex items-center justify-center mx-auto mb-6">
           <div className="w-8 h-8 rounded-full border-2 border-accentdk border-t-accent animate-spin" />
         </div>
-        <h2 className="font-display text-2xl font-bold text-ink mb-1">Создаю капсулу</h2>
+        <h2 className="font-display text-2xl font-bold text-ink mb-1">{t('topic.generating')}</h2>
         <p className="text-mute text-sm mb-8 font-mono truncate max-w-xs mx-auto">«{topicName}»</p>
         <div className="space-y-2 text-left">
           {GEN_STEPS.map((s, i) => {
@@ -418,16 +433,10 @@ function GeneratingScreen({ step, topicName }: { step: GeneratingStep; topicName
             )
           })}
         </div>
-        <p className="mt-8 text-xs text-mute">Обычно занимает 30–60 секунд</p>
+        <p className="mt-8 text-xs text-mute">{t('topic.usually')}</p>
       </div>
     </div>
   )
-}
-
-function pluralMaterials(n: number) {
-  if (n % 10 === 1 && n % 100 !== 11) return ''
-  if ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) return 'а'
-  return 'ов'
 }
 
 function formatSize(bytes: number) {
@@ -437,6 +446,6 @@ function formatSize(bytes: number) {
 }
 
 function formatChars(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(0)}K симв.`
-  return `${n} симв.`
+  if (n >= 1000) return `${(n / 1000).toFixed(0)}K chars`
+  return `${n} chars`
 }

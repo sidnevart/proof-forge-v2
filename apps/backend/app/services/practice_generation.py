@@ -1,14 +1,23 @@
+import asyncio
 import json
 import re
+from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
-from app.models import Topic
 from app.schemas.practice import PracticeTaskCreate, StudySessionCreate
 
 
-# ── LLM helpers (mirrored from topics.py) ────────────────────────────────────
+@dataclass
+class TopicInfo:
+    id: str
+    name: str
+    user_id: str
+
+
+# ── LLM helpers ───────────────────────────────────────────────────────────────
 
 async def _llm_call(
     client: httpx.AsyncClient, settings: Any, prompt: str, max_tokens: int = 2000
@@ -31,6 +40,41 @@ async def _llm_call(
     return data["choices"][0]["message"]["content"]
 
 
+async def _llm_stream_tokens(
+    client: httpx.AsyncClient, settings: Any, prompt: str, max_tokens: int = 1500
+) -> AsyncGenerator[str, None]:
+    """Stream tokens from the LLM using SSE (OpenAI-compatible)."""
+    async with client.stream(
+        "POST",
+        f"{settings.llm_base_url}/chat/completions",
+        headers={
+            "Authorization": f"Bearer {settings.llm_api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": settings.llm_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": True,
+            "max_tokens": max_tokens,
+            "temperature": 0.5,
+        },
+    ) as response:
+        response.raise_for_status()
+        async for line in response.aiter_lines():
+            if not line.startswith("data: "):
+                continue
+            data_str = line[6:].strip()
+            if data_str == "[DONE]":
+                break
+            try:
+                data = json.loads(data_str)
+                token = data["choices"][0]["delta"].get("content", "")
+                if token:
+                    yield token
+            except (json.JSONDecodeError, KeyError, IndexError):
+                continue
+
+
 def _extract_json(text: str) -> dict:
     text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
     start = text.find("{")
@@ -40,66 +84,87 @@ def _extract_json(text: str) -> dict:
     return json.loads(text[start:end])
 
 
-# ── Prompt builder ─────────────────────────────────────────────────────────────
+# ── Prompts ───────────────────────────────────────────────────────────────────
 
-def _build_study_prompt(topic_name: str, materials: list[dict]) -> str:
+def _build_conspect_prompt(topic_name: str, materials: list[dict]) -> str:
     materials_block = ""
     for m in materials:
         preview = m["content_text"][:3000].replace("\n", " ")
         materials_block += f"\n\n--- Материал: {m['name']} ({m['type']}) ---\n{preview}"
 
-    prompt = f"""Ты — эксперт-методист для IT-специалистов. На основе материалов по теме «{topic_name}» создай структурированную учебную сессию.
+    return f"""Ты — эксперт-методист для IT-специалистов. На основе материалов по теме «{topic_name}» напиши структурированный конспект.
 
 ## Материалы
-{materials_block}
+{materials_block if materials_block else "(материалов нет — используй свои знания о теме)"}
+
+---
+
+Напиши конспект в формате Markdown (500-800 слов).
+Структура: ## Обзор, ## Ключевые концепции (с пояснениями), ## Практическое применение
+Язык: русский (термины на языке оригинала).
+
+Начинай сразу с конспекта, без предисловий:"""
+
+
+def _build_tasks_prompt(topic_name: str, conspect_md: str) -> str:
+    return f"""На основе конспекта по теме «{topic_name}» создай учебные задания.
+
+## Конспект
+{conspect_md[:2000]}
 
 ---
 
 Ответь ТОЛЬКО валидным JSON без markdown-блоков:
 
 {{
-  "conspect_md": "Структурированный markdown (500-800 слов). Разделы: ## Обзор, ## Ключевые концепции (с пояснениями), ## Практическое применение. Язык: русский (термины на языке оригинала).",
   "learning_goals": ["цель 1", "цель 2", "цель 3"],
   "theory_task": {{
     "title": "Краткое название теоретического задания",
-    "instructions_md": "Инструкция для теоретического задания: что сделать, какие вопросы ответить, какой формат ответа. 150-300 слов."
+    "instructions_md": "Инструкция для теоретического задания (150-300 слов)"
   }},
   "mini_project_task": {{
     "title": "Краткое название практического задания",
-    "instructions_md": "Инструкция для mini-project: что реализовать, какие файлы изменить, как проверить результат, что включить в рефлексию. 200-400 слов.",
+    "instructions_md": "Инструкция для mini-project (200-400 слов)",
     "expected_evidence": ["source_files", "diff", "test_output", "reflection"],
     "target_concepts": ["концепт 1", "концепт 2"]
   }}
-}}
-
-Если материалов мало — используй свои знания о теме."""
-    return prompt
+}}"""
 
 
-# ── AI generation ──────────────────────────────────────────────────────────────
+# ── Streaming generation ───────────────────────────────────────────────────────
 
-async def generate_study_content(
-    settings: Any, topic: Topic, materials: list[dict]
-) -> tuple[StudySessionCreate, list[PracticeTaskCreate]] | None:
-    """Call LLM to generate study session content."""
+async def stream_study_content_to_queue(
+    settings: Any,
+    topic: TopicInfo,
+    materials: list[dict],
+    q: asyncio.Queue,
+) -> tuple[str, list[str], list[PracticeTaskCreate]]:
+    """Stream conspect tokens to SSE queue, then generate tasks.
+    Returns (conspect_md, learning_goals, task_creates).
+    """
     if not settings.llm_api_key:
         raise RuntimeError("LLM не настроен")
 
-    prompt = _build_study_prompt(topic.name, materials)
+    await q.put(("phase_change", {"phase": "conspect", "label": "Пишу конспект..."}))
 
-    async with httpx.AsyncClient(timeout=90) as client:
-        raw = await _llm_call(client, settings, prompt, max_tokens=2500)
+    conspect_md = ""
+    prompt_conspect = _build_conspect_prompt(topic.name, materials)
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
+        async for token in _llm_stream_tokens(client, settings, prompt_conspect, max_tokens=1500):
+            conspect_md += token
+            await q.put(("token", {"content": token}))
+
+    if not conspect_md.strip():
+        raise ValueError("LLM вернул пустой конспект")
+
+    await q.put(("phase_change", {"phase": "tasks", "label": "Создаю задания..."}))
+
+    prompt_tasks = _build_tasks_prompt(topic.name, conspect_md)
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        raw = await _llm_call(client, settings, prompt_tasks, max_tokens=1000)
         parsed = _extract_json(raw)
-
-    if "conspect_md" not in parsed:
-        raise ValueError("LLM вернул ответ без conspect_md")
-
-    session_create = StudySessionCreate(
-        user_id=topic.user_id,
-        topic_id=topic.id,
-        conspect_md=parsed["conspect_md"],
-        learning_goals=parsed.get("learning_goals", [f"Изучить {topic.name}"]),
-    )
 
     theory_raw = parsed.get("theory_task", {})
     mini_raw = parsed.get("mini_project_task", {})
@@ -107,14 +172,14 @@ async def generate_study_content(
     theory = PracticeTaskCreate(
         user_id=topic.user_id,
         topic_id=topic.id,
-        study_session_id="",  # filled by caller
+        study_session_id="",
         type="theory",
         title=theory_raw.get("title", f"Теория: {topic.name}"),
         instructions_md=theory_raw.get(
             "instructions_md",
             f"## Теоретический блок: {topic.name}\n\nРазбери ключевые концепции из конспекта.",
         ),
-        target_concepts=mini_raw.get("target_concepts", [topic.name])[:1],
+        target_concepts=[topic.name],
         difficulty=1,
         expected_evidence=["written_explanation"],
         check_commands=[],
@@ -123,7 +188,7 @@ async def generate_study_content(
     mini = PracticeTaskCreate(
         user_id=topic.user_id,
         topic_id=topic.id,
-        study_session_id="",  # filled by caller
+        study_session_id="",
         type="mini_project",
         title=mini_raw.get("title", f"Mini-project: {topic.name}"),
         instructions_md=mini_raw.get(
@@ -138,12 +203,13 @@ async def generate_study_content(
         check_commands=[],
     )
 
-    return session_create, [theory, mini]
+    learning_goals = parsed.get("learning_goals", [f"Изучить {topic.name}"])
+    return conspect_md, learning_goals, [theory, mini]
 
 
 # ── Fallback builders ──────────────────────────────────────────────────────────
 
-def build_study_session(topic: Topic) -> StudySessionCreate:
+def build_study_session(topic: TopicInfo) -> StudySessionCreate:
     return StudySessionCreate(
         user_id=topic.user_id,
         topic_id=topic.id,
@@ -162,7 +228,7 @@ def build_study_session(topic: Topic) -> StudySessionCreate:
     )
 
 
-def build_theory_task(session_id: str, topic: Topic) -> PracticeTaskCreate:
+def build_theory_task(session_id: str, topic: TopicInfo) -> PracticeTaskCreate:
     return PracticeTaskCreate(
         user_id=topic.user_id,
         topic_id=topic.id,
@@ -184,7 +250,7 @@ def build_theory_task(session_id: str, topic: Topic) -> PracticeTaskCreate:
     )
 
 
-def build_mini_project_task(session_id: str, topic: Topic) -> PracticeTaskCreate:
+def build_mini_project_task(session_id: str, topic: TopicInfo) -> PracticeTaskCreate:
     return PracticeTaskCreate(
         user_id=topic.user_id,
         topic_id=topic.id,
@@ -207,11 +273,7 @@ def build_mini_project_task(session_id: str, topic: Topic) -> PracticeTaskCreate
     )
 
 
-def build_study_tasks(session_id: str, topic: Topic) -> list[PracticeTaskCreate]:
-    """Build the ordered set of practice tasks for a study session.
-
-    Matches study-mentor-v2 flow: theory first, then capstone mini-project.
-    """
+def build_study_tasks(session_id: str, topic: TopicInfo) -> list[PracticeTaskCreate]:
     return [
         build_theory_task(session_id, topic),
         build_mini_project_task(session_id, topic),

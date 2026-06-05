@@ -41,6 +41,7 @@ class CapsuleOut(BaseModel):
     content_md: str
     content_html: str
     summary: str
+    status: str = "ready"
     created_at: datetime
     review_questions: list[ReviewQuestionOut] = []
 

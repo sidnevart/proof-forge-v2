@@ -14,4 +14,5 @@ class Capsule(Base):
     content_md: Mapped[str] = mapped_column(Text, nullable=False)
     content_html: Mapped[str] = mapped_column(Text, nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="ready")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
