@@ -11,7 +11,7 @@ router = APIRouter(tags=["agent-context"])
 
 @router.get("/agent-context", response_model=AgentContextOut)
 async def get_agent_context(
-    user_id: str = Query(...),
+    user_id: str = Query(..., alias="userId"),
     topic: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
