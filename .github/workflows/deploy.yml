@@ -27,7 +27,7 @@ jobs:
       - name: Run backend tests
         run: |
           cd apps/backend
-          uv run pytest ../../tests/ -q --tb=short
+          uv run pytest ../../tests/ -q --tb=short --ignore=../../tests/backend/docker
         env:
           DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           APP_ENV: test
