@@ -75,6 +75,7 @@ tailwind.config = { theme: { extend: {
     --noise-op:.025; --noise-blend:multiply;
   }
   html{scroll-behavior:smooth;overflow-x:hidden}
+  #play{overflow-x:hidden}
   body{background:rgb(var(--paper));color:rgb(var(--ink));overflow-x:hidden;
     transition:background .5s ease,color .5s ease}
   body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;opacity:var(--noise-op);mix-blend-mode:var(--noise-blend);
@@ -126,7 +127,7 @@ tailwind.config = { theme: { extend: {
   /* screen */
   .screen{position:relative;overflow:hidden;background:rgb(var(--paper));transition:background .4s ease}
   .device[data-mode="desktop"] .screen{border-radius:5px;overflow:hidden}
-  .device[data-mode="desktop"] .screen-inner{width:960px;max-width:100%;transform-origin:top left;will-change:transform}
+  .device[data-mode="desktop"] .screen-inner{width:960px;transform-origin:top left;will-change:transform}
   .device[data-mode="mobile"] .screen{border-radius:46px}
 
   /* MacBook base */
