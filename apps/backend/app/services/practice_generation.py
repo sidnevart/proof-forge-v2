@@ -48,6 +48,7 @@ async def _llm_call(
             "max_tokens": max_tokens,
             "temperature": temperature,
         },
+        fallback_model=getattr(settings, "llm_fallback_model", None),
     )
     data = response.json()
     msg = data["choices"][0]["message"]
@@ -75,6 +76,7 @@ async def _llm_stream_tokens(
             "max_tokens": max_tokens,
             "temperature": 0.5,
         },
+        fallback_model=getattr(settings, "llm_fallback_model", None),
     ):
         yield token
 

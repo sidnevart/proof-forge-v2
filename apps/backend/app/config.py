@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_base_url: str = "https://openrouter.ai/api/v1"
     llm_model: str = "moonshotai/kimi-k2.6:free"
+    llm_fallback_model: str = "google/gemma-4-31b-it:free"
     llm_cost_per_1k_tokens: float = 0.0  # free tier
 
     model_config = {"env_file": ".env", "extra": "ignore"}

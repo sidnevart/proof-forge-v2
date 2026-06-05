@@ -229,40 +229,30 @@ def _split_chunks(text: str, size: int) -> list[str]:
     return chunks
 
 
-_RETRY_DELAYS = (5, 15, 30)
-
-
 async def _llm_call(
     client: httpx.AsyncClient, settings, prompt: str, max_tokens: int = 1200, _retries: int = 3
 ) -> tuple[str, dict]:
-    """Returns (content, usage_dict). Retries on 429 with exponential backoff."""
+    """Returns (content, usage_dict). Retries on 429 with exponential backoff and fallback model."""
+    from app.services.llm_utils import http_post_with_retry
     t0 = _time.monotonic()
-    last_exc: Exception | None = None
-    for attempt in range(_retries + 1):
-        try:
-            response = await client.post(
-                f"{settings.llm_base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.llm_api_key}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://proof-forge.ru",
-                    "X-Title": "Grasp",
-                },
-                json={
-                    "model": settings.llm_model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": max_tokens,
-                    "temperature": 0.4,
-                },
-            )
-            response.raise_for_status()
-            break
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code != 429 or attempt == _retries:
-                raise
-            last_exc = exc
-            delay = float(exc.response.headers.get("Retry-After", _RETRY_DELAYS[min(attempt, 2)]))
-            await asyncio.sleep(min(delay, 60))
+    response = await http_post_with_retry(
+        client,
+        f"{settings.llm_base_url}/chat/completions",
+        headers={
+            "Authorization": f"Bearer {settings.llm_api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://proof-forge.ru",
+            "X-Title": "Grasp",
+        },
+        json_body={
+            "model": settings.llm_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+            "temperature": 0.4,
+        },
+        retries=_retries,
+        fallback_model=getattr(settings, "llm_fallback_model", None),
+    )
     latency_ms = int((_time.monotonic() - t0) * 1000)
     data = response.json()
     usage = data.get("usage", {})
