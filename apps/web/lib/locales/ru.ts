@@ -224,6 +224,7 @@ export const dict: Dict = {
   'capsule.feedback.refresh': '↻ обновить',
   'capsule.notFound': 'Капсула не найдена',
   'capsule.back': '← Назад',
+  'capsule.regenerate': 'Перегенерировать',
 
   // Streak
   'streak.day': 'день',

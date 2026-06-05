@@ -222,6 +222,7 @@ export const dict = {
   'capsule.feedback.refresh': '↻ refresh',
   'capsule.notFound': 'Capsule not found',
   'capsule.back': '← Back',
+  'capsule.regenerate': 'Regenerate',
 
   // Streak
   'streak.day': 'day',

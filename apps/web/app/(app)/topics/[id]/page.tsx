@@ -8,11 +8,8 @@ import { topics, practice, type Topic, type TopicMaterial } from '@/lib/api'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { track } from '@/lib/analytics'
 import { useT, useLocale, ruPlural } from '@/lib/i18n'
-import { useSSEStream } from '@/hooks/useSSEStream'
 
 const ACCEPT = '.md,.py,.java,.csv,.txt,.js,.ts,.go,.rs,.c,.cpp,.h,.json,.yaml,.yml,.toml,.sh,.sql,.rb,.php,.kt,.pdf'
-
-type GeneratingStep = 0 | 1 | 2 | 3
 
 export default function TopicPage() {
   const { id: topicId } = useParams<{ id: string }>()
@@ -31,27 +28,7 @@ export default function TopicPage() {
   const [addingLink, setAddingLink] = useState(false)
   const [showLinkInput, setShowLinkInput] = useState(false)
 
-  const [generating, setGenerating] = useState(false)
-  const [genStep, setGenStep] = useState<GeneratingStep>(0)
-  const [genError, setGenError] = useState('')
   const [dragOver, setDragOver] = useState(false)
-  const [capsuleEventsUrl, setCapsuleEventsUrl] = useState<string | null>(null)
-  const pendingCapsuleId = useRef<string | null>(null)
-
-  useSSEStream(capsuleEventsUrl, (event) => {
-    if (event.type === 'progress') {
-      setGenStep((s) => (s < 3 ? (s + 1) as GeneratingStep : 3))
-    } else if (event.type === 'complete') {
-      setCapsuleEventsUrl(null)
-      const capsuleId = (event.data.capsule_id as string) ?? pendingCapsuleId.current
-      if (capsuleId) router.push(`/capsule/${capsuleId}`)
-    } else if (event.type === 'error') {
-      setCapsuleEventsUrl(null)
-      setGenError((event.data.message as string) ?? 'Ошибка генерации')
-      setGenerating(false)
-      setGenStep(0)
-    }
-  })
 
   const [startingStudy, setStartingStudy] = useState(false)
   const [studyError, setStudyError] = useState('')
@@ -139,23 +116,6 @@ export default function TopicPage() {
     }
   }
 
-  const handleGenerate = async () => {
-    if (!user || !materials.length) return
-    setGenerating(true)
-    setGenError('')
-    setGenStep(0)
-    track({ name: 'capsule_generation_started', props: { material_count: materials.length } })
-    try {
-      const result = await topics.generateCapsule(topicId, user.user_id)
-      pendingCapsuleId.current = result.capsule_id
-      setCapsuleEventsUrl(topics.capsuleEventsUrl(topicId, result.capsule_id))
-    } catch (err: unknown) {
-      setGenError(err instanceof Error ? err.message : t('topic.genError'))
-      setGenerating(false)
-      setGenStep(0)
-    }
-  }
-
   if (loadingTopic) {
     return (
       <div className="max-w-2xl mx-auto px-5 py-10 space-y-4">
@@ -173,10 +133,6 @@ export default function TopicPage() {
         <Link href="/dashboard" className="text-accent text-sm mt-4 inline-block">{t('topic.back')}</Link>
       </div>
     )
-  }
-
-  if (generating) {
-    return <GeneratingScreen step={genStep} topicName={topic.name} t={t} />
   }
 
   const materialsLabel = (() => {
@@ -316,24 +272,6 @@ export default function TopicPage() {
         </button>
       </div>
 
-      {genError && (
-        <div className="mb-4 px-4 py-3 rounded-xl bg-danger/10 border border-danger/20 text-sm text-danger">
-          {genError}
-        </div>
-      )}
-
-      <div className="pt-4 border-t border-line">
-        <button
-          onClick={handleGenerate}
-          disabled={materials.length === 0 || generating}
-          className="w-full py-4 rounded-xl bg-accent text-[#06140d] font-semibold text-base hover:bg-accentdk transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {materials.length === 0 ? t('topic.noMaterialsCta') : t('topic.createCapsule')}
-        </button>
-        {materials.length > 0 && (
-          <p className="text-center text-xs text-mute mt-3">{t('topic.aiHint')}</p>
-        )}
-      </div>
     </div>
   )
 }
@@ -400,44 +338,6 @@ function MaterialCard({ material, onDelete, t }: { material: TopicMaterial; onDe
   )
 }
 
-function GeneratingScreen({ step, topicName, t }: { step: GeneratingStep; topicName: string; t: (k: string) => string }) {
-  const GEN_STEPS = [
-    { label: t('topic.gen.step0'), icon: '📖' },
-    { label: t('topic.gen.step1'), icon: '🔍' },
-    { label: t('topic.gen.step2'), icon: '📝' },
-    { label: t('topic.gen.step3'), icon: '🃏' },
-  ]
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-5 py-12">
-      <div className="w-full max-w-sm text-center">
-        <div className="w-16 h-16 rounded-2xl bg-accentsoft flex items-center justify-center mx-auto mb-6">
-          <div className="w-8 h-8 rounded-full border-2 border-accentdk border-t-accent animate-spin" />
-        </div>
-        <h2 className="font-display text-2xl font-bold text-ink mb-1">{t('topic.generating')}</h2>
-        <p className="text-mute text-sm mb-8 font-mono truncate max-w-xs mx-auto">«{topicName}»</p>
-        <div className="space-y-2 text-left">
-          {GEN_STEPS.map((s, i) => {
-            const done = i < step
-            const active = i === step
-            return (
-              <div key={s.label} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all ${active ? 'bg-accentsoft border border-accent/30' : done ? 'opacity-50' : 'opacity-30'}`}>
-                <span className="text-base w-6 text-center">
-                  {done
-                    ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                    : s.icon}
-                </span>
-                <span className={`text-sm font-medium ${active ? 'text-accent' : 'text-mute'}`}>{s.label}</span>
-                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />}
-              </div>
-            )
-          })}
-        </div>
-        <p className="mt-8 text-xs text-mute">{t('topic.usually')}</p>
-      </div>
-    </div>
-  )
-}
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes}B`

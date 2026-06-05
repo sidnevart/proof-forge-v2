@@ -193,6 +193,8 @@ _CHUNK_SIZE = 7_000            # chars per chunk in map phase
 
 class GenerateCapsuleRequest(BaseModel):
     user_id: str
+    chat_messages: list[dict] | None = None
+    existing_capsule_id: str | None = None
 
 
 class GenerateTopicOut(BaseModel):
@@ -282,16 +284,27 @@ async def _extract_concepts_from_chunk(
     return f"[Источник: {material_name}]\n{content}", usage
 
 
+def _format_chat_context(chat_messages: list[dict] | None) -> str:
+    if not chat_messages:
+        return ""
+    lines = "\n".join(
+        f"{'Пользователь' if m.get('role') == 'user' else 'Ментор'}: {m.get('content', '')}"
+        for m in chat_messages[-20:]
+    )
+    return f"\n\n## Контекст диалога с ментором\n\n{lines}\n\nИспользуй диалог как дополнительный контекст для понимания того, что именно важно студенту.\n"
+
+
 async def _generate_single_pass(
-    client: httpx.AsyncClient, settings, topic_name: str, materials_block: str
+    client: httpx.AsyncClient, settings, topic_name: str, materials_block: str,
+    chat_messages: list[dict] | None = None,
 ) -> tuple[dict, dict]:
     """Returns (parsed_capsule, usage_dict)."""
+    chat_ctx = _format_chat_context(chat_messages)
     prompt = f"""Ты — эксперт-преподаватель для IT-специалистов. На основе материалов создай обучающую капсулу по теме «{topic_name}».
 
 ## Материалы
 
-{materials_block}
-
+{materials_block}{chat_ctx}
 ---
 
 Ответь ТОЛЬКО валидным JSON без markdown-блоков:
@@ -370,6 +383,7 @@ async def _run_capsule_generation(
     topic_name: str,
     user_id: str,
     materials_snapshot: list,
+    chat_messages: list[dict] | None = None,
 ) -> None:
     """Background task: generate capsule content and stream progress via SSE bridge."""
     from app.config import settings
@@ -440,12 +454,12 @@ async def _run_capsule_generation(
 
                 await q.put(("progress", {"phase": "synthesize", "label": "Синтезирую капсулу..."}))
                 combined = "\n\n---\n\n".join(extracts)
+                chat_ctx = _format_chat_context(chat_messages)
                 reduce_prompt = f"""Ты — эксперт-преподаватель. На основе этих концепций по теме «{topic_name}» создай обучающую капсулу.
 
 ## Извлечённые концепции из всех материалов
 
-{combined[:20_000]}
-
+{combined[:20_000]}{chat_ctx}
 ---
 
 Ответь ТОЛЬКО валидным JSON без markdown-блоков:
@@ -474,7 +488,7 @@ async def _run_capsule_generation(
                     f"### Материал: {m['name']}\n\n{m['content_text']}"
                     for m in materials_snapshot
                 )
-                parsed, u = await _generate_single_pass(client, settings, topic_name, materials_block)
+                parsed, u = await _generate_single_pass(client, settings, topic_name, materials_block, chat_messages)
                 for k in ("prompt_tokens", "completion_tokens", "total_tokens", "latency_ms"):
                     usage[k] = usage.get(k, 0) + u.get(k, 0)
 
@@ -495,6 +509,12 @@ async def _run_capsule_generation(
                 capsule.content_html = content_html
                 capsule.summary = summary
                 capsule.status = "ready"
+
+                existing_qs = await db.execute(
+                    select(ReviewQuestion).where(ReviewQuestion.capsule_id == capsule_id)
+                )
+                for q_row in existing_qs.scalars().all():
+                    await db.delete(q_row)
 
                 for rq in parsed.get("review_questions", []):
                     db.add(ReviewQuestion(
@@ -572,22 +592,32 @@ async def generate_capsule_from_materials(
         for m in materials
     ]
 
-    # Create skeleton capsule immediately
-    capsule = Capsule(
-        user_id=data.user_id,
-        topic_id=topic_id,
-        content_md="",
-        content_html="",
-        summary="",
-        status="generating",
-    )
-    db.add(capsule)
-    await db.commit()
-    await db.refresh(capsule)
+    if data.existing_capsule_id:
+        existing = await db.execute(select(Capsule).where(Capsule.id == data.existing_capsule_id))
+        capsule = existing.scalar_one_or_none()
+        if not capsule:
+            raise HTTPException(status_code=404, detail="Capsule not found")
+        capsule.status = "generating"
+        capsule.content_md = ""
+        capsule.content_html = ""
+        capsule.summary = ""
+        await db.commit()
+    else:
+        capsule = Capsule(
+            user_id=data.user_id,
+            topic_id=topic_id,
+            content_md="",
+            content_html="",
+            summary="",
+            status="generating",
+        )
+        db.add(capsule)
+        await db.commit()
+        await db.refresh(capsule)
 
     create_stream(capsule.id)
     asyncio.create_task(_run_capsule_generation(
-        capsule.id, topic_id, topic.name, data.user_id, materials_snapshot
+        capsule.id, topic_id, topic.name, data.user_id, materials_snapshot, data.chat_messages
     ))
 
     return {"topic_id": topic_id, "capsule_id": capsule.id, "status": "generating"}

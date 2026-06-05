@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { use } from 'react'
-import { capsules, type Capsule, type CapsuleFeedback } from '@/lib/api'
+import { capsules, topics, type Capsule, type CapsuleFeedback } from '@/lib/api'
+import { useSSEStream } from '@/hooks/useSSEStream'
 import { getStoredUser } from '@/lib/auth'
 import { track } from '@/lib/analytics'
 import { Skeleton, SkeletonText } from '@/components/ui/Skeleton'
@@ -35,11 +36,39 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
   const [feedback, setFeedback] = useState<CapsuleFeedback | null | undefined>(undefined)
   const [loadingFeedback, setLoadingFeedback] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [isRegenerating, setIsRegenerating] = useState(false)
+  const [regenEventsUrl, setRegenEventsUrl] = useState<string | null>(null)
+  const pendingRegenId = useRef<string | null>(null)
   const [activeHeading, setActiveHeading] = useState('')
   const [showFeedback, setShowFeedback] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
   const t = useT()
   const { locale } = useLocale()
+
+  useSSEStream(regenEventsUrl, (event) => {
+    if (event.type === 'complete') {
+      setRegenEventsUrl(null)
+      capsules.get(id).then((c) => {
+        setCapsule(c)
+        setIsRegenerating(false)
+      }).catch(() => setIsRegenerating(false))
+    } else if (event.type === 'error') {
+      setRegenEventsUrl(null)
+      setIsRegenerating(false)
+    }
+  })
+
+  const handleRegenerate = useCallback(async () => {
+    if (!user || !capsule || isRegenerating) return
+    setIsRegenerating(true)
+    try {
+      const result = await topics.generateCapsule(capsule.topic_id, user.user_id, undefined, capsule.id)
+      pendingRegenId.current = result.capsule_id
+      setRegenEventsUrl(topics.capsuleEventsUrl(capsule.topic_id, result.capsule_id))
+    } catch {
+      setIsRegenerating(false)
+    }
+  }, [user, capsule, isRegenerating])
 
   useEffect(() => {
     Promise.all([
@@ -187,6 +216,20 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                   </svg>
                   {t('capsule.mentor')}
                 </Link>
+                <button
+                  onClick={handleRegenerate}
+                  disabled={isRegenerating}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-accentsoft border border-accent/30 text-accent text-xs font-medium hover:bg-accent hover:text-[#06140d] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRegenerating ? (
+                    <div className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin" />
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+                    </svg>
+                  )}
+                  {isRegenerating ? '' : t('capsule.regenerate')}
+                </button>
                 <button
                   onClick={() => setShowFeedback((v) => !v)}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-all ${

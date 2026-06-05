@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getStoredUser } from '@/lib/auth'
-import { practice, chat, type PracticeTask, type StudySession, type ChatMessage, type ChatSession } from '@/lib/api'
+import { practice, chat, topics, capsules, type PracticeTask, type StudySession, type ChatMessage, type ChatSession, type Capsule } from '@/lib/api'
 import { SkeletonText } from '@/components/ui/Skeleton'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { useT } from '@/lib/i18n'
@@ -25,8 +25,14 @@ export default function StudySessionPage() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [completing, setCompleting] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('chat')
+
+  // Capsule generation state
+  const [capsule, setCapsule] = useState<Capsule | null>(null)
+  const [isGeneratingCapsule, setIsGeneratingCapsule] = useState(false)
+  const [capsuleGenError, setCapsuleGenError] = useState('')
+  const [capsuleEventsUrl2, setCapsuleEventsUrl2] = useState<string | null>(null)
+  const pendingCapsuleId = useRef<string | null>(null)
   const [chatInitError, setChatInitError] = useState('')
   const [chatError, setChatError] = useState('')
 
@@ -69,6 +75,26 @@ export default function StudySessionPage() {
       }
     }
   )
+
+  // SSE stream for capsule generation
+  useSSEStream(capsuleEventsUrl2, (event) => {
+    if (event.type === 'progress') {
+      // progress events received — no step counter needed in this minimal UI
+    } else if (event.type === 'complete') {
+      setCapsuleEventsUrl2(null)
+      const cid = (event.data.capsule_id as string) ?? pendingCapsuleId.current
+      if (cid) {
+        capsules.get(cid).then((c) => {
+          setCapsule(c)
+          setIsGeneratingCapsule(false)
+        }).catch(() => setIsGeneratingCapsule(false))
+      }
+    } else if (event.type === 'error') {
+      setCapsuleEventsUrl2(null)
+      setCapsuleGenError((event.data.message as string) ?? 'Ошибка генерации')
+      setIsGeneratingCapsule(false)
+    }
+  })
 
   // Load study session, tasks, and chat
   useEffect(() => {
@@ -145,14 +171,18 @@ export default function StudySessionPage() {
     }
   }
 
-  const handleComplete = async () => {
-    if (!user || !session) return
-    setCompleting(true)
+  const handleGenerateCapsule = async () => {
+    if (!session || !user || isGeneratingCapsule) return
+    setIsGeneratingCapsule(true)
+    setCapsuleGenError('')
     try {
-      const result = await practice.completeSession(session.id, user.user_id)
-      window.location.href = `/capsule/${result.capsule.id}`
-    } finally {
-      setCompleting(false)
+      const chatMessages = messages.map((m) => ({ role: m.role, content: m.content }))
+      const result = await topics.generateCapsule(session.topic_id, user.user_id, chatMessages)
+      pendingCapsuleId.current = result.capsule_id
+      setCapsuleEventsUrl2(topics.capsuleEventsUrl(session.topic_id, result.capsule_id))
+    } catch (err) {
+      setCapsuleGenError(err instanceof Error ? err.message : 'Ошибка генерации')
+      setIsGeneratingCapsule(false)
     }
   }
 
@@ -172,7 +202,6 @@ export default function StudySessionPage() {
     )
   }
 
-  const allTasksCompleted = tasks.length > 0 && tasks.every((task) => task.status === 'completed')
   const generationFallback = searchParams.get('generation') === 'fallback'
   const generationReason = searchParams.get('reason')
 
@@ -191,15 +220,6 @@ export default function StudySessionPage() {
             {session.conspect_md.slice(0, 60).replace(/^#+\s*/, '') || t('study.sessionFallback')}
           </div>
         </div>
-        {allTasksCompleted && (
-          <button
-            onClick={handleComplete}
-            disabled={completing}
-            className="shrink-0 px-3 py-1.5 rounded-lg bg-accent text-[#06140d] text-xs font-semibold hover:bg-accentdk transition-colors disabled:opacity-50"
-          >
-            {completing ? '...' : t('study.capsuleCta')}
-          </button>
-        )}
       </div>
 
       {/* Mobile tabs */}
@@ -349,7 +369,45 @@ export default function StudySessionPage() {
 
         {/* Right panel: conspect + tasks */}
         <div className={`w-full md:w-[380px] lg:w-[420px] shrink-0 flex flex-col min-h-0 bg-sand/20 border-l border-line ${activeTab !== 'materials' ? 'hidden md:flex' : ''}`}>
+          {/* Panel header with "Создать конспект" */}
+          <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-line">
+            <span className="text-xs font-mono text-mute uppercase tracking-wider">Materials</span>
+            <button
+              onClick={handleGenerateCapsule}
+              disabled={isGeneratingCapsule || isStreaming}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-accentsoft border border-accent/30 text-accent text-xs font-medium hover:bg-accent hover:text-[#06140d] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isGeneratingCapsule ? (
+                <>
+                  <div className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin" />
+                  Генерируется...
+                </>
+              ) : 'Создать конспект'}
+            </button>
+          </div>
+
           <div className="flex-1 overflow-y-auto">
+            {/* Capsule result / generation state */}
+            {capsuleGenError && (
+              <div className="px-4 pt-3 pb-0">
+                <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+                  {capsuleGenError}
+                </div>
+              </div>
+            )}
+            {capsule && (
+              <div className="p-4 border-b border-line">
+                <div className="text-[10px] font-mono text-accent uppercase tracking-wider mb-1.5">Конспект готов</div>
+                <p className="text-sm font-medium text-ink mb-2 leading-snug">{capsule.summary}</p>
+                <Link
+                  href={`/capsule/${capsule.id}`}
+                  className="inline-flex items-center gap-1 text-xs text-accent hover:text-accentdk transition-colors font-mono"
+                >
+                  Открыть полный конспект →
+                </Link>
+              </div>
+            )}
+
             <div className="p-4">
               {/* Streaming phase label */}
               {isStreaming && streamingPhase && (
@@ -421,16 +479,6 @@ export default function StudySessionPage() {
                   </div>
                 </Link>
               ))}
-
-              {allTasksCompleted && (
-                <button
-                  onClick={handleComplete}
-                  disabled={completing}
-                  className="mt-4 w-full py-3 rounded-xl bg-accent text-[#06140d] font-semibold text-sm hover:bg-accentdk transition-colors disabled:opacity-50"
-                >
-                  {completing ? t('study.completing') : t('study.complete')}
-                </button>
-              )}
             </div>
           </div>
         </div>
