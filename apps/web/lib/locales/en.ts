@@ -9,6 +9,7 @@ export const dict = {
   'nav.noSessions': 'No active sessions',
   'nav.logout': 'Sign out',
   'nav.learn': 'Learn',
+  'nav.capsules': 'Capsules',
   'nav.sessionFallback': 'Session',
 
   // Dashboard
@@ -184,13 +185,18 @@ export const dict = {
   'study.sessionFallback': 'Study Session',
   'study.capsuleCta': 'Capsule →',
   'study.tab.chat': 'Chat',
-  'study.tab.materials': 'Materials',
+  'study.tab.theory': 'Theory',
+  'study.tab.practice': 'Practice',
+  'study.tab.capsule': 'Capsule',
   'study.mentor.title': 'Mentor',
   'study.mentor.empty': 'Ask questions about the topic, request explanations or tasks.',
   'study.fallback': 'AI notes were not generated. A template plan is shown.',
   'study.input.placeholder': 'Ask the mentor...',
   'study.completing': 'Forging capsule...',
   'study.complete': 'Complete session and create capsule →',
+  'study.createCapsule': 'Create capsule',
+  'study.capsule.empty': 'No capsule yet. Tap "Create capsule" to generate review cards.',
+  'study.generating': 'Generating...',
   'study.notFound': 'Session not found',
   'study.chatError': 'Chat error',
   'study.tasksLoading': 'Loading tasks...',
@@ -208,9 +214,8 @@ export const dict = {
   // Practice page
   'practice.notFound': 'Task not found',
   'practice.back': '← back to session',
-  'practice.evidence': 'Expected evidence',
-  'practice.commands': 'Check commands',
-  'practice.commandsEmpty': 'Run checks in IDE and submit output via plugin.',
+  'practice.submit': 'Submit solution',
+  'practice.submitHint': 'Describe your approach and solution...',
 
   // Capsule
   'capsule.toc': 'Table of contents',
@@ -227,6 +232,12 @@ export const dict = {
   'capsule.notFound': 'Capsule not found',
   'capsule.back': '← Back',
   'capsule.regenerate': 'Regenerate',
+
+  // Capsules list page
+  'capsules.title': 'Capsules',
+  'capsules.search': 'Search capsules...',
+  'capsules.empty': 'No capsules yet. Start learning a topic!',
+  'capsules.topicFilter': 'All topics',
 
   // Streak
   'streak.day': 'day',

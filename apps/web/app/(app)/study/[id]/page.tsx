@@ -10,7 +10,7 @@ import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { useT } from '@/lib/i18n'
 import { useSSEStream } from '@/hooks/useSSEStream'
 
-type Tab = 'chat' | 'materials'
+type Tab = 'chat' | 'theory' | 'practice' | 'capsule'
 
 export default function StudySessionPage() {
   const { id } = useParams<{ id: string }>()
@@ -61,7 +61,6 @@ export default function StudySessionPage() {
         })
       } else if (event.type === 'complete') {
         setIsStreaming(false)
-        // Reload session to get final conspect_md and status
         practice.getSession(id).then((s) => {
           setSession(s)
           setStreamingConspect('')
@@ -79,7 +78,7 @@ export default function StudySessionPage() {
   // SSE stream for capsule generation
   useSSEStream(capsuleEventsUrl2, (event) => {
     if (event.type === 'progress') {
-      // progress events received — no step counter needed in this minimal UI
+      // progress events received — no step counter needed
     } else if (event.type === 'complete') {
       setCapsuleEventsUrl2(null)
       const cid = (event.data.capsule_id as string) ?? pendingCapsuleId.current
@@ -140,7 +139,6 @@ export default function StudySessionPage() {
     setSending(true)
     setChatError('')
 
-    // Save user message
     try {
       await chat.createMessage(chatSession.id, 'user', text)
     } catch {
@@ -151,7 +149,6 @@ export default function StudySessionPage() {
     try {
       const history = messages.map((m) => ({ role: m.role, content: m.content }))
       const res = await chat.send(user.user_id, text, history, chatSession.topic_id)
-      // Save assistant message
       try {
         await chat.createMessage(chatSession.id, 'assistant', res.message)
       } catch {}
@@ -205,6 +202,8 @@ export default function StudySessionPage() {
   const generationFallback = searchParams.get('generation') === 'fallback'
   const generationReason = searchParams.get('reason')
 
+  const TABS = ['chat', 'theory', 'practice', 'capsule'] as const
+
   return (
     <div className="flex flex-col h-[calc(100dvh-5rem)] md:h-[100dvh] max-h-[100dvh] overflow-hidden">
       {/* Header */}
@@ -215,209 +214,173 @@ export default function StudySessionPage() {
           </svg>
         </Link>
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-mono text-accent truncate">Study Session</div>
           <div className="text-sm font-semibold text-ink truncate">
             {session.conspect_md.slice(0, 60).replace(/^#+\s*/, '') || t('study.sessionFallback')}
           </div>
         </div>
       </div>
 
-      {/* Mobile tabs */}
-      <div className="md:hidden shrink-0 flex border-b border-line bg-paper">
-        {(['chat', 'materials'] as const).map((tab) => (
+      {/* Tab bar */}
+      <div className="shrink-0 flex border-b border-line bg-paper overflow-x-auto">
+        {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
-              activeTab === tab ? 'text-accent border-b-2 border-accent bg-accentsoft/20' : 'text-mute'
+            className={`flex-1 min-w-fit px-4 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
+              activeTab === tab
+                ? 'text-accent border-b-2 border-accent bg-accentsoft/20'
+                : 'text-mute border-b-2 border-transparent hover:text-ink'
             }`}
           >
-            {tab === 'chat' ? t('study.tab.chat') : t('study.tab.materials')}
+            {t(`study.tab.${tab}`)}
           </button>
         ))}
       </div>
 
-      {/* Main content area */}
-      <div className="flex-1 min-h-0 flex flex-col md:flex-row">
-        {/* Chat panel */}
-        <div className={`flex-1 flex flex-col min-h-0 md:border-r border-line ${activeTab !== 'chat' ? 'hidden md:flex' : ''}`}>
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-            {isStreaming && messages.length === 0 && (
-              <div className="max-w-md mx-auto text-center py-12">
-                <div className="w-12 h-12 rounded-2xl bg-accentsoft border border-accent/20 flex items-center justify-center mx-auto mb-3">
-                  <div className="w-5 h-5 rounded-full border-2 border-accentdk border-t-accent animate-spin" />
+      {/* Tab content */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {/* ── Chat tab ── */}
+        {activeTab === 'chat' && (
+          <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+              {isStreaming && messages.length === 0 && (
+                <div className="max-w-md mx-auto text-center py-12">
+                  <div className="w-12 h-12 rounded-2xl bg-accentsoft border border-accent/20 flex items-center justify-center mx-auto mb-3">
+                    <div className="w-5 h-5 rounded-full border-2 border-accentdk border-t-accent animate-spin" />
+                  </div>
+                  <p className="text-sm font-medium text-ink mb-1">AI готовит материал</p>
+                  <p className="text-xs text-mute font-mono">{streamingPhase || 'Подожди немного...'}</p>
+                  <p className="text-xs text-mute mt-2">Конспект уже пишется на вкладке Теория →</p>
                 </div>
-                <p className="text-sm font-medium text-ink mb-1">AI готовит материал</p>
-                <p className="text-xs text-mute font-mono">{streamingPhase || 'Подожди немного...'}</p>
-                <p className="text-xs text-mute mt-2">Конспект уже пишется на вкладке справа →</p>
-              </div>
-            )}
-            {!isStreaming && messages.length === 0 && !sending && (
-              <div className="max-w-md mx-auto text-center py-12">
-                <div className="w-12 h-12 rounded-2xl bg-accentsoft border border-accent/20 flex items-center justify-center mx-auto mb-3">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" strokeWidth="2">
-                    <circle cx="12" cy="12" r="9"/>
-                    <circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/>
-                  </svg>
+              )}
+              {!isStreaming && messages.length === 0 && !sending && (
+                <div className="max-w-md mx-auto text-center py-12">
+                  <div className="w-12 h-12 rounded-2xl bg-accentsoft border border-accent/20 flex items-center justify-center mx-auto mb-3">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" strokeWidth="2">
+                      <circle cx="12" cy="12" r="9"/>
+                      <circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/>
+                    </svg>
+                  </div>
+                  <h2 className="font-display text-lg font-bold text-ink mb-1">{t('study.mentor.title')}</h2>
+                  <p className="text-mute text-xs">{t('study.mentor.empty')}</p>
                 </div>
-                <h2 className="font-display text-lg font-bold text-ink mb-1">{t('study.mentor.title')}</h2>
-                <p className="text-mute text-xs">{t('study.mentor.empty')}</p>
-              </div>
-            )}
+              )}
 
-            {chatInitError && (
-              <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
-                {chatInitError}
-              </div>
-            )}
+              {chatInitError && (
+                <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+                  {chatInitError}
+                </div>
+              )}
 
-            {generationFallback && (
-              <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
-                {t('study.fallback')}
-                {generationReason ? ` Reason: ${generationReason}` : ''}
-              </div>
-            )}
+              {generationFallback && (
+                <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+                  {t('study.fallback')}
+                  {generationReason ? ` Reason: ${generationReason}` : ''}
+                </div>
+              )}
 
-            {chatError && (
-              <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
-                {chatError}
-              </div>
-            )}
+              {chatError && (
+                <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+                  {chatError}
+                </div>
+              )}
 
-            {messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {msg.role === 'assistant' && (
+              {messages.map((msg) => (
+                <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.role === 'assistant' && (
+                    <div className="w-6 h-6 rounded-md bg-accentsoft border border-accent/20 flex items-center justify-center shrink-0 mr-2 mt-1">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" strokeWidth="2">
+                        <circle cx="12" cy="12" r="9"/>
+                        <circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/>
+                      </svg>
+                    </div>
+                  )}
+                  <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
+                    msg.role === 'user'
+                      ? 'bg-card border border-line text-ink rounded-tr-sm'
+                      : 'bg-sand/40 border border-line/60 text-ink rounded-tl-sm'
+                  }`}>
+                    {msg.role === 'assistant' ? (
+                      <div className="prose-grasp">
+                        <MarkdownRenderer
+                          components={{
+                            h1: ({ children }) => <h1 className="font-display text-base font-bold text-ink mt-3 mb-1">{children}</h1>,
+                            h2: ({ children }) => <h2 className="font-display text-sm font-bold text-ink mt-2 mb-1">{children}</h2>,
+                            h3: ({ children }) => <h3 className="font-semibold text-ink mt-1.5 mb-0.5 text-xs">{children}</h3>,
+                            p: ({ children }) => <p className="text-ink/90 leading-relaxed mb-1.5 last:mb-0">{children}</p>,
+                            ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 mb-1.5 text-ink/90 text-xs">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 mb-1.5 text-ink/90 text-xs">{children}</ol>,
+                          }}
+                        >
+                          {msg.content}
+                        </MarkdownRenderer>
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {sending && (
+                <div className="flex justify-start">
                   <div className="w-6 h-6 rounded-md bg-accentsoft border border-accent/20 flex items-center justify-center shrink-0 mr-2 mt-1">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" strokeWidth="2">
                       <circle cx="12" cy="12" r="9"/>
                       <circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/>
                     </svg>
                   </div>
-                )}
-                <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
-                  msg.role === 'user'
-                    ? 'bg-card border border-line text-ink rounded-tr-sm'
-                    : 'bg-sand/40 border border-line/60 text-ink rounded-tl-sm'
-                }`}>
-                  {msg.role === 'assistant' ? (
-                    <div className="prose-grasp">
-                      <MarkdownRenderer
-                        components={{
-                          h1: ({ children }) => <h1 className="font-display text-base font-bold text-ink mt-3 mb-1">{children}</h1>,
-                          h2: ({ children }) => <h2 className="font-display text-sm font-bold text-ink mt-2 mb-1">{children}</h2>,
-                          h3: ({ children }) => <h3 className="font-semibold text-ink mt-1.5 mb-0.5 text-xs">{children}</h3>,
-                          p: ({ children }) => <p className="text-ink/90 leading-relaxed mb-1.5 last:mb-0">{children}</p>,
-                          ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 mb-1.5 text-ink/90 text-xs">{children}</ul>,
-                          ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 mb-1.5 text-ink/90 text-xs">{children}</ol>,
-                        }}
-                      >
-                        {msg.content}
-                      </MarkdownRenderer>
+                  <div className="bg-sand/40 border border-line/60 rounded-2xl rounded-tl-sm px-3.5 py-2.5">
+                    <div className="flex gap-1 items-center h-4">
+                      <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
-                  ) : (
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {sending && (
-              <div className="flex justify-start">
-                <div className="w-6 h-6 rounded-md bg-accentsoft border border-accent/20 flex items-center justify-center shrink-0 mr-2 mt-1">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" strokeWidth="2">
-                    <circle cx="12" cy="12" r="9"/>
-                    <circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/>
-                  </svg>
-                </div>
-                <div className="bg-sand/40 border border-line/60 rounded-2xl rounded-tl-sm px-3.5 py-2.5">
-                  <div className="flex gap-1 items-center h-4">
-                    <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1 h-1 rounded-full bg-accent animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                 </div>
-              </div>
-            )}
-            <div ref={bottomRef} />
-          </div>
+              )}
+              <div ref={bottomRef} />
+            </div>
 
-          <div className="shrink-0 border-t border-line px-3 py-2.5">
-            <div className="flex gap-2 items-end max-w-3xl mx-auto">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={t('study.input.placeholder')}
-                rows={1}
-                disabled={sending || !chatSession}
-                className="flex-1 h-9 resize-none overflow-hidden px-3 py-2 rounded-xl border border-line bg-card text-ink placeholder:text-mute/50 focus:outline-none focus:border-accent/60 transition-colors text-sm leading-5 disabled:opacity-50"
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!input.trim() || sending || !chatSession}
-                className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center text-[#06140d] hover:bg-accentdk transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="22" y1="2" x2="11" y2="13"/>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                </svg>
-              </button>
+            <div className="shrink-0 border-t border-line px-3 py-2.5">
+              <div className="flex gap-2 items-end max-w-3xl mx-auto">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={t('study.input.placeholder')}
+                  rows={1}
+                  disabled={sending || !chatSession}
+                  className="flex-1 h-9 resize-none overflow-hidden px-3 py-2 rounded-xl border border-line bg-card text-ink placeholder:text-mute/50 focus:outline-none focus:border-accent/60 transition-colors text-sm leading-5 disabled:opacity-50"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!input.trim() || sending || !chatSession}
+                  className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center text-[#06140d] hover:bg-accentdk transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <line x1="22" y1="2" x2="11" y2="13"/>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Right panel: conspect + tasks */}
-        <div className={`w-full md:w-[380px] lg:w-[420px] shrink-0 flex flex-col min-h-0 bg-sand/20 border-l border-line ${activeTab !== 'materials' ? 'hidden md:flex' : ''}`}>
-          {/* Panel header with "Создать конспект" */}
-          <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-line">
-            <span className="text-xs font-mono text-mute uppercase tracking-wider">Materials</span>
-            <button
-              onClick={handleGenerateCapsule}
-              disabled={isGeneratingCapsule || isStreaming}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-accentsoft border border-accent/30 text-accent text-xs font-medium hover:bg-accent hover:text-[#06140d] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGeneratingCapsule ? (
-                <>
-                  <div className="w-3 h-3 rounded-full border border-current border-t-transparent animate-spin" />
-                  Генерируется...
-                </>
-              ) : 'Создать конспект'}
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto">
-            {/* Capsule result / generation state */}
-            {capsuleGenError && (
-              <div className="px-4 pt-3 pb-0">
-                <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
-                  {capsuleGenError}
-                </div>
-              </div>
-            )}
-            {capsule && (
-              <div className="p-4 border-b border-line">
-                <div className="text-[10px] font-mono text-accent uppercase tracking-wider mb-1.5">Конспект готов</div>
-                <p className="text-sm font-medium text-ink mb-2 leading-snug">{capsule.summary}</p>
-                <Link
-                  href={`/capsule/${capsule.id}`}
-                  className="inline-flex items-center gap-1 text-xs text-accent hover:text-accentdk transition-colors font-mono"
-                >
-                  Открыть полный конспект →
-                </Link>
-              </div>
-            )}
-
-            <div className="p-4">
-              {/* Streaming phase label */}
+        {/* ── Theory tab ── */}
+        {activeTab === 'theory' && (
+          <div className="h-full overflow-y-auto">
+            <div className="max-w-3xl mx-auto p-4 md:p-6">
               {isStreaming && streamingPhase && (
-                <div className="flex items-center gap-2 mb-3 px-1">
+                <div className="flex items-center gap-2 mb-4">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" />
                   <span className="text-xs font-mono text-accent">{streamingPhase}</span>
                 </div>
               )}
               {streamError && (
-                <div className="mb-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+                <div className="mb-4 px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
                   {streamError} — показан шаблонный контент.
                 </div>
               )}
@@ -430,8 +393,13 @@ export default function StudySessionPage() {
                 )}
               </div>
             </div>
+          </div>
+        )}
 
-            <div className="p-4 space-y-2 border-t border-line">
+        {/* ── Practice tab ── */}
+        {activeTab === 'practice' && (
+          <div className="h-full overflow-y-auto">
+            <div className="max-w-3xl mx-auto p-4 md:p-6 space-y-3">
               {isStreaming && tasks.length === 0 && (
                 <div className="flex items-center gap-2 py-8 justify-center">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
@@ -439,7 +407,7 @@ export default function StudySessionPage() {
                 </div>
               )}
               {!isStreaming && tasks.length === 0 && (
-                <div className="text-center py-8">
+                <div className="text-center py-12">
                   {session?.status === 'generating' ? (
                     <p className="text-xs text-mute">{t('study.tasksLoading')}</p>
                   ) : (
@@ -459,7 +427,7 @@ export default function StudySessionPage() {
                 <Link
                   key={task.id}
                   href={`/practice/${task.id}`}
-                  className="surface surface-hover rounded-xl p-3.5 block text-sm"
+                  className="surface surface-hover rounded-xl p-4 block"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -481,7 +449,66 @@ export default function StudySessionPage() {
               ))}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* ── Capsule tab ── */}
+        {activeTab === 'capsule' && (
+          <div className="h-full overflow-y-auto">
+            <div className="max-w-3xl mx-auto p-4 md:p-6">
+              {/* Capsule generation error */}
+              {capsuleGenError && (
+                <div className="px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger mb-4">
+                  {capsuleGenError}
+                </div>
+              )}
+
+              {/* Existing capsule */}
+              {capsule ? (
+                <div className="space-y-4">
+                  <div className="surface rounded-xl p-4">
+                    <div className="text-[10px] font-mono text-accent uppercase tracking-wider mb-1.5">Капсула</div>
+                    <p className="text-sm font-medium text-ink mb-3 leading-snug">{capsule.summary}</p>
+                    <Link
+                      href={`/capsule/${capsule.id}`}
+                      className="inline-flex items-center gap-1 text-xs text-accent hover:text-accentdk transition-colors font-mono"
+                    >
+                      {t('study.capsuleCta')}
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                /* No capsule yet — create button */
+                <div className="text-center py-12">
+                  <div className="w-12 h-12 rounded-2xl bg-accentsoft border border-accent/20 flex items-center justify-center mx-auto mb-3">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="3"/>
+                      <line x1="9" y1="9" x2="15" y2="9"/>
+                      <line x1="9" y1="13" x2="15" y2="13"/>
+                      <line x1="9" y1="17" x2="12" y2="17"/>
+                    </svg>
+                  </div>
+                  <p className="text-sm text-mute mb-4 max-w-xs mx-auto leading-relaxed">
+                    {t('study.capsule.empty')}
+                  </p>
+                  <button
+                    onClick={handleGenerateCapsule}
+                    disabled={isGeneratingCapsule || isStreaming}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent text-[#06140d] text-sm font-semibold hover:bg-accentdk transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isGeneratingCapsule ? (
+                      <>
+                        <div className="w-3.5 h-3.5 rounded-full border-2 border-[#06140d] border-t-transparent animate-spin" />
+                        {t('study.generating')}
+                      </>
+                    ) : (
+                      t('study.createCapsule')
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

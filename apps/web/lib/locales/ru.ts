@@ -11,6 +11,7 @@ export const dict: Dict = {
   'nav.noSessions': 'Нет активных сессий',
   'nav.logout': 'Выйти',
   'nav.learn': 'Учиться',
+  'nav.capsules': 'Капсулы',
   'nav.sessionFallback': 'Сессия',
 
   // Dashboard
@@ -186,13 +187,18 @@ export const dict: Dict = {
   'study.sessionFallback': 'Учебная сессия',
   'study.capsuleCta': 'Капсула →',
   'study.tab.chat': 'Чат',
-  'study.tab.materials': 'Материалы',
+  'study.tab.theory': 'Теория',
+  'study.tab.practice': 'Практика',
+  'study.tab.capsule': 'Капсула',
   'study.mentor.title': 'Ментор',
   'study.mentor.empty': 'Задавай вопросы по теме, проси объяснить или дать задание.',
   'study.fallback': 'AI-конспект не был сгенерирован. Сейчас показан шаблонный план.',
   'study.input.placeholder': 'Спроси ментора...',
   'study.completing': 'Форжим капсулу...',
   'study.complete': 'Завершить сессию и создать капсулу →',
+  'study.createCapsule': 'Создать капсулу',
+  'study.capsule.empty': 'Капсула ещё не создана. Нажми «Создать капсулу», чтобы сгенерировать карточки для повторения.',
+  'study.generating': 'Генерируется...',
   'study.notFound': 'Сессия не найдена',
   'study.chatError': 'Ошибка чата',
   'study.tasksLoading': 'Задания загружаются...',
@@ -210,9 +216,8 @@ export const dict: Dict = {
   // Practice page
   'practice.notFound': 'Задание не найдено',
   'practice.back': '← к сессии',
-  'practice.evidence': 'Ожидаем evidence',
-  'practice.commands': 'Команды проверки',
-  'practice.commandsEmpty': 'Запусти проверки в IDE и отправь вывод через plugin.',
+  'practice.submit': 'Отправить решение',
+  'practice.submitHint': 'Опиши свой подход и решение...',
 
   // Capsule
   'capsule.toc': 'Оглавление',
@@ -229,6 +234,12 @@ export const dict: Dict = {
   'capsule.notFound': 'Капсула не найдена',
   'capsule.back': '← Назад',
   'capsule.regenerate': 'Перегенерировать',
+
+  // Capsules list page
+  'capsules.title': 'Капсулы',
+  'capsules.search': 'Поиск по капсулам...',
+  'capsules.empty': 'Капсул пока нет. Начни изучение темы!',
+  'capsules.topicFilter': 'Все темы',
 
   // Streak
   'streak.day': 'день',

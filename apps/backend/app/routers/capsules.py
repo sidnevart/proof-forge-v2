@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from pydantic import BaseModel
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +28,16 @@ async def store_capsule(data: CapsuleCreate, db: AsyncSession = Depends(get_db))
     result = CapsuleOut.model_validate(capsule)
     result.review_questions = [ReviewQuestionOut.model_validate(q) for q in questions]
     return result
+
+
+@router.get("/capsules", response_model=list[CapsuleOut])
+async def list_capsules(
+    user_id: str = Query(...),
+    topic_id: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    capsules = await capsule_repo.get_user_capsules(db, user_id, topic_id)
+    return [CapsuleOut.model_validate(c) for c in capsules]
 
 
 @router.get("/capsules/{capsule_id}", response_model=CapsuleOut)

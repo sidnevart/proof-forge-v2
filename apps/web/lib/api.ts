@@ -207,6 +207,8 @@ export type CapsuleFeedback = {
 
 export const capsules = {
   get: (id: string) => req<Capsule>(`/api/capsules/${id}`),
+  list: (userId: string, topicId?: string) =>
+    req<Capsule[]>(`/api/capsules?user_id=${userId}${topicId ? `&topic_id=${topicId}` : ''}`),
   feedback: (id: string) => req<CapsuleFeedback | null>(`/api/capsules/${id}/feedback`),
   requestFeedback: (id: string) =>
     req<CapsuleFeedback>(`/api/capsules/${id}/feedback`, { method: 'POST' }),
