@@ -32,7 +32,9 @@ async def _llm_call(
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
-    response = await client.post(
+    from app.services.llm_utils import http_post_with_retry
+    response = await http_post_with_retry(
+        client,
         f"{settings.llm_base_url}/chat/completions",
         headers={
             "Authorization": f"Bearer {settings.llm_api_key}",
@@ -40,14 +42,13 @@ async def _llm_call(
             "HTTP-Referer": "https://proof-forge.ru",
             "X-Title": "Grasp",
         },
-        json={
+        json_body={
             "model": settings.llm_model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
         },
     )
-    response.raise_for_status()
     data = response.json()
     msg = data["choices"][0]["message"]
     return msg.get("content") or msg.get("reasoning") or ""
@@ -57,8 +58,9 @@ async def _llm_stream_tokens(
     client: httpx.AsyncClient, settings: Any, prompt: str, max_tokens: int = 1500
 ) -> AsyncGenerator[str, None]:
     """Stream tokens from the LLM using SSE (OpenAI-compatible)."""
-    async with client.stream(
-        "POST",
+    from app.services.llm_utils import http_stream_with_retry
+    async for token in http_stream_with_retry(
+        client,
         f"{settings.llm_base_url}/chat/completions",
         headers={
             "Authorization": f"Bearer {settings.llm_api_key}",
@@ -66,29 +68,15 @@ async def _llm_stream_tokens(
             "HTTP-Referer": "https://proof-forge.ru",
             "X-Title": "Grasp",
         },
-        json={
+        json_body={
             "model": settings.llm_model,
             "messages": [{"role": "user", "content": prompt}],
             "stream": True,
             "max_tokens": max_tokens,
             "temperature": 0.5,
         },
-    ) as response:
-        response.raise_for_status()
-        async for line in response.aiter_lines():
-            if not line.startswith("data: "):
-                continue
-            data_str = line[6:].strip()
-            if data_str == "[DONE]":
-                break
-            try:
-                data = json.loads(data_str)
-                delta = data["choices"][0]["delta"]
-                token = delta.get("content") or ""
-                if token:
-                    yield token
-            except (json.JSONDecodeError, KeyError, IndexError):
-                continue
+    ):
+        yield token
 
 
 def _extract_json(text: str) -> dict:

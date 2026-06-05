@@ -157,8 +157,10 @@ async def chat(data: ChatRequest, db: AsyncSession = Depends(get_db)):
     messages.append({"role": "user", "content": data.message})
 
     try:
+        from app.services.llm_utils import http_post_with_retry
         async with httpx.AsyncClient(timeout=90) as client:
-            resp = await client.post(
+            resp = await http_post_with_retry(
+                client,
                 f"{app_settings.llm_base_url}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {app_settings.llm_api_key}",
@@ -166,7 +168,7 @@ async def chat(data: ChatRequest, db: AsyncSession = Depends(get_db)):
                     "HTTP-Referer": "https://proof-forge.ru",
                     "X-Title": "Grasp",
                 },
-                json={
+                json_body={
                     "model": app_settings.llm_model,
                     "messages": [{"role": "system", "content": system}] + messages,
                     "max_tokens": 2048,

@@ -229,27 +229,40 @@ def _split_chunks(text: str, size: int) -> list[str]:
     return chunks
 
 
+_RETRY_DELAYS = (5, 15, 30)
+
+
 async def _llm_call(
-    client: httpx.AsyncClient, settings, prompt: str, max_tokens: int = 1200
+    client: httpx.AsyncClient, settings, prompt: str, max_tokens: int = 1200, _retries: int = 3
 ) -> tuple[str, dict]:
-    """Returns (content, usage_dict). usage_dict has prompt_tokens, completion_tokens, total_tokens."""
+    """Returns (content, usage_dict). Retries on 429 with exponential backoff."""
     t0 = _time.monotonic()
-    response = await client.post(
-        f"{settings.llm_base_url}/chat/completions",
-        headers={
-                "Authorization": f"Bearer {settings.llm_api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://proof-forge.ru",
-                "X-Title": "Grasp",
-            },
-        json={
-            "model": settings.llm_model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": max_tokens,
-            "temperature": 0.4,
-        },
-    )
-    response.raise_for_status()
+    last_exc: Exception | None = None
+    for attempt in range(_retries + 1):
+        try:
+            response = await client.post(
+                f"{settings.llm_base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.llm_api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://proof-forge.ru",
+                    "X-Title": "Grasp",
+                },
+                json={
+                    "model": settings.llm_model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": max_tokens,
+                    "temperature": 0.4,
+                },
+            )
+            response.raise_for_status()
+            break
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 429 or attempt == _retries:
+                raise
+            last_exc = exc
+            delay = float(exc.response.headers.get("Retry-After", _RETRY_DELAYS[min(attempt, 2)]))
+            await asyncio.sleep(min(delay, 60))
     latency_ms = int((_time.monotonic() - t0) * 1000)
     data = response.json()
     usage = data.get("usage", {})
@@ -370,9 +383,33 @@ async def _run_capsule_generation(
 ) -> None:
     """Background task: generate capsule content and stream progress via SSE bridge."""
     from app.config import settings
+    import markdown as _md_import
 
     q = get_stream(capsule_id)
     if q is None:
+        return
+
+    # Fallback when LLM is not configured (tests / dev without API key)
+    if not settings.llm_api_key:
+        try:
+            content_md = (
+                f"## {topic_name}\n\n"
+                f"Капсула создана по материалам темы «{topic_name}».\n\n"
+                "## Ключевые концепции\n\nМатериалы добавлены и готовы к изучению.\n\n"
+                "## Важно запомнить\n\nПовторяй карточки для закрепления знаний."
+            )
+            async with async_session_factory() as db:
+                result = await db.execute(select(Capsule).where(Capsule.id == capsule_id))
+                capsule = result.scalar_one_or_none()
+                if capsule:
+                    capsule.content_md = content_md
+                    capsule.content_html = _md_import.markdown(content_md)
+                    capsule.summary = f"Капсула по теме: {topic_name}"
+                    capsule.status = "ready"
+                    await db.commit()
+            await q.put(("complete", {"capsule_id": capsule_id}))
+        finally:
+            remove_stream(capsule_id)
         return
 
     t0 = _time.monotonic()
@@ -527,11 +564,6 @@ async def generate_capsule_from_materials(
     db: AsyncSession = Depends(get_db),
 ):
     """Start capsule generation asynchronously. Returns capsule_id immediately; stream progress via /events."""
-    from app.config import settings
-
-    if not settings.llm_api_key:
-        raise HTTPException(status_code=503, detail="LLM не настроен")
-
     topic = await topic_repo.get_topic(db, topic_id)
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")

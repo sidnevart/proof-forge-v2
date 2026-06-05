@@ -72,8 +72,10 @@ async def generate_and_store_feedback(db: AsyncSession, capsule_id: str) -> Caps
 Будь конкретным и мотивирующим. Не более 350 слов."""
 
     t0 = _time.monotonic()
+    from app.services.llm_utils import http_post_with_retry
     async with httpx.AsyncClient(timeout=90) as client:
-        response = await client.post(
+        response = await http_post_with_retry(
+            client,
             f"{settings.llm_base_url}/chat/completions",
             headers={
                 "Authorization": f"Bearer {settings.llm_api_key}",
@@ -81,14 +83,13 @@ async def generate_and_store_feedback(db: AsyncSession, capsule_id: str) -> Caps
                 "HTTP-Referer": "https://proof-forge.ru",
                 "X-Title": "Grasp",
             },
-            json={
+            json_body={
                 "model": settings.llm_model,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": 1024,
                 "temperature": 0.7,
             },
         )
-        response.raise_for_status()
         resp_data = response.json()
         suggestions_md = resp_data["choices"][0]["message"]["content"]
 
