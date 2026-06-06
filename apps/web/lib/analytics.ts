@@ -13,7 +13,7 @@ export type AppEvent =
   | { name: 'capsule_generation_started'; props: { material_count: number } }
   | { name: 'capsule_viewed'; props: { capsule_id: string } }
   | { name: 'ai_feedback_clicked'; props: { capsule_id: string } }
-  | { name: 'card_session_start'; props: { due_count: number } }
+  | { name: 'card_session_start'; props: { due_count: number; topic?: string } }
   | { name: 'card_session_end'; props: { reviewed: number; easy_pct: number; streak: number } }
   | { name: 'card_rated'; props: { rating: 1 | 2 | 3 | 4; topic?: string } }
   | { name: 'dashboard_viewed'; props: { due_cards: number; has_capsules: boolean } }

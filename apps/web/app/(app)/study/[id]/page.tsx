@@ -234,11 +234,33 @@ export default function StudySessionPage() {
     setSending(true)
     setChatError('')
 
+    // Optimistic user bubble — show the message immediately instead of waiting for
+    // the round-trip. Reconciled with the server message on success, rolled back on error.
+    const tempId = `temp-${Date.now()}`
+    const history = messages.map((m) => ({ role: m.role, content: m.content }))
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        session_id: chatSession.id,
+        role: 'user',
+        content: text,
+        created_at: new Date().toISOString(),
+      },
+    ])
+
     try {
-      const history = messages.map((m) => ({ role: m.role, content: m.content }))
       const res = await chat.turn(chatSession.id, user.user_id, text, history, filesToSend)
-      setMessages((prev) => [...prev, res.user_message, res.assistant_message])
+      setMessages((prev) => [
+        ...prev.filter((m) => m.id !== tempId),
+        res.user_message,
+        res.assistant_message,
+      ])
     } catch (err) {
+      // Roll back the optimistic bubble and restore the draft so nothing is lost.
+      setMessages((prev) => prev.filter((m) => m.id !== tempId))
+      setInput(text)
+      setChatFiles(filesToSend)
       setChatError(getChatErrorMessage(err, t))
     } finally {
       setSending(false)

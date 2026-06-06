@@ -51,6 +51,21 @@ async def get_capsule(capsule_id: str, db: AsyncSession = Depends(get_db)):
     return result
 
 
+class CapsuleUpdate(BaseModel):
+    title: str
+
+
+@router.patch("/capsules/{capsule_id}", response_model=CapsuleOut)
+async def update_capsule(capsule_id: str, data: CapsuleUpdate, db: AsyncSession = Depends(get_db)):
+    capsule = await capsule_repo.update_capsule_title(db, capsule_id, data.title)
+    if not capsule:
+        raise HTTPException(status_code=404, detail="Capsule not found")
+    questions = await capsule_repo.get_capsule_questions(db, capsule_id)
+    result = CapsuleOut.model_validate(capsule)
+    result.review_questions = [ReviewQuestionOut.model_validate(q) for q in questions]
+    return result
+
+
 @router.get("/capsules/{capsule_id}/feedback", response_model=FeedbackOut | None)
 async def get_capsule_feedback(capsule_id: str, db: AsyncSession = Depends(get_db)):
     return await capsule_feedback_repo.get_latest_feedback(db, capsule_id)

@@ -8,26 +8,9 @@ import { getStoredUser } from '@/lib/auth'
 import { track } from '@/lib/analytics'
 import { Skeleton, SkeletonText } from '@/components/ui/Skeleton'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
+import { extractHeadings, slugify } from '@/app/(app)/_components/toc'
 import Link from 'next/link'
 import { useT, useLocale } from '@/lib/i18n'
-
-function extractHeadings(md: string): { id: string; text: string; level: number }[] {
-  const lines = md.split('\n')
-  const headings: { id: string; text: string; level: number }[] = []
-  for (const line of lines) {
-    const match = line.match(/^(#{2,3})\s+(.+)$/)
-    if (match) {
-      const text = match[2].trim()
-      const id = text.toLowerCase().replace(/[^a-z0-9а-яё]+/g, '-').replace(/^-|-$/g, '')
-      headings.push({ id: `${id}-${headings.length}`, text, level: match[1].length })
-    }
-  }
-  return headings
-}
-
-function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9а-яё]+/g, '-').replace(/^-|-$/g, '')
-}
 
 export default function CapsulePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -41,6 +24,10 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
   const pendingRegenId = useRef<string | null>(null)
   const [activeHeading, setActiveHeading] = useState('')
   const [showFeedback, setShowFeedback] = useState(false)
+  const [tocOpen, setTocOpen] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
+  const titleInputRef = useRef<HTMLInputElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const t = useT()
   const { locale } = useLocale()
@@ -132,6 +119,19 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
     }
   }
 
+  const commitTitleRename = async () => {
+    if (!capsule) { setEditingTitle(false); return }
+    const next = titleDraft.trim()
+    setEditingTitle(false)
+    if (!next || next === (capsule.title || capsule.summary)) return
+    try {
+      const updated = await capsules.update(capsule.id, next)
+      setCapsule((prev) => (prev ? { ...prev, title: updated.title } : prev))
+    } catch {
+      /* keep old title on failure */
+    }
+  }
+
   if (loading) return (
     <div className="max-w-2xl mx-auto px-5 py-8 space-y-4">
       <Skeleton className="h-8 w-48" />
@@ -146,15 +146,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
     </div>
   )
 
-  const headingCounter = new Map<string, number>()
-  const getHeadingId = (text: string) => {
-    const base = slugify(text)
-    const count = (headingCounter.get(base) ?? 0) + 1
-    headingCounter.set(base, count)
-    return count > 1 ? `${base}-${count}` : base
-  }
-  headingCounter.clear()
-
+  const displayTitle = capsule.title || capsule.summary
   const questionsCount = capsule.review_questions.length
   const questionsLabel = locale === 'ru'
     ? `${questionsCount} ${questionsCount % 10 === 1 && questionsCount % 100 !== 11 ? 'вопрос' : questionsCount % 10 >= 2 && questionsCount % 10 <= 4 && (questionsCount % 100 < 10 || questionsCount % 100 >= 20) ? 'вопроса' : 'вопросов'}`
@@ -162,23 +154,33 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
 
   return (
     <div className="flex h-[calc(100vh-1px)] max-h-screen">
-      {/* TOC Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 shrink-0 border-r border-line bg-sand/20 overflow-y-auto">
-        <div className="px-5 py-6">
+      {/* TOC Sidebar — compact: top-level sections by default, expandable to subsections */}
+      <aside className="hidden lg:flex flex-col w-52 shrink-0 border-r border-line bg-sand/20 overflow-y-auto">
+        <div className="px-4 py-6">
           <Link href="/dashboard" className="flex items-center gap-1.5 text-xs text-mute hover:text-ink transition-colors mb-6 font-mono">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
             Dashboard
           </Link>
-          <div className="text-[10px] font-mono text-mute uppercase tracking-wider mb-3">{t('capsule.toc')}</div>
-          <nav className="space-y-0.5">
-            {headings.map((h) => (
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-mono text-mute uppercase tracking-wider">{t('capsule.toc')}</span>
+            {headings.some((h) => h.level === 3) && (
+              <button
+                onClick={() => setTocOpen((v) => !v)}
+                className="text-[10px] font-mono text-mute hover:text-accent transition-colors"
+              >
+                {tocOpen ? t('capsule.toc.collapse') : t('capsule.toc.expand')}
+              </button>
+            )}
+          </div>
+          <nav className="space-y-0.5 max-h-[calc(100vh-9rem)] overflow-y-auto">
+            {(tocOpen ? headings : headings.filter((h) => h.level === 2)).map((h) => (
               <button
                 key={h.id}
                 onClick={() => scrollTo(h.id)}
-                className={`block w-full text-left px-2 py-1 rounded-md text-xs transition-colors ${
-                  h.level === 3 ? 'pl-4' : ''
+                className={`block w-full text-left px-2 py-1 rounded-md text-xs transition-colors truncate ${
+                  h.level === 3 ? 'pl-4 text-mute/80' : ''
                 } ${
                   activeHeading === h.id
                     ? 'bg-accentsoft text-accent font-medium'
@@ -198,9 +200,34 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
         <div className="shrink-0 border-b border-line px-5 py-4 bg-paper/90 backdrop-blur-md">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-start justify-between gap-4">
-              <div>
+              <div className="min-w-0 group">
                 <div className="text-[10px] font-mono text-accent uppercase tracking-wider mb-1">{t('capsule.tag')}</div>
-                <h1 className="font-display text-xl sm:text-2xl font-bold text-ink leading-tight">{capsule.summary}</h1>
+                {editingTitle ? (
+                  <input
+                    ref={titleInputRef}
+                    value={titleDraft}
+                    onChange={(e) => setTitleDraft(e.target.value)}
+                    onBlur={commitTitleRename}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitTitleRename(); if (e.key === 'Escape') setEditingTitle(false) }}
+                    className="font-display text-xl sm:text-2xl font-bold text-ink leading-tight bg-card border border-accent/60 rounded-lg px-2 py-0.5 focus:outline-none w-full"
+                    autoFocus
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <h1 className="font-display text-xl sm:text-2xl font-bold text-ink leading-tight truncate">{displayTitle}</h1>
+                    <button
+                      onClick={() => { setTitleDraft(displayTitle); setEditingTitle(true); setTimeout(() => titleInputRef.current?.select(), 0) }}
+                      className="shrink-0 text-mute opacity-0 group-hover:opacity-100 transition-opacity hover:text-accent"
+                      aria-label={t('capsule.rename')}
+                      title={t('capsule.rename')}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                  </div>
+                )}
                 <p className="text-xs text-mute mt-1 font-mono">
                   {new Date(capsule.created_at).toLocaleDateString(locale === 'ru' ? 'ru' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
                   {' · '}{questionsLabel}
@@ -255,18 +282,19 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
                     <h1 className="font-display text-2xl font-bold text-ink mt-2 mb-4">{children}</h1>
                   ),
                   h2: ({ children }) => {
-                    const text = String(children).trim()
-                    const hId = getHeadingId(text)
-                    return <h2 id={hId} className="font-display text-lg font-bold text-ink mt-8 mb-3 scroll-mt-20">{children}</h2>
+                    const text = typeof children === 'string' ? children : String(children ?? '')
+                    return <h2 id={slugify(text.trim())} className="font-display text-lg font-bold text-ink mt-8 mb-3 pb-2 border-b border-line/60 scroll-mt-24">{children}</h2>
                   },
-                  h3: ({ children }) => (
-                    <h3 className="font-semibold text-ink mt-5 mb-2 text-sm">{children}</h3>
-                  ),
-                  p: ({ children }) => <p className="text-ink/90 leading-relaxed mb-3 text-sm">{children}</p>,
-                  ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-ink/90 text-sm">{children}</ul>,
-                  ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-ink/90 text-sm">{children}</ol>,
+                  h3: ({ children }) => {
+                    const text = typeof children === 'string' ? children : String(children ?? '')
+                    return <h3 id={slugify(text.trim())} className="font-semibold text-ink mt-6 mb-2 scroll-mt-24">{children}</h3>
+                  },
+                  p: ({ children }) => <p className="text-ink/90 leading-relaxed mb-3">{children}</p>,
+                  ul: ({ children }) => <ul className="list-disc list-inside space-y-1 mb-3 text-ink/90">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 mb-3 text-ink/90">{children}</ol>,
+                  hr: () => <hr className="my-6 border-line/40" />,
                   blockquote: ({ children }) => (
-                    <blockquote className="border-l-2 border-accent pl-4 my-3 text-mute italic text-sm">{children}</blockquote>
+                    <blockquote className="border-l-2 border-accent pl-4 my-3 text-mute italic">{children}</blockquote>
                   ),
                 }}
               >

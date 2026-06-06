@@ -43,6 +43,14 @@ type PendingFile = { id: string; file: File; name: string }
 type PendingLink = { id: string; url: string; title: string }
 type Pending = { files: PendingFile[]; links: PendingLink[] }
 
+// ── Learning strategy presets (mirror app/services/strategy_presets.py) ───────
+const STRATEGY_PRESETS = [
+  { key: 'deep_dive', icon: '🧠', labelKey: 'strategy.deepDive', descKey: 'strategy.deepDive.desc' },
+  { key: 'practical_sprint', icon: '⚡', labelKey: 'strategy.sprint', descKey: 'strategy.sprint.desc' },
+  { key: 'exam_cram', icon: '🎯', labelKey: 'strategy.cram', descKey: 'strategy.cram.desc' },
+  { key: 'gentle_intro', icon: '🌱', labelKey: 'strategy.gentle', descKey: 'strategy.gentle.desc' },
+] as const
+
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function NewTopicPage() {
   const router = useRouter()
@@ -55,6 +63,7 @@ export default function NewTopicPage() {
   const [linkUrl, setLinkUrl] = useState('')
   const [showLinkInput, setShowLinkInput] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [strategy, setStrategy] = useState<string>('deep_dive')
 
   const [submitting, setSubmitting] = useState(false)
   const [submitStep, setSubmitStep] = useState(0)
@@ -133,7 +142,7 @@ export default function NewTopicPage() {
       setSubmitStep(4)
 
       // Step 5 — start study session immediately
-      const result = await practice.startSession(user.user_id, topic.id)
+      const result = await practice.startSession(user.user_id, topic.id, { preset: strategy })
       if (result.generation_status === 'fallback') {
         const reason = encodeURIComponent(result.generation_error ?? 'AI generation failed')
         router.push(`/study/${result.session.id}?generation=fallback&reason=${reason}`)
@@ -302,6 +311,34 @@ export default function NewTopicPage() {
               </button>
             </div>
           )}
+        </div>
+
+        {/* ── Learning strategy ────────────────────────────────────────────── */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-ink">{t('strategy.title')}</span>
+            <span className="text-xs text-mute font-mono">{t('strategy.hint')}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {STRATEGY_PRESETS.map((preset) => (
+              <button
+                key={preset.key}
+                type="button"
+                onClick={() => setStrategy(preset.key)}
+                className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all ${
+                  strategy === preset.key
+                    ? 'border-accent bg-accentsoft/40 ring-1 ring-accent/30'
+                    : 'border-line bg-card hover:border-accent/40'
+                }`}
+              >
+                <span className="text-lg leading-none mt-0.5">{preset.icon}</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink leading-tight">{t(preset.labelKey)}</p>
+                  <p className="text-xs text-mute mt-0.5 leading-snug">{t(preset.descKey)}</p>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Error ────────────────────────────────────────────────────────── */}

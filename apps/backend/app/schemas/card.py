@@ -19,6 +19,7 @@ class DueCardOut(BaseModel):
     question: str
     correct_answer: str
     difficulty: int
+    topic_id: str
     topic_name: str
     interval_days: int
     repetitions: int

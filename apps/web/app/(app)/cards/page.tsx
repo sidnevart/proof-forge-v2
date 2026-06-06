@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { getStoredUser } from '@/lib/auth'
-import { cards, type DueCard } from '@/lib/api'
+import { cards, topics, type DueCard, type Topic } from '@/lib/api'
 import { FlipCard } from '@/components/FlipCard'
 import { StreakCounter } from '@/components/StreakCounter'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -21,30 +21,41 @@ export default function CardsPage() {
   const [done, setDone] = useState(false)
   const [streak, setStreak] = useState(0)
   const [session, setSession] = useState<SessionStats>({ reviewed: 0, again: 0, hard: 0, easy: 0 })
+  const [topicList, setTopicList] = useState<Topic[]>([])
+  const [topicFilter, setTopicFilter] = useState<string>('') // '' = all topics
   const t = useT()
   const { locale } = useLocale()
+
+  // Load the user's topics once for the filter chips.
+  useEffect(() => {
+    if (!user) return
+    topics.list(user.user_id).then(setTopicList).catch(() => {})
+  }, [user?.user_id])
 
   const loadCards = useCallback(async () => {
     if (!user) return
     setLoading(true)
     try {
       const [due, stats] = await Promise.all([
-        cards.due(user.user_id, 30),
-        cards.stats(user.user_id),
+        cards.due(user.user_id, 30, topicFilter || undefined),
+        cards.stats(user.user_id, topicFilter || undefined),
       ])
       setQueue(due)
       setStreak(stats.streak)
+      setCurrent(0)
+      setSession({ reviewed: 0, again: 0, hard: 0, easy: 0 })
       if (due.length === 0) {
         setDone(true)
       } else {
-        track({ name: 'card_session_start', props: { due_count: due.length } })
+        setDone(false)
+        track({ name: 'card_session_start', props: { due_count: due.length, topic: topicFilter || 'all' } })
       }
     } catch (e) {
       console.error(e)
     } finally {
       setLoading(false)
     }
-  }, [user?.user_id])
+  }, [user?.user_id, topicFilter])
 
   useEffect(() => { loadCards() }, [loadCards])
 
@@ -90,7 +101,14 @@ export default function CardsPage() {
       const pctEasy = Math.round((session.easy / session.reviewed) * 100)
       track({ name: 'card_session_end', props: { reviewed: session.reviewed, easy_pct: pctEasy, streak } })
     }
-    return <DoneScreen session={session} streak={streak} locale={locale} t={t} onRestart={() => { setDone(false); setCurrent(0); loadCards() }} />
+    return (
+      <div className="max-w-md mx-auto px-5 pt-8">
+        {topicList.length > 1 && (
+          <TopicChips topics={topicList} value={topicFilter} onChange={setTopicFilter} t={t} />
+        )}
+        <DoneScreen session={session} streak={streak} locale={locale} t={t} onRestart={() => { setDone(false); setCurrent(0); loadCards() }} />
+      </div>
+    )
   }
 
   const card = queue[current]
@@ -108,6 +126,11 @@ export default function CardsPage() {
         </div>
         <StreakCounter streak={streak} size="sm" />
       </div>
+
+      {/* Topic filter */}
+      {topicList.length > 1 && (
+        <TopicChips topics={topicList} value={topicFilter} onChange={setTopicFilter} t={t} />
+      )}
 
       {/* Progress bar */}
       <div className="h-1 bg-sand rounded-full mb-8 overflow-hidden">
@@ -188,6 +211,38 @@ function DoneScreen({ session, streak, locale, t, onRestart }: {
           {t('cards.done.progress')}
         </Link>
       </div>
+    </div>
+  )
+}
+
+function TopicChips({ topics, value, onChange, t }: {
+  topics: Topic[]; value: string; onChange: (v: string) => void; t: (k: string) => string
+}) {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1">
+      <button
+        onClick={() => onChange('')}
+        className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+          value === ''
+            ? 'bg-accent text-[#06140d] border-accent'
+            : 'bg-card text-mute border-line hover:text-ink hover:border-accent/40'
+        }`}
+      >
+        {t('cards.allTopics')}
+      </button>
+      {topics.map((topic) => (
+        <button
+          key={topic.id}
+          onClick={() => onChange(topic.id)}
+          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border max-w-[12rem] truncate ${
+            value === topic.id
+              ? 'bg-accent text-[#06140d] border-accent'
+              : 'bg-card text-mute border-line hover:text-ink hover:border-accent/40'
+          }`}
+        >
+          {topic.name}
+        </button>
+      ))}
     </div>
   )
 }

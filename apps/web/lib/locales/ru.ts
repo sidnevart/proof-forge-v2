@@ -40,6 +40,18 @@ export const dict: Dict = {
   // Cards page
   'cards.title': 'Повторение',
   'cards.back': '← вернуться на главную',
+  'cards.allTopics': 'Все темы',
+  // Стратегия обучения (новая тема)
+  'strategy.title': 'Стратегия обучения',
+  'strategy.hint': 'как изучать',
+  'strategy.deepDive': 'Глубокое погружение',
+  'strategy.deepDive.desc': 'Подробный конспект, баланс теории и практики',
+  'strategy.sprint': 'Практический спринт',
+  'strategy.sprint.desc': 'Меньше теории, больше практики, быстрый темп',
+  'strategy.cram': 'Подготовка к экзамену',
+  'strategy.cram.desc': 'Сжато, высокая сложность, фокус на проверке',
+  'strategy.gentle': 'Мягкий старт',
+  'strategy.gentle.desc': 'Лёгкое начало, больше теории, спокойный темп',
   'cards.done.allReviewed': 'Всё повторено!',
   'cards.done.sessionComplete': 'Урок завершён!',
   'cards.done.empty': 'На сегодня карточек нет. Возвращайся завтра.',
@@ -232,6 +244,9 @@ export const dict: Dict = {
 
   // Capsule
   'capsule.toc': 'Оглавление',
+  'capsule.toc.expand': 'показать всё',
+  'capsule.toc.collapse': 'свернуть',
+  'capsule.rename': 'Переименовать',
   'capsule.tag': 'Капсула знаний',
   'capsule.mentor': 'Ментор',
   'capsule.reviewQuestions': 'Вопросы для повторения',

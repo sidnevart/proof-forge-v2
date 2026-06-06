@@ -66,6 +66,7 @@ export type DueCard = {
   question: string
   correct_answer: string
   difficulty: number
+  topic_id: string
   topic_name: string
   interval_days: number
   repetitions: number
@@ -80,8 +81,10 @@ export type CardStats = {
 }
 
 export const cards = {
-  due: (userId: string, limit = 20) =>
-    req<DueCard[]>(`/api/cards/due?userId=${userId}&limit=${limit}`),
+  due: (userId: string, limit = 20, topicId?: string) =>
+    req<DueCard[]>(
+      `/api/cards/due?userId=${userId}&limit=${limit}${topicId ? `&topicId=${topicId}` : ''}`,
+    ),
   attempt: (
     cardId: string,
     userId: string,
@@ -93,8 +96,8 @@ export const cards = {
       source === 'topic' ? `/api/cards/topic/${cardId}/attempt` : `/api/cards/${cardId}/attempt`,
       { method: 'POST', body: JSON.stringify({ user_id: userId, rating, user_answer: user_answer ?? '' }) }
     ),
-  stats: (userId: string) =>
-    req<CardStats>(`/api/cards/stats?userId=${userId}`),
+  stats: (userId: string, topicId?: string) =>
+    req<CardStats>(`/api/cards/stats?userId=${userId}${topicId ? `&topicId=${topicId}` : ''}`),
 }
 
 // ── Mastery ──
@@ -237,6 +240,7 @@ export type Capsule = {
   content_md: string
   content_html: string
   summary: string
+  title?: string | null
   created_at: string
   review_questions: Array<{ id: string; question: string; correct_answer: string; difficulty: number }>
 }
@@ -254,6 +258,8 @@ export const capsules = {
   get: (id: string) => req<Capsule>(`/api/capsules/${id}`),
   list: (userId: string, topicId?: string) =>
     req<Capsule[]>(`/api/capsules?user_id=${userId}${topicId ? `&topic_id=${topicId}` : ''}`),
+  update: (id: string, title: string) =>
+    req<Capsule>(`/api/capsules/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) }),
   feedback: (id: string) => req<CapsuleFeedback | null>(`/api/capsules/${id}/feedback`),
   requestFeedback: (id: string) =>
     req<CapsuleFeedback>(`/api/capsules/${id}/feedback`, { method: 'POST' }),
@@ -363,7 +369,7 @@ export type AnswerSubmissionResult = {
 }
 
 export const practice = {
-  startSession: (userId: string, topicId: string) =>
+  startSession: (userId: string, topicId: string, strategy?: { preset?: string } & Record<string, unknown>) =>
     req<{
       session: StudySession
       tasks: PracticeTask[]
@@ -371,7 +377,7 @@ export const practice = {
       generation_error: string | null
     }>('/api/study-sessions', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, topic_id: topicId }),
+      body: JSON.stringify({ user_id: userId, topic_id: topicId, strategy: strategy ?? null }),
     }),
   sessionEventsUrl: (sessionId: string) => sseUrl(`/api/study-sessions/${sessionId}/events`),
   listSessions: (userId: string) =>

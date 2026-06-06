@@ -38,6 +38,18 @@ export const dict = {
   // Cards page
   'cards.title': 'Review',
   'cards.back': '← back to home',
+  'cards.allTopics': 'All topics',
+  // Learning strategy (new topic)
+  'strategy.title': 'Learning strategy',
+  'strategy.hint': 'how to study',
+  'strategy.deepDive': 'Deep dive',
+  'strategy.deepDive.desc': 'Thorough conspect, balanced theory & practice',
+  'strategy.sprint': 'Practical sprint',
+  'strategy.sprint.desc': 'Less theory, more hands-on, faster pace',
+  'strategy.cram': 'Exam cram',
+  'strategy.cram.desc': 'Concise, high difficulty, focused for tests',
+  'strategy.gentle': 'Gentle intro',
+  'strategy.gentle.desc': 'Easy start, more theory, relaxed pace',
   'cards.done.allReviewed': 'All done!',
   'cards.done.sessionComplete': 'Lesson complete!',
   'cards.done.empty': 'No cards for today. Come back tomorrow.',
@@ -230,6 +242,9 @@ export const dict = {
 
   // Capsule
   'capsule.toc': 'Table of contents',
+  'capsule.toc.expand': 'show all',
+  'capsule.toc.collapse': 'collapse',
+  'capsule.rename': 'Rename',
   'capsule.tag': 'Knowledge capsule',
   'capsule.mentor': 'Mentor',
   'capsule.reviewQuestions': 'Review questions',

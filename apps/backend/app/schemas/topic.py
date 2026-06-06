@@ -5,6 +5,7 @@ from pydantic import BaseModel
 class TopicStart(BaseModel):
     user_id: str
     name: str
+    strategy_config: dict | None = None
 
 
 class TopicOut(BaseModel):
@@ -13,5 +14,7 @@ class TopicOut(BaseModel):
     name: str
     status: str
     started_at: datetime
+    domain: str = "general"
+    strategy_config: dict | None = None
 
     model_config = {"from_attributes": True}

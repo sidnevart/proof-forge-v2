@@ -31,17 +31,22 @@ async def create_cards_from_capsule(db: AsyncSession, user_id: str, capsule_id: 
     return created
 
 
-async def get_due_cards(db: AsyncSession, user_id: str, limit: int = 10) -> list[dict]:
+async def get_due_cards(
+    db: AsyncSession, user_id: str, limit: int = 10, topic_id: str | None = None
+) -> list[dict]:
     now = datetime.now(timezone.utc)
-    review_result = await db.execute(
+    review_query = (
         select(ReviewCard, ReviewQuestion, Capsule, Topic)
         .join(ReviewQuestion, ReviewCard.question_id == ReviewQuestion.id)
         .join(Capsule, ReviewQuestion.capsule_id == Capsule.id)
         .join(Topic, Capsule.topic_id == Topic.id)
         .where(ReviewCard.user_id == user_id)
         .where(ReviewCard.next_review_at <= now)
-        .order_by(ReviewCard.next_review_at)
-        .limit(limit)
+    )
+    if topic_id:
+        review_query = review_query.where(Topic.id == topic_id)
+    review_result = await db.execute(
+        review_query.order_by(ReviewCard.next_review_at).limit(limit)
     )
     review_rows = review_result.all()
     due_cards = [
@@ -53,6 +58,7 @@ async def get_due_cards(db: AsyncSession, user_id: str, limit: int = 10) -> list
             "question": question.question,
             "correct_answer": question.correct_answer,
             "difficulty": question.difficulty,
+            "topic_id": topic.id,
             "topic_name": topic.name,
             "interval_days": card.interval_days,
             "repetitions": card.repetitions,
@@ -62,13 +68,16 @@ async def get_due_cards(db: AsyncSession, user_id: str, limit: int = 10) -> list
         for card, question, capsule, topic in review_rows
     ]
 
-    topic_result = await db.execute(
+    topic_query = (
         select(TopicCard, Topic)
         .join(Topic, TopicCard.topic_id == Topic.id)
         .where(TopicCard.user_id == user_id)
         .where(TopicCard.next_review_at <= now)
-        .order_by(TopicCard.next_review_at)
-        .limit(limit)
+    )
+    if topic_id:
+        topic_query = topic_query.where(TopicCard.topic_id == topic_id)
+    topic_result = await db.execute(
+        topic_query.order_by(TopicCard.next_review_at).limit(limit)
     )
     topic_rows = topic_result.all()
     due_cards.extend(
@@ -80,6 +89,7 @@ async def get_due_cards(db: AsyncSession, user_id: str, limit: int = 10) -> list
             "question": card.front,
             "correct_answer": card.back,
             "difficulty": card.difficulty,
+            "topic_id": topic.id,
             "topic_name": topic.name,
             "interval_days": card.interval_days,
             "repetitions": card.repetitions,

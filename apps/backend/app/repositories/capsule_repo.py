@@ -35,6 +35,16 @@ async def get_capsule(db: AsyncSession, capsule_id: str) -> Capsule | None:
     return result.scalar_one_or_none()
 
 
+async def update_capsule_title(db: AsyncSession, capsule_id: str, title: str) -> Capsule | None:
+    capsule = await get_capsule(db, capsule_id)
+    if not capsule:
+        return None
+    capsule.title = title.strip() or None
+    await db.commit()
+    await db.refresh(capsule)
+    return capsule
+
+
 async def get_capsule_questions(db: AsyncSession, capsule_id: str) -> list[ReviewQuestion]:
     result = await db.execute(select(ReviewQuestion).where(ReviewQuestion.capsule_id == capsule_id))
     return list(result.scalars().all())

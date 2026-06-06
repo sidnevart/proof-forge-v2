@@ -19,9 +19,10 @@ async def create_cards_from_capsule(data: CardFromCapsuleCreate, db: AsyncSessio
 async def get_due_cards(
     userId: str = Query(...),
     limit: int = Query(10, le=50),
+    topicId: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    cards = await review_card_repo.get_due_cards(db, userId, limit)
+    cards = await review_card_repo.get_due_cards(db, userId, limit, topicId)
     return [DueCardOut(**c) for c in cards]
 
 
@@ -60,8 +61,12 @@ async def log_topic_card_attempt(card_id: str, data: CardAttemptCreate, db: Asyn
 
 
 @router.get("/cards/stats", response_model=CardStatsOut)
-async def get_card_stats(userId: str = Query(...), db: AsyncSession = Depends(get_db)):
-    stats = await streak_repo.get_card_stats(db, userId)
+async def get_card_stats(
+    userId: str = Query(...),
+    topicId: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    stats = await streak_repo.get_card_stats(db, userId, topicId)
     return CardStatsOut(**stats)
 
 

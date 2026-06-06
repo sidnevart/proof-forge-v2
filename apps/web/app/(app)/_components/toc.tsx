@@ -13,7 +13,7 @@ export function extractHeadings(md: string): Heading[] {
   return result
 }
 
-function slugify(text: string) {
+export function slugify(text: string) {
   return text.toLowerCase().replace(/[^\wа-яё]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
 }
 

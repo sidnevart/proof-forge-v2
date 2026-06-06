@@ -58,18 +58,32 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
     setSending(true)
     setChatError('')
 
+    // Optimistic user bubble — render immediately, reconcile on success, roll back on error.
+    const tempId = `temp-${Date.now()}`
+    const history = messages.map((m) => ({ role: m.role, content: m.content }))
+    setMessages((prev) => [
+      ...prev,
+      { id: tempId, session_id: chatSession?.id ?? 'pending', role: 'user', content: text, created_at: new Date().toISOString() },
+    ])
+
     try {
       const session = await ensureSession()
-      const history = messages.map((m) => ({ role: m.role, content: m.content }))
       const res = await chat.turn(session.id, user.user_id, text, history, filesToSend)
-      setMessages((prev) => [...prev, res.user_message, res.assistant_message])
+      setMessages((prev) => [
+        ...prev.filter((m) => m.id !== tempId),
+        res.user_message,
+        res.assistant_message,
+      ])
     } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId))
+      setInput(text)
+      setChatFiles(filesToSend)
       setChatError(getChatErrorMessage(err, t))
     } finally {
       setSending(false)
       textareaRef.current?.focus()
     }
-  }, [input, chatFiles, sending, user, messages, ensureSession, t])
+  }, [input, chatFiles, sending, user, chatSession, messages, ensureSession, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {

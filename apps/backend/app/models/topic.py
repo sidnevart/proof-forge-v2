@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, ForeignKey
+from sqlalchemy import String, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -16,3 +16,9 @@ class Topic(Base):
     folder_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("topic_folders.id", ondelete="SET NULL"), nullable=True
     )
+    # Subject domain (coding/language/theory_math/humanities/general), classified at
+    # topic start; parametrizes conspect, tasks and chat. See services/domain_profiles.py.
+    domain: Mapped[str] = mapped_column(String, nullable=False, default="general")
+    # Learner-chosen strategy knobs (depth, theory/practice mix, difficulty, pacing,
+    # diagrams, weak-spot focus). None = default preset. See services/strategy_presets.py.
+    strategy_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)

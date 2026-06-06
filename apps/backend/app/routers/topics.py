@@ -80,6 +80,7 @@ async def complete_topic(topic_id: str, data: TopicCompleteRequest, db: AsyncSes
 class TopicUpdate(BaseModel):
     name: str | None = None
     folder_id: str | None = None  # pass "" to remove from folder
+    strategy_config: dict | None = None
 
 
 @router.patch("/topics/{topic_id}", response_model=TopicOut)
@@ -92,6 +93,8 @@ async def update_topic(topic_id: str, data: TopicUpdate, db: AsyncSession = Depe
         topic.name = data.name.strip() or topic.name
     if data.folder_id is not None:
         topic.folder_id = data.folder_id or None
+    if data.strategy_config is not None:
+        topic.strategy_config = data.strategy_config
     await db.commit()
     await db.refresh(topic)
     return topic

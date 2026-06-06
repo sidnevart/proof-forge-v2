@@ -3,6 +3,7 @@ import base64
 import json
 import logging
 
+import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 logger = logging.getLogger(__name__)
@@ -13,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db, async_session_factory
 from app.config import settings as app_settings
 from app.models.topic_material import TopicMaterial
+from app.models.learning_event import LearningEvent
+from app.models.topic import Topic as TopicModel
 from app.models import PracticeTask, StudySession as StudySessionModel
 from app.repositories import mastery_repo, practice_repo, topic_repo
 from app.schemas.practice import (
@@ -115,6 +118,28 @@ async def _run_session_generation(
     q = get_stream(session_id)
     if q is None:
         return
+
+    # Classify the topic's domain (once) before generation so conspect/tasks adapt.
+    # Only runs when an LLM is configured; the fallback path below stays "general".
+    if app_settings.llm_api_key and topic.domain == "general":
+        try:
+            from app.services.domain_classifier import classify_domain
+
+            preview = "\n".join(m.get("content_text", "")[:300] for m in materials_list[:3])
+            async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0)) as client:
+                detected = await classify_domain(client, app_settings, topic.name, preview)
+            topic.domain = detected
+            if detected != "general":
+                async with async_session_factory() as db:
+                    result = await db.execute(
+                        select(TopicModel).where(TopicModel.id == topic.id)
+                    )
+                    topic_obj = result.scalar_one_or_none()
+                    if topic_obj:
+                        topic_obj.domain = detected
+                        await db.commit()
+        except Exception as exc:  # noqa: BLE001 — classification must not break generation
+            logger.warning("Domain classification skipped for %s: %s", topic.id, exc)
 
     # ── No LLM configured → immediate fallback (keeps tests happy) ────────────
     if not app_settings.llm_api_key:
@@ -259,6 +284,15 @@ async def create_study_session(data: dict, db: AsyncSession = Depends(get_db)):
     if not topic or topic.user_id != data["user_id"]:
         raise HTTPException(status_code=404, detail="Topic not found")
 
+    # Optional learner strategy chosen at topic start — persist on the topic so it
+    # parametrizes this and future generations. None keeps the existing topic strategy
+    # (or the deep_dive default).
+    strategy = data.get("strategy")
+    if strategy is not None:
+        topic.strategy_config = strategy
+        await db.commit()
+        await db.refresh(topic)
+
     result = await db.execute(
         select(TopicMaterial)
         .where(TopicMaterial.topic_id == topic.id)
@@ -282,7 +316,20 @@ async def create_study_session(data: dict, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(session_obj)
 
-    topic_info = TopicInfo(id=topic.id, name=topic.name, user_id=topic.user_id)
+    db.add(LearningEvent(
+        user_id=topic.user_id,
+        event_type="study_session_started",
+        payload={"topic_id": topic.id, "session_id": session_obj.id, "domain": topic.domain},
+    ))
+    await db.commit()
+
+    topic_info = TopicInfo(
+        id=topic.id,
+        name=topic.name,
+        user_id=topic.user_id,
+        domain=topic.domain,
+        strategy_config=topic.strategy_config,
+    )
     create_stream(session_obj.id)
     # Cards are generated *inside* _run_session_generation, after the conspect and
     # tasks are ready, so they're seeded from the richest available context.
@@ -455,6 +502,25 @@ async def submit_answer(
                 struggle_passed=1,
             )
 
+    db.add(LearningEvent(
+        user_id=user_id,
+        event_type="task_submitted",
+        payload={
+            "topic_id": task.topic_id,
+            "task_id": task_id,
+            "task_type": task.type,
+            "score": evaluation.score,
+            "passed": evaluation.status == "passed",
+        },
+    ))
+    if evaluation.status == "passed":
+        db.add(LearningEvent(
+            user_id=user_id,
+            event_type="task_completed",
+            payload={"topic_id": task.topic_id, "task_id": task_id, "task_type": task.type},
+        ))
+    await db.commit()
+
     follow_ups = await practice_repo.list_follow_ups_by_evaluation(db, evaluation.id)
     attachments = await practice_repo.list_attachments(db, submission.id)
 
@@ -519,6 +585,12 @@ async def complete_study_session(session_id: str, data: dict, db: AsyncSession =
     if not result:
         raise HTTPException(status_code=404, detail="Study session not found")
     completed, capsule = result
+    db.add(LearningEvent(
+        user_id=data["user_id"],
+        event_type="study_session_completed",
+        payload={"topic_id": completed.topic_id, "session_id": session_id, "capsule_id": capsule.id},
+    ))
+    await db.commit()
     return {
         "session": StudySessionOut.model_validate(completed),
         "capsule": CapsuleOut.model_validate(capsule),

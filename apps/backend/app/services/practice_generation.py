@@ -15,6 +15,11 @@ class TopicInfo:
     id: str
     name: str
     user_id: str
+    # Subject domain + learner strategy, resolved at session start. Drive the
+    # conspect/task prompts via domain_profiles + strategy_presets. Defaults keep
+    # the LLM-less fallback path (tests) behaving exactly as before.
+    domain: str = "general"
+    strategy_config: dict | None = None
 
 
 # ── LLM helpers ───────────────────────────────────────────────────────────────
@@ -115,154 +120,186 @@ def _extract_json(text: str) -> dict:
 
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
+# Backward-compatible default system prompt (coding persona). The adaptive,
+# domain-aware system prompt is built by build_conspect_system() below.
 CONSPECT_SYSTEM_PROMPT = (
     "Ты — сильный учебный ментор для IT-специалистов. Объясняешь глубоко, но «на пальцах»: "
     "каждую идею сопровождаешь бытовой аналогией, наглядным примером и, где уместно, схемой. "
-    "Принцип подачи: наблюдение → гипотеза → эксперимент → решение.\n\n"
-    "Форматирование (строго соблюдай — это влияет на читаемость):\n"
-    "- Используй чёткую иерархию заголовков: ## для секций, ### для подсекций. "
-    "НИКОГДА не ставь два заголовка подряд без текста между ними.\n"
-    "- Каждый параграф — 2-4 предложения. Разделяй параграфы пустой строкой. "
-    "Никаких «стен текста» по 8-10 предложений подряд.\n"
-    "- Основные секции разделяй горизонтальной чертой `---` (с пустой строкой до и после).\n"
-    "- Внутри секции «Ключевые концепции» каждая концепция начинается с `### Название`, "
-    "затем 1-2 абзаца объяснения, затем аналогия или код — и пустая строка перед следующей.\n"
-    "- Для списков используй маркированные списки (звёздочки), не плотный текст.\n"
-    "- **Жирным** выделяй ключевые термины при первом упоминании.\n"
-    "- Для любого процесса или архитектуры — диаграмма Mermaid в fenced-блоке ```mermaid "
-    "(синтаксис flowchart TD / sequenceDiagram). Минимум 1-2 диаграммы на конспект.\n"
-    "- Для сравнений (подходы, trade-offs) — Markdown-таблица.\n"
-    "- Код — в fenced-блоках с языком (```python, ```ts и т.п.).\n"
-    "- Не оставляй HTML-теги кроме обычного Markdown.\n"
-    "Язык: русский, технические термины — на языке оригинала."
+    "Принцип подачи: наблюдение → гипотеза → эксперимент → решение."
 )
 
 
-def _build_conspect_prompt(topic_name: str, materials_block: str) -> str:
+def build_conspect_system(profile, strategy) -> str:
+    """Domain- and strategy-aware system prompt for the conspect writer."""
+    from app.services.strategy_presets import strategy_generation_notes
+
+    code_rule = (
+        "- Код — в fenced-блоках с языком (```python, ```ts и т.п.).\n"
+        if profile.allow_code
+        else "- НЕ используй программный код — он не нужен в этой теме. Примеры давай словами.\n"
+    )
+    diagram_rule = (
+        "- Для процессов/архитектур — диаграмма Mermaid в fenced-блоке ```mermaid "
+        "(flowchart TD / sequenceDiagram). 1-2 диаграммы на конспект.\n"
+        if (profile.allow_diagrams and strategy.include_diagrams)
+        else ""
+    )
+    return (
+        f"{profile.persona}\n\n"
+        "Форматирование (строго соблюдай — это влияет на читаемость):\n"
+        "- Чёткая иерархия заголовков: ## для секций, ### для подсекций. "
+        "НИКОГДА не ставь два заголовка подряд без текста между ними.\n"
+        "- Каждый параграф — 2-4 предложения, разделяй пустой строкой. Никаких «стен текста».\n"
+        "- Основные секции разделяй горизонтальной чертой `---`.\n"
+        "- Для списков — маркированные списки, не плотный текст.\n"
+        "- **Жирным** выделяй ключевые термины при первом упоминании.\n"
+        "- Для сравнений (подходы, trade-offs) — Markdown-таблица.\n"
+        f"{code_rule}"
+        f"{diagram_rule}"
+        "- Не оставляй HTML-теги кроме обычного Markdown.\n"
+        f"{profile.generation_note}\n"
+        f"{strategy_generation_notes(strategy)}\n"
+        "Язык: русский, термины — на языке оригинала."
+    )
+
+
+def _conspect_body_sections(profile, strategy) -> str:
+    """Assemble the domain-specific middle sections of the conspect template."""
+    code_hint = ", короткий пример кода" if profile.allow_code else ", пример словами"
+    blocks: list[str] = []
+    for section in profile.conspect_sections:
+        low = section.lower()
+        if "ошибк" in low or "ловушк" in low or "спорн" in low:
+            if profile.allow_code:
+                guidance = (
+                    "### Ошибка 1: [название]\n"
+                    "❌ Неправильно:\n```[lang]\n[код с ошибкой]\n```\n"
+                    "✅ Правильно:\n```[lang]\n[исправленный код]\n```\n"
+                    "[1-2 предложения: почему так и как избежать.]\n\n"
+                    "### Ошибка 2: [аналогично]\n[2-3 ошибки, каждая с ### заголовком.]"
+                )
+            else:
+                guidance = (
+                    "[2-3 типичные ошибки/заблуждения. Каждая — ### подзаголовок, "
+                    "затем «❌ Неправильно … ✅ Правильно …» словами и почему так.]"
+                )
+        elif "концеп" in low or "правил" in low or "понят" in low or "иде" in low:
+            guidance = (
+                "### [Название 1]\n[1-2 абзаца простыми словами.]\n\n"
+                "**Аналогия на пальцах:** [коротко]\n\n"
+                f"[наглядный пример{code_hint}]\n\n"
+                "### [Название 2]\n[аналогично]\n\n"
+                "[3-5 пунктов, каждый с ### заголовком. Не сливай в один текст.]"
+            )
+        elif "сравн" in low:
+            guidance = "[Markdown-таблица: вариант / когда использовать / плюсы / минусы.]"
+        elif "диалог" in low:
+            guidance = "[Короткий диалог из 4-6 реплик с переводом каждой реплики.]"
+        else:
+            guidance = (
+                f"[Раскрой раздел применительно к теме: 2-4 абзаца, наглядные примеры{code_hint}. "
+                "Если есть последовательность шагов — нумерованный список.]"
+            )
+        blocks.append(f"## {section}\n{guidance}")
+    return "\n\n---\n\n".join(blocks)
+
+
+def _build_conspect_prompt(topic_name: str, materials_block: str, profile, strategy) -> str:
+    from app.services.strategy_presets import conspect_word_count
+
     if not materials_block.strip():
         materials_block = "(материалов нет — используй свои знания о теме)"
 
-    return f"""На основе материалов по теме «{topic_name}» напиши подробный, наглядный конспект.
+    word_count = conspect_word_count(strategy)
+    diagram_line = (
+        "\n```mermaid\nflowchart TD\n  [Схема общей картины темы]\n```\n"
+        if (profile.allow_diagrams and strategy.include_diagrams)
+        else ""
+    )
+    body = _conspect_body_sections(profile, strategy)
+
+    return f"""На основе материалов по теме «{topic_name}» напиши подробный, наглядный конспект для аудитории «{profile.audience}».
 
 ## Материалы
 {materials_block}
 
 ---
 
-Напиши развёрнутый конспект в формате Markdown (1500-2200 слов). Объясняй подробно и
-«на пальцах», не экономь на примерах и схемах.
+Напиши конспект в формате Markdown ({word_count}). Объясняй «на пальцах», не экономь на примерах.
 
-**Правила оформления (влияют на читаемость — соблюдай строго):**
-- Каждый параграф — 2-4 предложения. Разделяй параграфы пустой строкой.
-- Секции ## разделяй горизонтальной чертой `---`.
-- Внутри «Ключевых концепций» каждая концепция — ### заголовок + 1-2 абзаца + код/аналогия.
-  Между концепциями — пустая строка.
-- Код и mermaid-диаграммы — на отдельных строках, с пустой строкой до и после.
-
-**Структура конспекта:**
+**Структура конспекта (строго в этом порядке):**
 
 ## Обзор
 [3-4 предложения: что это, зачем нужно и какую проблему решает. Один абзац.]
 
-**Аналогия на пальцах:** [бытовой образ в 1-2 предложениях. Отдельный абзац.]
+**Аналогия на пальцах:** [бытовой образ в 1-2 предложениях.]
+{diagram_line}
+---
 
-```mermaid
-flowchart TD
-  [Схема общей картины темы]
-```
+## Пререквизиты
+[Что полезно знать ДО изучения этой темы, чтобы идти спокойно. Маркированный список из 3-6 пунктов в формате «**Понятие** — зачем оно здесь». Если тема предполагает базовый уровень (напр. язык — A2/B1) — укажи его одной строкой.]
 
 ---
 
-## Ключевые концепции
-
-### [Название концепции 1]
-[1-2 абзаца: объяснение простыми словами. Максимум 4 предложения в абзаце.]
-
-**Аналогия на пальцах:** [коротко]
-
-[Пример кода если уместно — fenced block с языком]
-
-### [Название концепции 2]
-[аналогично — заголовок, объяснение, аналогия, код]
-
-[3-5 концепций, каждая с ### заголовком. Не сливай их в один текст.]
+{body}
 
 ---
 
-## Как это работает шаг за шагом
-[Пошаговый разбор на конкретном примере. Каждый шаг — либо **жирный** подзаголовок с 1-2 предложениями, либо элемент нумерованного списка. Если есть последовательность взаимодействий — ```mermaid sequenceDiagram.]
-
----
-
-## Сравнение подходов
-[Markdown-таблица: вариант / когда использовать / плюсы / минусы.]
-
----
-
-## Практическое применение
-[2-3 абзаца: реальные сценарии, типичные паттерны. Можно маркированным списком.]
-
----
-
-## Типичные ошибки
-
-### Ошибка 1: [название]
-❌ Неправильно:
-```[lang]
-[код с ошибкой]
-```
-✅ Правильно:
-```[lang]
-[исправленный код]
-```
-[1-2 предложения: почему так и как избежать.]
-
-### Ошибка 2: [аналогично]
-[2-3 ошибки, каждая с ### заголовком, кодом и объяснением.]
+## Глоссарий
+[Markdown-таблица ключевых терминов и аббревиатур этой темы: столбцы «Термин» и «Определение». 6-12 строк, краткие определения в одно предложение. Включай сокращения с расшифровкой.]
 
 ---
 
 ## Важно запомнить
 - [Ключевой тезис 1 — одно предложение]
-- [Ключевой тезис 2]
 - [4-6 тезисов маркированным списком]
 
 Начинай сразу с конспекта, без предисловий."""
 
 
-def _build_tasks_prompt(topic_name: str, conspect_md: str) -> str:
-    return f"""На основе конспекта по теме «{topic_name}» создай учебные задания в трёх уровнях.
+def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) -> str:
+    from app.services.strategy_presets import strategy_generation_notes
+
+    theory_spec = profile.task_recipe[0]
+    practice_spec = profile.task_recipe[1] if len(profile.task_recipe) > 1 else profile.task_recipe[0]
+
+    code_rule = (
+        "- Стартовый код и решения — в fenced-блоках с языком (```python, ```ts и т.п.)."
+        if profile.allow_code
+        else "- НЕ используй программный код. Задания — текстовые/практические по сути темы."
+    )
+
+    return f"""На основе конспекта по теме «{topic_name}» создай учебные задания для аудитории «{profile.audience}».
 
 ## Конспект
 {conspect_md[:2500]}
 
 ---
 
+{strategy_generation_notes(strategy)}
+
 Ответь ТОЛЬКО валидным JSON объектом. Без markdown-блоков, без текста вне JSON.
 
-Требования к форматированию поля instructions_md (это Markdown, который будет
-отрендерен — соблюдай строго):
+Требования к форматированию поля instructions_md (это Markdown, который будет отрендерен):
 - Каждое задание начинай с заголовка ### и понятного названия.
-- Стартовый код и решения — в fenced-блоках с указанием языка (```python, ```ts и т.п.).
-- Условие давай блоками: строки «**Задача:** …», «**Артефакт:** …», «**Edge cases:** …».
+{code_rule}
+- Условие давай блоками: «**Задача:** …», и где уместно «**Артефакт:** …», «**Edge cases:** …».
 - Решение/ответ оборачивай в сворачивалку: <details><summary>Решение</summary> … </details>.
-  ВНУТРИ <details> оставляй пустую строку после <summary> и перед </details>, а код —
-  в fenced-блоке с языком, иначе Markdown не отрендерится.
+  ВНУТРИ <details> оставляй пустую строку после <summary> и перед </details>.
 
 {{
   "learning_goals": [
-    "Понять [ключевую концепцию 1] и объяснить своими словами",
-    "Применить [концепцию 2] в реальном сценарии",
+    "Понять [ключевую идею 1] и объяснить своими словами",
+    "Применить [идею 2] на практике",
     "Разобрать типичные ошибки и как их избегать"
   ],
   "theory_task": {{
-    "title": "Проверь себя: {topic_name}",
-    "instructions_md": "# Проверь себя\\n\\nОтветь своими словами, не заглядывая в конспект:\\n\\n1. [Концептуальный вопрос — что происходит внутри и почему]\\n2. [Trade-off вопрос — когда работает, когда нет]\\n3. [Практический вопрос — что изменится если убрать/изменить X]\\n4. [Вопрос на связь с другими концепциями]\\n\\n<details><summary>Ответы</summary>\\n\\n**1.** [Ответ 1-2 предложения с объяснением почему]\\n\\n**2.** [Ответ]\\n\\n**3.** [Ответ]\\n\\n**4.** [Ответ]\\n\\n</details>\\n\\n---\\n\\n## Вопросы уровня собеседования\\n\\n**[Middle]** [Вопрос на механизм или поведение]\\n\\n<details><summary>Ответ</summary>\\n\\n[Ответ как дал бы сильный кандидат: факт + механизм + пример]\\n\\n</details>\\n\\n**[Senior]** [Вопрос на дизайн с нефункциональными требованиями]\\n\\n<details><summary>Ответ</summary>\\n\\n[Ответ с trade-offs и обоснованием]\\n\\n</details>"
+    "title": "{theory_spec.title_hint}: {topic_name}",
+    "instructions_md": "Задание на проверку понимания ({theory_spec.instructions_hint}). 4-6 вопросов, ответы скрой в <details><summary>Ответы</summary>...</details> с пояснением почему."
   }},
-  "mini_project_task": {{
-    "title": "Практика: {topic_name}",
-    "instructions_md": "# Практические задания\\n\\n## Уровень 1: База (5-10 мин)\\n\\n### Задание 1 (новичок)\\n\\n```python\\n# Стартовый код — скопируй и запусти как есть\\n# TODO: [конкретное однозначное действие]\\n```\\n\\n**Задача:** [глагол + что конкретно сделать]\\n\\n**Артефакт:** [что должен вывести или показать]\\n\\n<details><summary>Решение</summary>\\n\\n```python\\n# Решение:\\n# Вывод: [что напечатает]\\n```\\n\\n[1-2 предложения почему так]\\n\\n</details>\\n\\n### Задание 2 (новичок)\\n\\n[аналогично: заголовок, код, Задача, Артефакт, <details>Решение</details>]\\n\\n---\\n\\n## Уровень 2: Применение (20-35 мин)\\n\\n### Задание 3 (средний)\\n\\n```python\\n# Весь стартовый код — запускается без дополнений\\n# TODO: реализуй функцию ниже\\n```\\n\\n**Задача:** [реалистичный сценарий + конкретные требования]\\n\\n**Edge cases:** [2-3 случая которые решение обязано обработать]\\n\\n**Артефакт:** рабочий код + ожидаемый вывод\\n\\n<details><summary>Решение</summary>\\n\\n```python\\n# Решение + вывод:\\n```\\n\\n[Объяснение выбора]\\n\\n</details>\\n\\n---\\n\\n## Уровень 3: Собеседование (45+ мин)\\n\\n### Мини-проект / Capstone (Middle+/Senior)\\n\\n**Контекст:** [реалистичный production сценарий]\\n\\n**Задача:** [конкретное требование с ограничениями]\\n\\n**Acceptance checks:**\\n- [happy path]\\n- [edge case]\\n- [failure case]\\n\\n<details><summary>Разбор</summary>\\n\\n[Эталонное решение + типичные ошибки + альтернативы]\\n\\n</details>",
-    "expected_evidence": ["source_files", "diff", "test_output", "reflection"],
+  "practice_task": {{
+    "title": "{practice_spec.title_hint}: {topic_name}",
+    "instructions_md": "Практическое задание ({practice_spec.instructions_hint}). Раздели на 2-3 уровня сложности по нарастающей. Для каждого уровня — условие и эталонное решение/ответ в <details>.",
     "target_concepts": ["концепт 1 из темы", "концепт 2 из темы"]
   }}
 }}"""
@@ -316,12 +353,19 @@ async def stream_conspect_to_queue(
     q: asyncio.Queue,
 ) -> str:
     """Stream conspect tokens to SSE queue. Returns conspect_md."""
+    from app.services.domain_profiles import get_profile
+    from app.services.strategy_presets import resolve_strategy
+
+    profile = get_profile(topic.domain)
+    strategy = resolve_strategy(topic.strategy_config)
+
     materials_block = await _prepare_materials_block(settings, topic, materials, q)
 
     await q.put(("phase_change", {"phase": "conspect", "label": "Пишу конспект..."}))
 
     conspect_md = ""
-    prompt_conspect = _build_conspect_prompt(topic.name, materials_block)
+    prompt_conspect = _build_conspect_prompt(topic.name, materials_block, profile, strategy)
+    system_prompt = build_conspect_system(profile, strategy)
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
         async for token in _llm_stream_tokens(
@@ -329,7 +373,7 @@ async def stream_conspect_to_queue(
             settings,
             prompt_conspect,
             max_tokens=4000,
-            system=CONSPECT_SYSTEM_PROMPT,
+            system=system_prompt,
         ):
             conspect_md += token
             await q.put(("token", {"content": token}))
@@ -346,12 +390,26 @@ async def generate_tasks_from_conspect(
     conspect_md: str,
     q: asyncio.Queue,
 ) -> tuple[list[str], list[PracticeTaskCreate]]:
-    """Generate tasks from conspect. Returns (learning_goals, task_creates)."""
+    """Generate tasks from conspect. Returns (learning_goals, task_creates).
+
+    Task types follow the topic's domain recipe (e.g. coding → theory + mini_project;
+    language/humanities → theory + written), so an English topic never gets a
+    "Python starter code" mini-project.
+    """
+    from app.services.domain_profiles import get_profile
+    from app.services.strategy_presets import resolve_strategy
+
+    profile = get_profile(topic.domain)
+    strategy = resolve_strategy(topic.strategy_config)
+
+    theory_spec = profile.task_recipe[0]
+    practice_spec = profile.task_recipe[1] if len(profile.task_recipe) > 1 else profile.task_recipe[0]
+
     # Brief pause to avoid hitting rate limits immediately after conspect streaming
     await asyncio.sleep(4)
     await q.put(("phase_change", {"phase": "tasks", "label": "Создаю задания..."}))
 
-    prompt_tasks = _build_tasks_prompt(topic.name, conspect_md)
+    prompt_tasks = _build_tasks_prompt(topic.name, conspect_md, profile, strategy)
 
     async with httpx.AsyncClient(timeout=180.0) as client:
         raw = await _llm_call(
@@ -365,44 +423,46 @@ async def generate_tasks_from_conspect(
         parsed = _extract_json(raw)
 
     theory_raw = parsed.get("theory_task", {})
-    mini_raw = parsed.get("mini_project_task", {})
+    # The practice task key is "practice_task" in the current schema; accept the legacy
+    # "mini_project_task" key too for forward/backward compatibility.
+    practice_raw = parsed.get("practice_task") or parsed.get("mini_project_task", {})
 
     theory = PracticeTaskCreate(
         user_id=topic.user_id,
         topic_id=topic.id,
         study_session_id="",
-        type="theory",
-        title=theory_raw.get("title", f"Теория: {topic.name}"),
+        type=theory_spec.key,
+        title=theory_raw.get("title", f"{theory_spec.title_hint}: {topic.name}"),
         instructions_md=theory_raw.get(
             "instructions_md",
-            f"## Теоретический блок: {topic.name}\n\nРазбери ключевые концепции из конспекта.",
+            f"## {theory_spec.title_hint}: {topic.name}\n\nРазбери ключевые идеи из конспекта.",
         ),
         target_concepts=[topic.name],
-        difficulty=1,
-        expected_evidence=["written_explanation"],
+        difficulty=theory_spec.difficulty,
+        expected_evidence=list(theory_spec.expected_evidence),
         check_commands=[],
     )
 
-    mini = PracticeTaskCreate(
+    practice = PracticeTaskCreate(
         user_id=topic.user_id,
         topic_id=topic.id,
         study_session_id="",
-        type="mini_project",
-        title=mini_raw.get("title", f"Mini-project: {topic.name}"),
-        instructions_md=mini_raw.get(
+        type=practice_spec.key,
+        title=practice_raw.get("title", f"{practice_spec.title_hint}: {topic.name}"),
+        instructions_md=practice_raw.get(
             "instructions_md",
-            f"## Задание\n\nРеализуй проект по теме {topic.name}.",
+            f"## {practice_spec.title_hint}\n\nВыполни практическое задание по теме {topic.name}.",
         ),
-        target_concepts=mini_raw.get("target_concepts", [topic.name]),
-        difficulty=2,
-        expected_evidence=mini_raw.get(
-            "expected_evidence", ["source_files", "diff", "test_output", "reflection"]
+        target_concepts=practice_raw.get("target_concepts", [topic.name]),
+        difficulty=practice_spec.difficulty,
+        expected_evidence=practice_raw.get(
+            "expected_evidence", list(practice_spec.expected_evidence)
         ),
         check_commands=[],
     )
 
     learning_goals = parsed.get("learning_goals", [f"Изучить {topic.name}"])
-    return learning_goals, [theory, mini]
+    return learning_goals, [theory, practice]
 
 
 async def stream_study_content_to_queue(

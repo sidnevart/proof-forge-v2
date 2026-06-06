@@ -6,7 +6,12 @@ from app.schemas.topic import TopicStart
 
 
 async def start_topic(db: AsyncSession, data: TopicStart) -> Topic:
-    topic = Topic(user_id=data.user_id, name=data.name, status="active")
+    topic = Topic(
+        user_id=data.user_id,
+        name=data.name,
+        status="active",
+        strategy_config=getattr(data, "strategy_config", None),
+    )
     db.add(topic)
     await db.commit()
     await db.refresh(topic)
