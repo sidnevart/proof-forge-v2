@@ -43,7 +43,32 @@ export function MarkdownRenderer({ children, components }: MarkdownRendererProps
       // raw HTML here (same trust level as the rest of the rendered LLM markdown).
       rehypePlugins={[rehypeRaw]}
       components={{
+        // Default heading/text rhythm for the conspect (Theory tab). Callers that pass
+        // their own `components` (e.g. the compact chat bubble) override these below.
+        h2({ children }) {
+          return <h2 className="font-display text-lg font-bold text-ink mt-8 mb-3 pb-2 border-b border-line/60">{children}</h2>
+        },
+        h3({ children }) {
+          return <h3 className="font-semibold text-ink mt-6 mb-2">{children}</h3>
+        },
+        p({ children }) {
+          return <p className="text-ink/90 leading-relaxed mb-3 last:mb-0">{children}</p>
+        },
+        hr() {
+          return <hr className="my-6 border-line/40" />
+        },
+        ul({ children }) {
+          return <ul className="list-disc list-inside space-y-1 mb-3 text-ink/90">{children}</ul>
+        },
+        ol({ children }) {
+          return <ol className="list-decimal list-inside space-y-1 mb-3 text-ink/90">{children}</ol>
+        },
+        li({ children }) {
+          return <li className="pl-1">{children}</li>
+        },
+        // Caller overrides win for the keys above.
         ...components,
+        // code/pre/details/summary are always ours (code/pre excluded from caller type).
         details({ children }) {
           return (
             <details className="group my-3 rounded-xl border border-line bg-sand/30 px-4 py-2 [&[open]]:bg-sand/50">
