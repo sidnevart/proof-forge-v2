@@ -9,6 +9,7 @@ import { SkeletonText } from '@/components/ui/Skeleton'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { useT } from '@/lib/i18n'
 import { useSSEStream } from '@/hooks/useSSEStream'
+import { useDrawer } from '@/lib/drawer-context'
 
 type Tab = 'chat' | 'theory' | 'practice' | 'capsule'
 
@@ -48,6 +49,7 @@ export default function StudySessionPage() {
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { openDrawer } = useDrawer()
 
   // SSE stream for generating sessions
   useSSEStream(
@@ -218,8 +220,20 @@ export default function StudySessionPage() {
 
   return (
     <div className="flex flex-col h-[calc(100dvh-5rem)] md:h-[100dvh] max-h-[100dvh] overflow-hidden">
-      {/* Header — extra left padding on mobile to clear the hamburger button */}
-      <div className="shrink-0 border-b border-line pl-14 pr-4 md:pl-4 py-3 flex items-center gap-3 bg-paper/80 backdrop-blur-md z-10">
+      {/* Header — hamburger on mobile, back arrow always visible */}
+      <div className="shrink-0 border-b border-line px-4 py-3 flex items-center gap-3 bg-paper/80 backdrop-blur-md z-10">
+        {/* Hamburger — mobile only, opens the drawer */}
+        <button
+          onClick={openDrawer}
+          className="md:hidden w-8 h-8 rounded-lg border border-line flex items-center justify-center text-ink hover:text-accent transition-colors shrink-0"
+          aria-label="Open menu"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
         <Link href="/dashboard" className="text-mute hover:text-ink transition-colors shrink-0">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6"/>

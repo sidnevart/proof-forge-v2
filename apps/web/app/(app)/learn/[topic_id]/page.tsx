@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm'
 import { getStoredUser } from '@/lib/auth'
 import { chat, topics, type Topic } from '@/lib/api'
 import { useT } from '@/lib/i18n'
+import { useDrawer } from '@/lib/drawer-context'
 
 type Message = { role: 'user' | 'assistant'; content: string }
 
@@ -21,6 +22,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const t = useT()
+  const { openDrawer } = useDrawer()
 
   useEffect(() => {
     topics.get(topic_id).then(setTopic).catch(console.error)
@@ -63,6 +65,18 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
     <div className="flex flex-col h-[calc(100dvh-5rem)] md:h-[100dvh] max-h-[100dvh] overflow-hidden">
       {/* Header */}
       <div className="shrink-0 border-b border-line px-5 py-3 flex items-center gap-3">
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={openDrawer}
+          className="md:hidden w-8 h-8 rounded-lg border border-line flex items-center justify-center text-ink hover:text-accent transition-colors shrink-0"
+          aria-label="Open menu"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
         <Link
           href="/dashboard"
           className="text-mute hover:text-ink transition-colors"
