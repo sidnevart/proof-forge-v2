@@ -26,6 +26,12 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       FRONTEND_URL: ${FRONTEND_URL:-https://app.proof-forge.ru}
       FROM_EMAIL: ${FROM_EMAIL:-onboarding@resend.dev}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_SSL: ${SMTP_SSL:-false}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
       LLM_MODEL: ${LLM_MODEL:-glm-4-flash}

@@ -17,7 +17,15 @@ bearer_scheme = HTTPBearer(auto_error=False)
 async def send_magic_link(data: SendLinkRequest, db: AsyncSession = Depends(get_db)):
     await user_repo.find_or_create(db, data.email, data.display_name)
     token = await auth_repo.create_token(db, data.email)
-    email_service.send_magic_link(data.email, token, data.display_name)
+    # Mail delivery must never crash the request: a transport failure would
+    # otherwise surface in the browser as a misleading CORS error (the 500
+    # response is emitted outside the CORS middleware and carries no headers).
+    sent = email_service.send_magic_link(data.email, token, data.display_name)
+    if not sent:
+        raise HTTPException(
+            status_code=502,
+            detail="Не удалось отправить письмо. Попробуй позже или напиши в поддержку.",
+        )
     return SendLinkResponse(message="Ссылка для входа отправлена на почту")
 
 

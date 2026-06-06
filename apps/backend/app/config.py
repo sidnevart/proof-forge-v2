@@ -12,6 +12,14 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     from_email: str = "noreply@proof-forge.ru"
 
+    # SMTP (preferred transport — e.g. Gmail App Password)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""      # display From address; falls back to smtp_user
+    smtp_ssl: bool = False   # True for port 465, False for 587/STARTTLS
+
     # LLM (OpenAI-compatible, via OpenRouter)
     llm_api_key: str = ""
     llm_base_url: str = "https://openrouter.ai/api/v1"
