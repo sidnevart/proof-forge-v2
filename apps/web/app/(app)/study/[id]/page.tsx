@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getStoredUser } from '@/lib/auth'
@@ -11,6 +11,8 @@ import { useT } from '@/lib/i18n'
 import { useSSEStream } from '@/hooks/useSSEStream'
 import { useDrawer } from '@/lib/drawer-context'
 import { CHAT_ACCEPT, PendingChip, MessageAttachment } from '@/app/(app)/_components/file-chip'
+import { ConspectToc, extractHeadings } from '@/app/(app)/_components/toc'
+import { SelectionBubble } from '@/app/(app)/_components/selection-bubble'
 
 const MAX_CHAT_FILES = 5
 const MAX_CHAT_FILE_BYTES = 8_000_000
@@ -60,7 +62,51 @@ export default function StudySessionPage() {
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const theoryRef = useRef<HTMLDivElement>(null)
   const { openDrawer } = useDrawer()
+
+  // TOC + selection state
+  const [tocOpen, setTocOpen] = useState(false)
+  const [activeHeadingId, setActiveHeadingId] = useState('')
+  const [selectedText, setSelectedText] = useState('')
+
+  // Chat session rename
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  const commitRename = useCallback(async () => {
+    if (!chatSession || !titleDraft.trim()) { setEditingTitle(false); return }
+    try {
+      const updated = await chat.renameSession(chatSession.id, titleDraft.trim())
+      setChatSession(updated)
+    } catch {}
+    setEditingTitle(false)
+  }, [chatSession, titleDraft])
+
+  const conspectMd = streamingConspect || (session?.conspect_md ?? '')
+  const headings = useMemo(() => extractHeadings(conspectMd), [conspectMd])
+
+  // Track active heading via IntersectionObserver
+  useEffect(() => {
+    if (activeTab !== 'theory' || !theoryRef.current) return
+    const els = Array.from(theoryRef.current.querySelectorAll<HTMLElement>('h2[id],h3[id]'))
+    if (!els.length) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting)
+        if (visible.length > 0) setActiveHeadingId(visible[0].target.id)
+      },
+      { rootMargin: '0px 0px -70% 0px' }
+    )
+    els.forEach((el) => obs.observe(el))
+    return () => obs.disconnect()
+  }, [activeTab, conspectMd])
+
+  // Clear selection when leaving theory tab
+  useEffect(() => {
+    if (activeTab !== 'theory') setSelectedText('')
+  }, [activeTab])
 
   // SSE stream for generating sessions
   useSSEStream(
@@ -276,10 +322,36 @@ export default function StudySessionPage() {
             <polyline points="15 18 9 12 15 6"/>
           </svg>
         </Link>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-ink truncate">
-            {session.conspect_md.slice(0, 60).replace(/^#+\s*/, '') || t('study.sessionFallback')}
-          </div>
+        <div className="flex-1 min-w-0 group flex items-center gap-1.5">
+          {editingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setEditingTitle(false) }}
+              className="flex-1 text-sm font-semibold text-ink bg-card border border-accent/60 rounded-lg px-2 py-0.5 focus:outline-none min-w-0"
+              autoFocus
+            />
+          ) : (
+            <>
+              <div
+                className="text-sm font-semibold text-ink truncate cursor-pointer hover:text-accent transition-colors"
+                onClick={() => {
+                  const title = chatSession?.title || session.conspect_md.slice(0, 60).replace(/^#+\s*/, '') || t('study.sessionFallback')
+                  setTitleDraft(title)
+                  setEditingTitle(true)
+                  setTimeout(() => titleInputRef.current?.select(), 0)
+                }}
+              >
+                {chatSession?.title || session.conspect_md.slice(0, 60).replace(/^#+\s*/, '') || t('study.sessionFallback')}
+              </div>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-mute opacity-0 group-hover:opacity-100 transition-opacity">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </>
+          )}
         </div>
       </div>
 
@@ -471,26 +543,70 @@ export default function StudySessionPage() {
 
         {/* ── Theory tab ── */}
         {activeTab === 'theory' && (
-          <div className="h-full overflow-y-auto">
-            <div className="max-w-3xl mx-auto p-4 md:p-6">
-              {isStreaming && streamingPhase && (
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" />
-                  <span className="text-xs font-mono text-accent">{streamingPhase}</span>
-                </div>
-              )}
-              {streamError && (
-                <div className="mb-4 px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
-                  {streamError} — показан шаблонный контент.
-                </div>
-              )}
-              <div className="prose-grasp text-sm">
-                <MarkdownRenderer>
-                  {streamingConspect || session.conspect_md}
-                </MarkdownRenderer>
-                {isStreaming && (
-                  <span className="inline-block w-0.5 h-4 bg-accent animate-pulse ml-0.5 align-middle" />
+          <div className="h-full overflow-y-auto" ref={theoryRef}>
+            {/* Mobile TOC bar */}
+            {headings.length > 0 && (
+              <div className="md:hidden sticky top-0 z-10 bg-paper/95 backdrop-blur border-b border-line px-4 py-2">
+                <button
+                  onClick={() => setTocOpen((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs text-mute hover:text-ink transition-colors"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/>
+                  </svg>
+                  Оглавление
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`transition-transform ${tocOpen ? 'rotate-180' : ''}`}>
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                {tocOpen && (
+                  <div className="mt-2 pb-2 border-t border-line pt-2">
+                    <ConspectToc headings={headings} activeId={activeHeadingId} onClose={() => setTocOpen(false)} />
+                  </div>
                 )}
+              </div>
+            )}
+
+            <div className="max-w-5xl mx-auto p-4 md:p-6 md:grid md:grid-cols-[200px_1fr] md:gap-8">
+              {/* Desktop TOC — sticky sidebar */}
+              {headings.length > 0 && (
+                <aside className="hidden md:block">
+                  <div className="sticky top-4">
+                    <p className="text-[10px] font-mono text-mute uppercase tracking-wider mb-2 px-2">Оглавление</p>
+                    <ConspectToc headings={headings} activeId={activeHeadingId} />
+                  </div>
+                </aside>
+              )}
+
+              {/* Conspect content with selection bubble */}
+              <div className="relative min-w-0">
+                <SelectionBubble
+                  containerRef={theoryRef}
+                  onAsk={(text) => {
+                    setInput(`Объясни: «${text}»`)
+                    setActiveTab('chat')
+                    setTimeout(() => textareaRef.current?.focus(), 50)
+                  }}
+                />
+                {isStreaming && streamingPhase && (
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" />
+                    <span className="text-xs font-mono text-accent">{streamingPhase}</span>
+                  </div>
+                )}
+                {streamError && (
+                  <div className="mb-4 px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+                    {streamError} — показан шаблонный контент.
+                  </div>
+                )}
+                <div className="prose-grasp text-sm">
+                  <MarkdownRenderer>
+                    {conspectMd}
+                  </MarkdownRenderer>
+                  {isStreaming && (
+                    <span className="inline-block w-0.5 h-4 bg-accent animate-pulse ml-0.5 align-middle" />
+                  )}
+                </div>
               </div>
             </div>
           </div>

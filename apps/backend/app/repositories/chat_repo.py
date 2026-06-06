@@ -21,6 +21,16 @@ async def create_chat_session(
     return session
 
 
+async def rename_chat_session(db: AsyncSession, session_id: str, title: str) -> ChatSession | None:
+    session = await get_chat_session(db, session_id)
+    if not session:
+        return None
+    session.title = title
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
 async def get_chat_session(db: AsyncSession, session_id: str) -> ChatSession | None:
     result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
     return result.scalar_one_or_none()

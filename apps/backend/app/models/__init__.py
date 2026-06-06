@@ -1,5 +1,6 @@
 from app.models.user import User
 from app.models.learner_profile import LearnerProfile
+from app.models.topic_folder import TopicFolder  # noqa: F401 — must be before Topic for FK
 from app.models.topic import Topic
 from app.models.capsule import Capsule
 from app.models.review_question import ReviewQuestion
@@ -38,4 +39,5 @@ __all__ = [
     "SubmissionAttachment",
     "ChatSession", "ChatMessage", "ChatAttachment",
     "ApiKey",
+    "TopicFolder",
 ]

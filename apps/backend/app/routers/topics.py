@@ -19,6 +19,8 @@ from app.models.review_question import ReviewQuestion
 from app.models.topic_material import TopicMaterial
 from app.models.learning_event import LearningEvent
 from app.models.llm_usage_log import LlmUsageLog
+from app.models.topic_folder import TopicFolder
+from app.models.topic import Topic as TopicModel
 from app.services.sse_bridge import create_stream, get_stream, remove_stream, stream_from_queue
 from app.services.content_reduction import (
     SINGLE_PASS_LIMIT as _SINGLE_PASS_LIMIT,
@@ -71,6 +73,88 @@ async def complete_topic(topic_id: str, data: TopicCompleteRequest, db: AsyncSes
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
     return topic
+
+
+# ── Topic update (rename / move to folder) ───────────────────────────────────
+
+class TopicUpdate(BaseModel):
+    name: str | None = None
+    folder_id: str | None = None  # pass "" to remove from folder
+
+
+@router.patch("/topics/{topic_id}", response_model=TopicOut)
+async def update_topic(topic_id: str, data: TopicUpdate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(TopicModel).where(TopicModel.id == topic_id))
+    topic = result.scalar_one_or_none()
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    if data.name is not None:
+        topic.name = data.name.strip() or topic.name
+    if data.folder_id is not None:
+        topic.folder_id = data.folder_id or None
+    await db.commit()
+    await db.refresh(topic)
+    return topic
+
+
+# ── Topic folders ─────────────────────────────────────────────────────────────
+
+class FolderCreate(BaseModel):
+    user_id: str
+    name: str
+
+
+class FolderRename(BaseModel):
+    name: str
+
+
+class FolderOut(BaseModel):
+    model_config = {"from_attributes": True}
+    id: str
+    user_id: str
+    name: str
+    created_at: str
+
+
+@router.get("/topic-folders", response_model=list[FolderOut])
+async def list_folders(user_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(TopicFolder)
+        .where(TopicFolder.user_id == user_id)
+        .order_by(TopicFolder.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+@router.post("/topic-folders", response_model=FolderOut, status_code=201)
+async def create_folder(data: FolderCreate, db: AsyncSession = Depends(get_db)):
+    folder = TopicFolder(user_id=data.user_id, name=data.name.strip() or "Папка")
+    db.add(folder)
+    await db.commit()
+    await db.refresh(folder)
+    return folder
+
+
+@router.patch("/topic-folders/{folder_id}", response_model=FolderOut)
+async def rename_folder(folder_id: str, data: FolderRename, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(TopicFolder).where(TopicFolder.id == folder_id))
+    folder = result.scalar_one_or_none()
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    folder.name = data.name.strip() or folder.name
+    await db.commit()
+    await db.refresh(folder)
+    return folder
+
+
+@router.delete("/topic-folders/{folder_id}", status_code=204)
+async def delete_folder(folder_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(TopicFolder).where(TopicFolder.id == folder_id))
+    folder = result.scalar_one_or_none()
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    await db.delete(folder)
+    await db.commit()
 
 
 # ── Material models ───────────────────────────────────────────────────────────

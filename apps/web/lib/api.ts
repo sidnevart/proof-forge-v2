@@ -126,12 +126,20 @@ export const mastery = {
 }
 
 // ── Topics ──
+export type TopicFolder = {
+  id: string
+  user_id: string
+  name: string
+  created_at: string
+}
+
 export type Topic = {
   id: string
   user_id: string
   name: string
   status: 'active' | 'completed'
   started_at: string
+  folder_id?: string | null
 }
 
 export type TopicMaterial = {
@@ -197,6 +205,28 @@ export const topics = {
     ),
   capsuleEventsUrl: (topicId: string, capsuleId: string) =>
     sseUrl(`/api/topics/${topicId}/capsule/events?capsule_id=${capsuleId}`),
+  update: (topicId: string, data: { name?: string; folderId?: string | null }) =>
+    req<Topic>(`/api/topics/${topicId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name: data.name, folder_id: data.folderId }),
+    }),
+}
+
+export const folders = {
+  list: (userId: string) =>
+    req<TopicFolder[]>(`/api/topic-folders?user_id=${userId}`),
+  create: (userId: string, name: string) =>
+    req<TopicFolder>('/api/topic-folders', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, name }),
+    }),
+  rename: (folderId: string, name: string) =>
+    req<TopicFolder>(`/api/topic-folders/${folderId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+  delete: (folderId: string) =>
+    req<void>(`/api/topic-folders/${folderId}`, { method: 'DELETE' }),
 }
 
 // ── Capsules ──
@@ -473,6 +503,11 @@ export const chat = {
     }),
   listMessages: (sessionId: string) =>
     req<ChatMessage[]>(`/api/chat/sessions/${sessionId}/messages`),
+  renameSession: (sessionId: string, title: string) =>
+    req<ChatSession>(`/api/chat/sessions/${sessionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title }),
+    }),
 }
 
 // ── Analytics ──

@@ -46,10 +46,14 @@ export function MarkdownRenderer({ children, components }: MarkdownRendererProps
         // Default heading/text rhythm for the conspect (Theory tab). Callers that pass
         // their own `components` (e.g. the compact chat bubble) override these below.
         h2({ children }) {
-          return <h2 className="font-display text-lg font-bold text-ink mt-8 mb-3 pb-2 border-b border-line/60">{children}</h2>
+          const text = typeof children === 'string' ? children : String(children ?? '')
+          const id = text.toLowerCase().replace(/[^\wа-яё]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+          return <h2 id={id} className="font-display text-lg font-bold text-ink mt-8 mb-3 pb-2 border-b border-line/60 scroll-mt-4">{children}</h2>
         },
         h3({ children }) {
-          return <h3 className="font-semibold text-ink mt-6 mb-2">{children}</h3>
+          const text = typeof children === 'string' ? children : String(children ?? '')
+          const id = text.toLowerCase().replace(/[^\wа-яё]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+          return <h3 id={id} className="font-semibold text-ink mt-6 mb-2 scroll-mt-4">{children}</h3>
         },
         p({ children }) {
           return <p className="text-ink/90 leading-relaxed mb-3 last:mb-0">{children}</p>

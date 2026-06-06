@@ -13,3 +13,6 @@ class Topic(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, default="active")
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    folder_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("topic_folders.id", ondelete="SET NULL"), nullable=True
+    )

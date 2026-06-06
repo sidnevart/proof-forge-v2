@@ -372,6 +372,25 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
     return ChatSessionOut.model_validate(session)
 
 
+class ChatSessionRename(BaseModel):
+    title: str
+
+
+@router.patch("/chat/sessions/{session_id}", response_model=ChatSessionOut)
+async def rename_session(
+    session_id: str,
+    data: ChatSessionRename,
+    db: AsyncSession = Depends(get_db),
+):
+    title = data.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title cannot be empty")
+    session = await chat_repo.rename_chat_session(db, session_id, title)
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    return ChatSessionOut.model_validate(session)
+
+
 @router.post("/chat/sessions/{session_id}/messages", response_model=ChatMessageOut, status_code=201)
 async def create_message(
     session_id: str,

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { clearSession } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
-import { practice, type StudySession } from '@/lib/api'
+import { practice, topics, folders, type StudySession, type Topic, type TopicFolder } from '@/lib/api'
 import { getStoredUser } from '@/lib/auth'
 import { useT } from '@/lib/i18n'
 import { LocaleToggle } from '@/components/LocaleToggle'
@@ -45,7 +45,14 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
   const router = useRouter()
   const storedUser = getStoredUser()
   const [studySessions, setStudySessions] = useState<StudySession[]>([])
+  const [allTopics, setAllTopics] = useState<Topic[]>([])
+  const [allFolders, setAllFolders] = useState<TopicFolder[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
+  // Folder creation inline
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  // Collapsed folders
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const t = useT()
 
   const navItems = [
@@ -57,18 +64,43 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
 
   useEffect(() => {
     if (!storedUser) return
-    practice.listSessions(storedUser.user_id)
-      .then(setStudySessions)
+    Promise.all([
+      practice.listSessions(storedUser.user_id),
+      topics.list(storedUser.user_id),
+      folders.list(storedUser.user_id),
+    ])
+      .then(([sessions, topicList, folderList]) => {
+        setStudySessions(sessions)
+        setAllTopics(topicList)
+        setAllFolders(folderList)
+      })
       .catch(() => {})
       .finally(() => setSessionsLoading(false))
   }, [storedUser?.user_id])
+
+  const handleCreateFolder = async () => {
+    if (!storedUser || !newFolderName.trim()) return
+    const folder = await folders.create(storedUser.user_id, newFolderName.trim())
+    setAllFolders((prev) => [...prev, folder])
+    setNewFolderName('')
+    setCreatingFolder(false)
+  }
+
+  const toggleCollapse = (id: string) =>
+    setCollapsed((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
 
   const handleLogout = () => {
     clearSession()
     router.push('/login')
   }
 
-  const isStudyActive = pathname.startsWith('/study/') || pathname.startsWith('/practice/')
+  // Map topicId → latest study session
+  const sessionByTopic = studySessions.reduce<Record<string, StudySession>>((acc, s) => {
+    if (!acc[s.topic_id]) acc[s.topic_id] = s
+    return acc
+  }, {})
+
+  const unfoldered = allTopics.filter((tp) => !tp.folder_id)
 
   return (
     <aside className="hidden md:flex flex-col w-56 shrink-0 h-screen sticky top-0 border-r border-line bg-sand/30">
@@ -108,36 +140,92 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
           )
         })}
 
-        {/* Study sessions */}
+        {/* Topics with folders */}
         <div className="pt-3 mt-2 border-t border-line/60">
-          <div className="px-2 py-1 text-[10px] font-mono text-mute uppercase tracking-wider mb-1">
-            {t('nav.sessions')}
+          <div className="flex items-center px-2 py-1 mb-1">
+            <span className="text-[10px] font-mono text-mute uppercase tracking-wider flex-1">{t('nav.sessions')}</span>
+            <button
+              onClick={() => setCreatingFolder(true)}
+              title="Новая папка"
+              className="text-mute hover:text-ink transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+                <line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
+              </svg>
+            </button>
           </div>
+
+          {/* New folder input */}
+          {creatingFolder && (
+            <div className="flex gap-1 px-2 mb-1">
+              <input
+                autoFocus
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') setCreatingFolder(false) }}
+                placeholder="Имя папки"
+                className="flex-1 text-xs px-2 py-1 rounded-lg border border-line bg-card text-ink focus:outline-none focus:border-accent/60"
+              />
+              <button onClick={handleCreateFolder} className="text-accent text-xs px-1">✓</button>
+              <button onClick={() => setCreatingFolder(false)} className="text-mute text-xs px-1">✕</button>
+            </div>
+          )}
+
           {sessionsLoading ? (
             <div className="px-2 py-1.5 text-xs text-mute animate-pulse">{t('nav.loading')}</div>
-          ) : studySessions.length === 0 ? (
-            <div className="px-2 py-1.5 text-xs text-mute/60">{t('nav.noSessions')}</div>
           ) : (
             <div className="space-y-0.5">
-              {studySessions.slice(0, 6).map((s) => {
-                const active = pathname === `/study/${s.id}`
-                const title = s.conspect_md.slice(0, 40).replace(/^#+\s*/, '') || t('nav.sessionFallback')
+              {/* Folders */}
+              {allFolders.map((folder) => {
+                const folderTopics = allTopics.filter((tp) => tp.folder_id === folder.id)
+                const isCollapsed = collapsed.has(folder.id)
                 return (
-                  <Link
-                    key={s.id}
-                    href={`/study/${s.id}`}
-                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${
-                      active ? 'bg-accentsoft text-accent font-medium' : 'text-mute hover:text-ink hover:bg-card'
-                    }`}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/>
-                    </svg>
-                    <span className="truncate">{title}</span>
-                    {s.status === 'completed' && <span className="ml-auto text-[9px] opacity-50">✓</span>}
+                  <div key={folder.id}>
+                    <button
+                      onClick={() => toggleCollapse(folder.id)}
+                      className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg text-xs text-mute hover:text-ink hover:bg-card transition-colors"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`shrink-0 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>
+                        <polyline points="9 18 15 12 9 6"/>
+                      </svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+                        <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+                      </svg>
+                      <span className="truncate font-medium">{folder.name}</span>
+                      <span className="ml-auto text-[10px] opacity-50">{folderTopics.length}</span>
+                    </button>
+                    {!isCollapsed && folderTopics.map((tp) => {
+                      const s = sessionByTopic[tp.id]
+                      const href = s ? `/study/${s.id}` : `/topics/${tp.id}`
+                      const active = pathname.startsWith(`/study/${s?.id}`) || pathname === `/topics/${tp.id}`
+                      return (
+                        <Link key={tp.id} href={href} className={`flex items-center gap-2 pl-7 pr-2 py-1.5 rounded-lg text-xs transition-colors ${active ? 'bg-accentsoft text-accent font-medium' : 'text-mute hover:text-ink hover:bg-card'}`}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                          <span className="truncate">{tp.name}</span>
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+
+              {/* Unfoldered topics */}
+              {unfoldered.slice(0, 8).map((tp) => {
+                const s = sessionByTopic[tp.id]
+                const href = s ? `/study/${s.id}` : `/topics/${tp.id}`
+                const active = pathname.startsWith(`/study/${s?.id}`) || pathname === `/topics/${tp.id}`
+                return (
+                  <Link key={tp.id} href={href} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${active ? 'bg-accentsoft text-accent font-medium' : 'text-mute hover:text-ink hover:bg-card'}`}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                    <span className="truncate">{tp.name}</span>
                   </Link>
                 )
               })}
+
+              {allTopics.length === 0 && allFolders.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-mute/60">{t('nav.noSessions')}</div>
+              )}
             </div>
           )}
         </div>
