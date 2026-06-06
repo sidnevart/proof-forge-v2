@@ -137,6 +137,14 @@ export default function StudySessionPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, sending])
 
+  // Reset selected task when switching away from practice tab
+  useEffect(() => {
+    if (activeTab !== 'practice') {
+      setSelectedTask(null)
+      setSolution('')
+    }
+  }, [activeTab])
+
   const sendMessage = useCallback(async () => {
     const text = input.trim()
     if (!text || sending || !user || !chatSession) return
@@ -207,14 +215,6 @@ export default function StudySessionPage() {
 
   const generationFallback = searchParams.get('generation') === 'fallback'
   const generationReason = searchParams.get('reason')
-
-  // Reset selected task when switching away from practice tab
-  useEffect(() => {
-    if (activeTab !== 'practice') {
-      setSelectedTask(null)
-      setSolution('')
-    }
-  }, [activeTab])
 
   const TABS = ['chat', 'theory', 'practice', 'capsule'] as const
 
