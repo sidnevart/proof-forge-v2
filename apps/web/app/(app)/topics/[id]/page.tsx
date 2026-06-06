@@ -11,6 +11,14 @@ import { useT, useLocale, ruPlural } from '@/lib/i18n'
 
 const ACCEPT = '.md,.py,.java,.csv,.txt,.js,.ts,.go,.rs,.c,.cpp,.h,.json,.yaml,.yml,.toml,.sh,.sql,.rb,.php,.kt,.pdf'
 
+// ── Learning strategy presets (mirror app/services/strategy_presets.py) ───────
+const STRATEGY_PRESETS = [
+  { key: 'deep_dive', icon: '🧠', labelKey: 'strategy.deepDive', descKey: 'strategy.deepDive.desc' },
+  { key: 'practical_sprint', icon: '⚡', labelKey: 'strategy.sprint', descKey: 'strategy.sprint.desc' },
+  { key: 'exam_cram', icon: '🎯', labelKey: 'strategy.cram', descKey: 'strategy.cram.desc' },
+  { key: 'gentle_intro', icon: '🌱', labelKey: 'strategy.gentle', descKey: 'strategy.gentle.desc' },
+] as const
+
 export default function TopicPage() {
   const { id: topicId } = useParams<{ id: string }>()
   const router = useRouter()
@@ -32,6 +40,7 @@ export default function TopicPage() {
 
   const [startingStudy, setStartingStudy] = useState(false)
   const [studyError, setStudyError] = useState('')
+  const [strategy, setStrategy] = useState<string>('deep_dive')
 
   const loadTopic = useCallback(async () => {
     if (!user) return
@@ -107,7 +116,7 @@ export default function TopicPage() {
     setStartingStudy(true)
     setStudyError('')
     try {
-      const result = await practice.startSession(user.user_id, topic.id)
+      const result = await practice.startSession(user.user_id, topic.id, { preset: strategy })
       router.push(`/study/${result.session.id}`)
     } catch (err: unknown) {
       setStudyError(err instanceof Error ? err.message : t('topic.startError'))
@@ -263,6 +272,32 @@ export default function TopicPage() {
         <div className="text-xs font-mono text-accent mb-1">New flow</div>
         <h2 className="font-display text-xl font-bold text-ink mb-2">{t('topic.study.title')}</h2>
         <p className="text-sm text-mute mb-4">{t('topic.study.desc')}</p>
+
+        {/* Learning strategy */}
+        <div className="mb-4">
+          <div className="text-xs font-medium text-ink mb-2">{t('strategy.title')}</div>
+          <div className="grid grid-cols-2 gap-2">
+            {STRATEGY_PRESETS.map((preset) => (
+              <button
+                key={preset.key}
+                type="button"
+                onClick={() => setStrategy(preset.key)}
+                className={`flex items-start gap-2 p-2.5 rounded-xl border text-left transition-all ${
+                  strategy === preset.key
+                    ? 'border-accent bg-accentsoft/50 ring-1 ring-accent/30'
+                    : 'border-line bg-card hover:border-accent/40'
+                }`}
+              >
+                <span className="text-base leading-none mt-0.5">{preset.icon}</span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-ink leading-tight">{t(preset.labelKey)}</p>
+                  <p className="text-[11px] text-mute mt-0.5 leading-snug">{t(preset.descKey)}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <button
           onClick={handleStartStudy}
           disabled={startingStudy}
