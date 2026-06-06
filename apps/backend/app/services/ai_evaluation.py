@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings as app_settings
 from app.models import IdeSubmission
-from app.repositories import practice_repo
+from app.repositories import practice_repo, review_repo
 from app.schemas.practice import EvaluationCreate, FollowUpCreate
 from app.services.evaluation_prompt import get_evaluation_system_prompt
 from app.services.llm_utils import http_post_with_retry
@@ -189,6 +189,17 @@ async def evaluate_submission_ai(db: AsyncSession, submission: IdeSubmission):
             next_action=next_action,
         ),
     )
+
+    # Propagate weak_spots to the WeakSpot table
+    for ws in (weak_spots or []):
+        if ws and ws.get("concept"):
+            await review_repo.upsert_weak_spot(
+                db,
+                user_id=submission.user_id,
+                topic_id=task.topic_id,
+                concept=ws["concept"],
+                severity=float(ws.get("severity", 1.0)),
+            )
 
     if status == "passed":
         for fu in (parsed.get("follow_ups") or [])[:2]:

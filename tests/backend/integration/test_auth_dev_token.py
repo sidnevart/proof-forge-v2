@@ -86,3 +86,34 @@ async def test_send_link_returns_502_in_production_without_transport(client, mon
         json={"email": "prod-login@example.com", "display_name": "ProdLogin"},
     )
     assert res.status_code == 502, res.text
+
+
+@pytest.mark.asyncio
+async def test_api_key_auth_on_practice_endpoint(client):
+    """Generate a key via the API, then use X-Api-Key header to call
+    GET /api/practice-tasks?status=active, assert 200."""
+    # 1. Get a JWT via dev-token
+    dev_res = await client.post(
+        "/api/auth/dev-token",
+        json={"email": "apikey-practice@example.com", "display_name": "ApiKey Practice"},
+    )
+    assert dev_res.status_code == 200, dev_res.text
+    jwt = dev_res.json()["access_token"]
+    user_id = dev_res.json()["user_id"]
+
+    # 2. Create an API key using the JWT
+    create_res = await client.post(
+        "/api/auth/api-keys",
+        json={"name": "plugin-test-key"},
+        headers={"Authorization": f"Bearer {jwt}"},
+    )
+    assert create_res.status_code == 201, create_res.text
+    raw_key = create_res.json()["raw_key"]
+
+    # 3. Use X-Api-Key header to call practice endpoint
+    tasks_res = await client.get(
+        f"/api/practice-tasks?status=active&user_id={user_id}",
+        headers={"X-Api-Key": raw_key},
+    )
+    assert tasks_res.status_code == 200, tasks_res.text
+    assert isinstance(tasks_res.json(), list)

@@ -1,16 +1,49 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.database import get_db
-from app.repositories import user_repo, auth_repo
+from app.database import get_db, async_session_factory
+from app.repositories import user_repo, auth_repo, api_key_repo
 from app.services import jwt as jwt_service, email as email_service
-from app.schemas.auth import SendLinkRequest, SendLinkResponse, VerifyRequest, VerifyResponse, MeResponse
+from app.schemas.auth import (
+    SendLinkRequest, SendLinkResponse, VerifyRequest, VerifyResponse, MeResponse,
+    ApiKeyCreateResponse, ApiKeyOut,
+)
 from app.models.learning_event import LearningEvent
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+async def require_auth(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> str:
+    """Return the authenticated user_id, using either a Bearer JWT or an X-Api-Key header.
+
+    Attach as a FastAPI dependency on endpoints that need authentication.
+    ``user_id`` is also stored on ``request.state.user_id`` so endpoints can
+    access it without an explicit parameter.
+    """
+    # 1. Bearer JWT (web frontend)
+    if credentials:
+        payload = jwt_service.decode_token(credentials.credentials)
+        if payload:
+            uid = payload["sub"]
+            request.state.user_id = uid
+            return uid
+
+    # 2. X-Api-Key header (IDE plugins / programmatic access)
+    raw = request.headers.get("X-Api-Key")
+    if raw:
+        async with async_session_factory() as db:
+            uid = await api_key_repo.validate_key(db, raw)
+        if uid:
+            request.state.user_id = uid
+            return uid
+
+    raise HTTPException(status_code=401, detail="Не авторизован")
 
 
 @router.post("/send-link", response_model=SendLinkResponse)
@@ -87,3 +120,44 @@ async def dev_token(data: SendLinkRequest, db: AsyncSession = Depends(get_db)):
         email=user.email,
         display_name=user.display_name,
     )
+
+
+# ── API keys (IDE plugins) ─────────────────────────────────────────────────
+
+@router.post("/api-keys", response_model=ApiKeyCreateResponse, status_code=201)
+async def create_api_key(
+    data: dict,
+    user_id: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a new API key. The raw key is returned ONCE — save it now."""
+    key, raw = await api_key_repo.create_key(db, user_id, data.get("name", ""))
+    return ApiKeyCreateResponse(
+        id=key.id,
+        name=key.name,
+        raw_key=raw,
+        created_at=key.created_at,
+    )
+
+
+@router.get("/api-keys", response_model=list[ApiKeyOut])
+async def list_api_keys(
+    user_id: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    keys = await api_key_repo.list_keys(db, user_id)
+    return [
+        ApiKeyOut(id=k.id, name=k.name, created_at=k.created_at, last_used_at=k.last_used_at)
+        for k in keys
+    ]
+
+
+@router.delete("/api-keys/{key_id}", status_code=204)
+async def revoke_api_key(
+    key_id: str,
+    user_id: str = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    ok = await api_key_repo.revoke_key(db, key_id, user_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Ключ не найден")

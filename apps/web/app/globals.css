@@ -90,6 +90,25 @@ body::after {
   transition: border-color 0.2s;
 }
 .surface-hover:hover { border-color: rgb(var(--accent) / 0.4); }
+.surface-raised { box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 12px rgba(0,0,0,.08); }
+
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-area-top    { padding-top:    env(safe-area-inset-top,    0px); }
+
+.icon-btn {
+  min-width: 44px; min-height: 44px;
+  border-radius: 0.75rem;
+  border: 1px solid rgb(var(--line));
+  background: rgb(var(--card));
+  display: inline-flex; align-items: center; justify-content: center;
+  color: rgb(var(--mute));
+  transition: color .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.icon-btn:hover { color: rgb(var(--ink)); border-color: rgb(var(--accent) / 0.4); }
+.icon-btn:disabled { opacity: 0.4; }
+
+input::placeholder, textarea::placeholder { color: rgb(var(--mute) / 0.65); }
 
 .btn-press:active { transform: translateY(1px); }
 

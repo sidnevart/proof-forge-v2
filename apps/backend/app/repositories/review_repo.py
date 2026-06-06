@@ -6,6 +6,41 @@ from app.models import ReviewAttempt, ReviewQuestion, WeakSpot, Capsule
 from app.schemas.review import ReviewAnswerCreate
 
 
+async def upsert_weak_spot(
+    db: AsyncSession,
+    user_id: str,
+    topic_id: str,
+    concept: str,
+    severity: float = 1.0,
+) -> WeakSpot:
+    """Insert or update a weak_spot row.
+
+    If a row with the same (user_id, topic_id, concept) already exists its
+    severity is incremented; otherwise a new row is created.
+    """
+    existing = await db.execute(
+        select(WeakSpot).where(
+            WeakSpot.user_id == user_id,
+            WeakSpot.topic_id == topic_id,
+            WeakSpot.concept == concept,
+        )
+    )
+    ws = existing.scalar_one_or_none()
+    if ws:
+        ws.severity = min(ws.severity + severity, 5.0)
+    else:
+        ws = WeakSpot(
+            user_id=user_id,
+            topic_id=topic_id,
+            concept=concept,
+            severity=severity,
+            detected_at=datetime.now(timezone.utc),
+        )
+        db.add(ws)
+    await db.flush()
+    return ws
+
+
 async def store_review_answer(db: AsyncSession, data: ReviewAnswerCreate) -> ReviewAttempt:
     attempt = ReviewAttempt(
         question_id=data.question_id,

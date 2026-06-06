@@ -8,21 +8,28 @@ import java.net.http.HttpResponse
 class ProofForgeApiClient(private val settings: ProofForgeSettings) {
     private val client = HttpClient.newHttpClient()
 
+    private fun apiKeyHeader(): String {
+        require(settings.apiKey.isNotBlank()) {
+            "Proof Forge API key is required. Generate one in Dashboard → Settings → API Keys."
+        }
+        return settings.apiKey
+    }
+
     fun listActiveTasks(): String {
-        require(settings.userId.isNotBlank()) { "Proof Forge user id is required" }
         val request = HttpRequest.newBuilder()
             .uri(URI.create("${settings.apiBaseUrl}/api/practice-tasks?user_id=${settings.userId}&status=active"))
+            .header("X-Api-Key", apiKeyHeader())
             .GET()
             .build()
         return client.send(request, HttpResponse.BodyHandlers.ofString()).body()
     }
 
     fun pair(ideProduct: String, pluginVersion: String): String {
-        require(settings.userId.isNotBlank()) { "Proof Forge user id is required" }
         val json = """{"user_id":"${settings.userId}","ide":"jetbrains","ide_product":"$ideProduct","plugin_version":"$pluginVersion"}"""
         val request = HttpRequest.newBuilder()
             .uri(URI.create("${settings.apiBaseUrl}/api/ide-sessions/pair"))
             .header("Content-Type", "application/json")
+            .header("X-Api-Key", apiKeyHeader())
             .POST(HttpRequest.BodyPublishers.ofString(json))
             .build()
         return client.send(request, HttpResponse.BodyHandlers.ofString()).body()
@@ -32,6 +39,7 @@ class ProofForgeApiClient(private val settings: ProofForgeSettings) {
         val request = HttpRequest.newBuilder()
             .uri(URI.create("${settings.apiBaseUrl}/api/practice-tasks/$taskId/submissions"))
             .header("Content-Type", "application/json")
+            .header("X-Api-Key", apiKeyHeader())
             .POST(HttpRequest.BodyPublishers.ofString(payloadJson))
             .build()
         return client.send(request, HttpResponse.BodyHandlers.ofString()).body()

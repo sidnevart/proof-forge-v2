@@ -42,6 +42,21 @@ export const auth = {
     req<{ user_id: string; email: string; display_name: string }>('/api/auth/me'),
 }
 
+// ── API Keys (IDE plugins) ──
+export type ApiKeyOut = { id: string; name: string; created_at: string; last_used_at: string | null }
+export type ApiKeyCreateResponse = ApiKeyOut & { raw_key: string }
+
+export const apiKeys = {
+  create: (name?: string) =>
+    req<ApiKeyCreateResponse>('/api/auth/api-keys', {
+      method: 'POST',
+      body: JSON.stringify({ name: name || '' }),
+    }),
+  list: () => req<ApiKeyOut[]>('/api/auth/api-keys'),
+  revoke: (keyId: string) =>
+    req<void>(`/api/auth/api-keys/${keyId}`, { method: 'DELETE' }),
+}
+
 // ── Cards ──
 export type DueCard = {
   source: 'capsule' | 'topic'

@@ -67,10 +67,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         )}
 
-        <main className={`flex-1 min-w-0 pb-20 md:pb-0 ${fixedViewport ? 'h-dvh overflow-hidden' : ''}`}>
+        <main className={`flex-1 min-w-0 ${fixedViewport ? 'h-dvh overflow-hidden' : 'pb-20 md:pb-0'}`}>
           {children}
         </main>
-        <AppBottomNav />
+        {/* Hide bottom nav on full-height study/learn pages — they have their own input areas */}
+        {!fixedViewport && <AppBottomNav />}
       </div>
     </DrawerContext.Provider>
   )

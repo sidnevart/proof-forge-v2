@@ -25,6 +25,7 @@ from app.models.evaluation import Evaluation, FollowUp
 from app.models.submission_attachment import SubmissionAttachment
 from app.models.chat_session import ChatSession, ChatMessage
 from app.models.chat_attachment import ChatAttachment  # noqa: F401
+from app.models.api_key import ApiKey
 
 __all__ = [
     "User", "LearnerProfile", "Topic", "Capsule",
@@ -36,4 +37,5 @@ __all__ = [
     "StudySession", "PracticeTask", "IdeSession", "IdeSubmission", "Evaluation", "FollowUp",
     "SubmissionAttachment",
     "ChatSession", "ChatMessage", "ChatAttachment",
+    "ApiKey",
 ]

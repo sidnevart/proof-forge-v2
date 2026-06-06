@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Grasp — AI-ментор для IT-специалистов | Учись и помни</title>
-<meta name="description" content="Grasp — персональный AI-ментор для разработчиков. Изучай архитектуру, алгоритмы, системный дизайн — с практикой под твой уровень и spaced repetition, чтобы не забыть.">
-<meta name="keywords" content="AI-обучение, программирование, разработка, системный дизайн, алгоритмы, spaced repetition, анки, технические навыки">
+<meta name="description" content="Grasp — AI-ментор для разработчиков: spaced repetition, практика, поиск пробелов в знаниях. Лучше чем ChatGPT для обучения — структурированные конспекты, задачи под твой уровень, трекинг прогресса. AI learning platform для тех, кто учится всерьёз.">
+<meta name="keywords" content="AI-обучение, spaced repetition для разработчиков, AI learning platform, лучше чем ChatGPT для обучения, программирование, разработка, системный дизайн, алгоритмы, анки, технические навыки, поиск пробелов в знаниях">
 <meta name="author" content="Grasp">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://proof-forge.ru">
@@ -13,7 +13,7 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://proof-forge.ru">
 <meta property="og:title" content="Grasp — AI-ментор для IT-специалистов">
-<meta property="og:description" content="Изучай архитектуру, алгоритмы, Go, Kubernetes, System Design — с практикой и spaced repetition. Grasp помнит, что ты учил, и возвращает к материалу в нужный момент.">
+<meta property="og:description" content="Grasp — AI learning platform для разработчиков. Spaced repetition, практика, поиск слабых мест, структурированные конспекты с диаграммами. Лучше чем ChatGPT для обучения.">
 <meta property="og:image" content="https://proof-forge.ru/og-image.png">
 
 <meta name="twitter:card" content="summary_large_image">
@@ -263,7 +263,7 @@ tailwind.config = { theme: { extend: {
     <span data-en="Learn it so it ">Учись так, чтобы </span><span class="ital" data-en="sticks.">помнить.</span>
   </h1>
 
-  <p class="mt-8 max-w-xl text-lg sm:text-xl text-mute leading-relaxed reveal" data-en="Your AI mentor. Explains any topic, gives practice at your level — and helps you not forget it.">Твой AI-ментор. Разберёт любую тему, даст практику под твой уровень — и поможет не забыть.</p>
+  <p class="mt-8 max-w-xl text-lg sm:text-xl text-mute leading-relaxed reveal" data-en="Your AI mentor that builds structured conspects with diagrams, gives practice at your level, detects weak spots — and makes sure you actually remember.">Твой AI-ментор: строит структурированные конспекты со схемами, даёт практику под твой уровень, находит пробелы в знаниях — и делает так, чтобы ты реально помнил.</p>
 
   <div class="mt-9 flex flex-wrap items-center gap-3 reveal">
     <a href="https://app.proof-forge.ru/login" data-en-href="https://app.proof-forge.ru/login" class="group px-6 py-3.5 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition shadow-[0_14px_40px_-12px_rgba(61,220,145,.5)]" data-track="hero_cta_webapp">
@@ -276,6 +276,7 @@ tailwind.config = { theme: { extend: {
     <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="🖥️ Web app">🖥️ Веб-приложение</span>
     <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="📱 Works on phone">📱 Работает на телефоне</span>
     <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="🧠 Smart repetition">🧠 Умное повторение</span>
+    <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium" data-en="🔍 Finds your weak spots">🔍 Находит пробелы</span>
     <span class="px-3.5 py-1.5 rounded-full bg-card border border-line text-sm font-medium text-mute/80" data-en="🔌 VS Code &amp; JetBrains (optional)">🔌 VS Code &amp; JetBrains (необязательно)</span>
   </div>
 
@@ -506,28 +507,127 @@ tailwind.config = { theme: { extend: {
 <section id="how" class="border-y border-line bg-sand/40">
   <div class="max-w-6xl mx-auto px-5 py-24">
     <div class="font-mono text-xs text-accent tracking-widest">02 — <span data-en="HOW IT WORKS">КАК РАБОТАЕТ</span></div>
-    <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 max-w-2xl" data-en="Four steps, one result">Четыре шага, один результат</h2>
-    <p class="text-mute mt-3 max-w-md" data-en="From the first look to explaining it yourself.">От первого знакомства до уверенного объяснения.</p>
+    <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 max-w-2xl" data-en="Structure. Practice. Reinforce. Detect.">Структурирует. Тренирует. Закрепляет. Находит пробелы.</h2>
+    <p class="text-mute mt-3 max-w-md" data-en="Four verbs, one goal — you can explain the topic to anyone.">Четыре глагола — одна цель: ты можешь объяснить тему любому.</p>
     <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
       <div class="card rounded-2xl p-6 reveal">
         <div class="font-display text-5xl font-bold text-line">01</div>
-        <h3 class="font-display text-xl font-semibold mt-2" data-en="Explains">Объясняет</h3>
-        <p class="text-sm text-mute mt-2" data-en="Breaks the topic down in plain language, with diagrams and real examples.">Разбирает тему простым языком, со схемами и живыми примерами.</p>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Structures">Структурирует</h3>
+        <p class="text-sm text-mute mt-2" data-en="Turns any topic into a clear conspect — with diagrams, code snippets, and real examples.">Превращает любую тему в понятный конспект — со схемами, кодом и живыми примерами.</p>
       </div>
       <div class="card rounded-2xl p-6 reveal">
         <div class="font-display text-5xl font-bold text-line">02</div>
-        <h3 class="font-display text-xl font-semibold mt-2" data-en="Gives practice">Даёт практику</h3>
-        <p class="text-sm text-mute mt-2" data-en="Tasks tuned to your level — the kind that actually make you think.">Задачи под твой уровень — те, что реально заставляют думать.</p>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Trains">Тренирует</h3>
+        <p class="text-sm text-mute mt-2" data-en="Generates practice tasks calibrated to your level — you think, not guess.">Генерирует задачи, откалиброванные под твой уровень — ты думаешь, а не угадываешь.</p>
       </div>
       <div class="card rounded-2xl p-6 reveal">
         <div class="font-display text-5xl font-bold text-line">03</div>
-        <h3 class="font-display text-xl font-semibold mt-2" data-en="Brings it back">Возвращает к теме</h3>
-        <p class="text-sm text-mute mt-2" data-en="Cards and the capsule resurface at the right moment — five minutes a day.">Карточки и капсула всплывают в нужный момент. Пять минут в день.</p>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Reinforces">Закрепляет</h3>
+        <p class="text-sm text-mute mt-2" data-en="Smart scheduling resurfaces cards at the right moment — 5 minutes a day keeps the knowledge alive.">Умное расписание возвращает карточки в нужный момент. 5 минут в день — и знания живут.</p>
       </div>
       <div class="card rounded-2xl p-6 reveal">
         <div class="font-display text-5xl font-bold text-line">04</div>
-        <h3 class="font-display text-xl font-semibold mt-2" data-en="Checks">Проверяет</h3>
-        <p class="text-sm text-mute mt-2" data-en="Interactive review with hints instead of spoilers — until you can explain it yourself.">Интерактивное ревью с подсказками вместо спойлеров — пока не объяснишь сам.</p>
+        <h3 class="font-display text-xl font-semibold mt-2" data-en="Finds gaps">Находит пробелы</h3>
+        <p class="text-sm text-mute mt-2" data-en="Shows what you don't know yet — and gives you the exact task to close that gap.">Показывает, что ты ещё не знаешь — и даёт конкретную задачу, чтобы закрыть пробел.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GRASP VS CHATGPT -->
+<section id="vs" class="max-w-6xl mx-auto px-5 py-24">
+  <div class="font-mono text-xs text-accent tracking-widest">— <span data-en="GRASP VS. CHATGPT">GRASP VS. CHATGPT</span></div>
+  <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 max-w-2xl" data-en="ChatGPT explains. Grasp makes sure you learn.">ChatGPT объясняет. Grasp делает так, чтобы ты выучил.</h2>
+  <p class="text-mute mt-3 max-w-lg" data-en="An LLM is a great explainer — but learning needs structure, practice, and memory. That's the missing half Grasp provides.">LLM — отличный объяснятор. Но учиться — это структура, практика и память. Grasp даёт ту половину, которой нет в чате.</p>
+
+  <div class="mt-10 overflow-x-auto">
+    <table class="w-full text-left border-separate border-spacing-0 rounded-2xl overflow-hidden border border-line">
+      <thead>
+        <tr>
+          <th class="p-4 text-sm font-mono text-mute text-left bg-sand/70 border-b border-line w-2/5" data-en="What you get">Что ты получаешь</th>
+          <th class="p-4 text-sm font-mono text-left bg-sand/70 border-b border-line">
+            <svg class="inline w-4 h-4 mr-1.5 align-middle" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="rgb(var(--accent))" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="rgb(var(--accent))"/></svg>
+            <span class="font-semibold text-ink">Grasp</span>
+          </th>
+          <th class="p-4 text-sm font-mono text-left bg-sand/70 border-b border-line">
+            <span class="font-semibold" data-en="ChatGPT">ChatGPT</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody class="text-sm">
+        <tr>
+          <td class="p-4 border-b border-line text-mute font-medium" data-en="Structured conspect">Структурированный конспект</td>
+          <td class="p-4 border-b border-line text-accent font-semibold" data-en="✓ AI-generated, with diagrams">✓ AI-сгенерирован, со схемами</td>
+          <td class="p-4 border-b border-line text-mute/60" data-en="✗ Raw text, you organize it yourself">✗ Сырой текст, структурируешь сам</td>
+        </tr>
+        <tr>
+          <td class="p-4 border-b border-line text-mute font-medium" data-en="Practice tasks">Практические задания</td>
+          <td class="p-4 border-b border-line text-accent font-semibold" data-en="✓ At your level, with review">✓ Под твой уровень, с проверкой</td>
+          <td class="p-4 border-b border-line text-mute/60" data-en="✗ No practice system">✗ Нет системы практики</td>
+        </tr>
+        <tr>
+          <td class="p-4 border-b border-line text-mute font-medium" data-en="Spaced repetition">Spaced repetition</td>
+          <td class="p-4 border-b border-line text-accent font-semibold" data-en="✓ Smart SM-2 scheduling">✓ Умное расписание SM-2</td>
+          <td class="p-4 border-b border-line text-mute/60" data-en="✗ None">✗ Отсутствует</td>
+        </tr>
+        <tr>
+          <td class="p-4 border-b border-line text-mute font-medium" data-en="Weak spot detection">Поиск пробелов в знаниях</td>
+          <td class="p-4 border-b border-line text-accent font-semibold" data-en="✓ Shows exactly what you don't know">✓ Показывает, что именно ты не знаешь</td>
+          <td class="p-4 border-b border-line text-mute/60" data-en="✗ No tracking">✗ Не отслеживает</td>
+        </tr>
+        <tr>
+          <td class="p-4 border-line text-mute font-medium" data-en="IDE integration">Интеграция с IDE</td>
+          <td class="p-4 text-accent font-semibold" data-en="✓ VS Code &amp; JetBrains">✓ VS Code &amp; JetBrains</td>
+          <td class="p-4 text-mute/60" data-en="✗ Copy-paste only">✗ Только копипаста</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="mt-5 text-xs text-mute text-center font-mono" data-en="Grasp uses LLMs under the hood — but wraps them in a learning system that remembers, tracks, and guides.">Grasp использует LLM под капотом — но оборачивает их в систему обучения, которая помнит, отслеживает и направляет.</p>
+</section>
+
+<!-- YOUR PROGRESS, VISIBLE -->
+<section class="border-y border-line bg-sand/40">
+  <div class="max-w-6xl mx-auto px-5 py-24">
+    <div class="font-mono text-xs text-accent tracking-widest">— <span data-en="YOUR PROGRESS, VISIBLE">ТВОЙ ПРОГРЕСС — ВИДНО</span></div>
+    <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 max-w-2xl" data-en="A fitness tracker for your knowledge">Фитнес-трекер для твоих знаний</h2>
+    <p class="text-mute mt-3 max-w-lg" data-en="Grasp tracks every concept you touch and shows your real understanding — not what you think you know, but what you can actually do.">Grasp отслеживает каждый концепт, к которому ты прикасаешься, и показывает реальное понимание — не то, что тебе кажется, а то, что ты реально умеешь.</p>
+
+    <div class="mt-12 grid lg:grid-cols-4 gap-4">
+      <div class="card rounded-2xl p-6 reveal text-center">
+        <div class="text-3xl mb-3 opacity-50">🔮</div>
+        <div class="font-display text-xl font-semibold" data-en="Unknown">Не знаю</div>
+        <p class="text-sm text-mute mt-2" data-en="Concepts you haven't encountered yet — the territory ahead.">Концепты, которые ещё не встречал — территория впереди.</p>
+      </div>
+      <div class="card rounded-2xl p-6 reveal text-center">
+        <div class="text-3xl mb-3 opacity-70">👀</div>
+        <div class="font-display text-xl font-semibold" data-en="Recognize">Узнаю</div>
+        <p class="text-sm text-mute mt-2" data-en="You've read about it. You can follow along — but can't solve yet.">Прочитал, можешь следить за объяснением — но сам пока не решишь.</p>
+      </div>
+      <div class="card rounded-2xl p-6 reveal text-center" style="border-color:rgb(var(--accent) / .35);background:linear-gradient(135deg,rgba(61,220,145,.06) 0%,transparent 60%)">
+        <div class="text-3xl mb-3">⚡</div>
+        <div class="font-display text-xl font-semibold text-accent" data-en="Apply">Применяю</div>
+        <p class="text-sm text-mute mt-2" data-en="You solve tasks on your own. The concept is becoming a tool.">Решаешь задачи самостоятельно. Концепт становится инструментом.</p>
+      </div>
+      <div class="card rounded-2xl p-6 reveal text-center">
+        <div class="text-3xl mb-3">🎯</div>
+        <div class="font-display text-xl font-semibold" data-en="Explain">Объясняю</div>
+        <p class="text-sm text-mute mt-2" data-en="You can teach it to someone else. Mastery unlocked.">Можешь объяснить другому. Мастерство — разблокировано.</p>
+      </div>
+    </div>
+
+    <div class="mt-10 card rounded-2xl p-7 reveal flex flex-col sm:flex-row items-start sm:items-center gap-5">
+      <div class="shrink-0">
+        <div class="font-mono text-xs text-accent tracking-widest" data-en="YOUR NEXT MOVE">ТВОЙ СЛЕДУЮЩИЙ ШАГ</div>
+        <p class="text-mute mt-1 max-w-md" data-en="Grasp reads your progress map and tells you exactly what to study next — no guesswork, no scrolling through lists.">Grasp читает твою карту прогресса и говорит, что учить дальше — без гаданий и листания списков.</p>
+      </div>
+      <div class="flex items-center gap-3 shrink-0 ml-auto mt-3 sm:mt-0">
+        <div class="flex flex-col items-end">
+          <span class="font-mono text-xs text-accent font-semibold" data-en="Next: close out cancellation">Дальше: закрой cancellation</span>
+          <span class="text-xs text-mute" data-en="One interview-grade task away">Одна задача уровня собеса</span>
+        </div>
+        <div class="w-2 h-2 rounded-full bg-accent animate-pulse"></div>
       </div>
     </div>
   </div>
@@ -599,16 +699,16 @@ tailwind.config = { theme: { extend: {
   <h2 class="font-display text-4xl sm:text-5xl font-bold mt-3 max-w-2xl" data-en="The agent handles everything around learning">Всю рутину вокруг учёбы агент берёт на себя</h2>
   <div class="grid md:grid-cols-3 gap-4 mt-12">
     <div class="card rounded-2xl p-6 reveal">
-      <div class="font-display text-2xl font-bold" data-en="Learn on your phone">Учись с телефона</div>
-      <p class="text-sm text-mute mt-3" data-en="Open Claude and pick up exactly where you left off. No setup, no separate app.">Открыл Claude и продолжил с того места, где остановился. Без настройки и отдельных приложений.</p>
+      <div class="font-display text-2xl font-bold" data-en="Learn anywhere">Учись где угодно</div>
+      <p class="text-sm text-mute mt-3" data-en="Browser, phone, or inside your IDE — pick up exactly where you left off. No sync, no setup.">Браузер, телефон или прямо в IDE — продолжи с того места, где остановился. Без синхронизации и настройки.</p>
     </div>
     <div class="card rounded-2xl p-6 reveal">
-      <div class="font-display text-2xl font-bold" data-en="Nothing to plan">Ничего не планируй</div>
-      <p class="text-sm text-mute mt-3" data-en="No filling cards or building a review schedule. The agent knows your progress and decides what to revisit.">Не заполняй карточки и не выстраивай график повторений. Агент знает твой прогресс и сам решает, что повторить.</p>
+      <div class="font-display text-2xl font-bold" data-en="Zero planning">Ноль планирования</div>
+      <p class="text-sm text-mute mt-3" data-en="No cards to fill, no schedule to build. The agent knows your weak spots and serves the right review at the right time.">Никаких карточек для заполнения, никакого расписания. Агент знает твои пробелы и подаёт повторение в нужный момент.</p>
     </div>
     <div class="card rounded-2xl p-6 reveal">
-      <div class="font-display text-2xl font-bold" data-en="No re-searching">Не ищи по новой</div>
-      <p class="text-sm text-mute mt-3" data-en="The capsule keeps the theory and the tasks. Come back, reread, and see your strengths and gaps at a glance.">Капсула хранит теорию и задачи. Вернулся, перечитал и сразу видишь сильные и слабые места.</p>
+      <div class="font-display text-2xl font-bold" data-en="Always findable">Всегда под рукой</div>
+      <p class="text-sm text-mute mt-3" data-en="Every conspect, task, and review lives in one capsule. Come back anytime — instantly see what you know and what to work on.">Каждый конспект, задача и повторение живут в одной капсуле. Вернись в любой момент — сразу видно, что знаешь и над чем работать.</p>
     </div>
   </div>
 </section>
@@ -731,7 +831,8 @@ tailwind.config = { theme: { extend: {
     <h2 class="font-display text-4xl sm:text-6xl font-bold leading-tight">
       <span data-en="Learn it once.">Учись один раз.</span><br><span class="italic" style="color:rgb(var(--accent))" data-en="Remember it for good.">Помни надолго.</span>
     </h2>
-    <p class="mt-5 max-w-md mx-auto text-base" style="color:rgba(238,244,240,.6)" data-en="Free to use. Open source. Start in 30 seconds.">Бесплатно. Открытый код. Начать за 30 секунд.</p>
+    <p class="mt-5 max-w-md mx-auto text-base" style="color:rgba(238,244,240,.6)" data-en="Start free. No card. 30 seconds.">Начни бесплатно. Без карты. 30 секунд.</p>
+    <p class="mt-2 max-w-md mx-auto text-sm" style="color:rgba(238,244,240,.4)" data-en="Open source. MIT license. Code on GitHub.">Открытый исходный код. MIT лицензия. Код на GitHub.</p>
     <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
       <a href="https://app.proof-forge.ru/login" class="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-accent text-[#06140d] font-semibold btn-press hover:bg-accentdk transition text-lg shadow-[0_14px_40px_-12px_rgba(61,220,145,.45)]" data-en="Open Grasp →" data-track="cta_bottom_webapp">
         Открыть Grasp →

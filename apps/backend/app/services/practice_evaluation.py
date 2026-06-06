@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import IdeSubmission
-from app.repositories import mastery_repo, practice_repo
+from app.repositories import mastery_repo, practice_repo, review_repo
 from app.schemas.practice import EvaluationCreate, FollowUpCreate
 
 
@@ -92,5 +92,16 @@ async def finalize_evaluation_mastery(db: AsyncSession, evaluation_id: str) -> b
             quality_score=evaluation.score,
             struggle_passed=1 if len(follow_ups) >= 2 else 0,
         )
+
+    # Propagate weak_spots from the evaluation JSON to the WeakSpot table
+    for ws in (evaluation.weak_spots or []):
+        if ws and isinstance(ws, dict) and ws.get("concept"):
+            await review_repo.upsert_weak_spot(
+                db,
+                user_id=submission.user_id,
+                topic_id=task.topic_id,
+                concept=ws["concept"],
+                severity=float(ws.get("severity", 1.0)),
+            )
 
     return True

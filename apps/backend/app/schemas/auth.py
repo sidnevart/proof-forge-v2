@@ -27,3 +27,17 @@ class MeResponse(BaseModel):
     user_id: str
     email: str
     display_name: str
+
+
+class ApiKeyCreateResponse(BaseModel):
+    id: str
+    name: str
+    raw_key: str
+    created_at: datetime
+
+
+class ApiKeyOut(BaseModel):
+    id: str
+    name: str
+    created_at: datetime
+    last_used_at: datetime | None = None
