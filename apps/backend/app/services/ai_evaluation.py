@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 _MAX_ATTACHMENT_CHARS = 8000
 _MAX_IMAGES = 4
+_MAX_FILES = 6
 
 
 def _clip(text: str, max_chars: int) -> str:
@@ -56,11 +57,16 @@ def _extract_json(text: str) -> dict:
     return json.loads(text[start:end])
 
 
-def _build_user_content(task, solution_text: str, attachments: list) -> tuple[list | str, bool]:
+def _build_user_content(task, submission: IdeSubmission, attachments: list) -> tuple[list | str, bool]:
     """Build the OpenAI-compatible message content.
 
     Returns ``(content, has_images)``. Without images, content is a plain string
     (text-only model); with images, a list of content parts (vision model).
+
+    The student's answer is assembled from both the free-text reflection AND the
+    IDE evidence fields (command/exit code/test output/diff/files). IDE-plugin
+    submissions carry their work in those columns and create no attachments, so
+    omitting them would make the evaluator grade against an empty answer.
     """
     task_lines = ["## Задание"]
     if task:
@@ -72,8 +78,25 @@ def _build_user_content(task, solution_text: str, attachments: list) -> tuple[li
         if task.expected_evidence:
             task_lines.append("Ожидаемое: " + "; ".join(task.expected_evidence))
 
+    answer_lines = []
+    if submission.reflection and submission.reflection.strip():
+        answer_lines.append(_clip(submission.reflection, _MAX_ATTACHMENT_CHARS))
+    if submission.check_command and submission.check_command.strip():
+        answer_lines.append(f"**Команда проверки:** `{_clip(submission.check_command, 500)}`")
+    if submission.exit_code is not None:
+        answer_lines.append(f"**Exit code:** {submission.exit_code}")
+    if submission.test_output and submission.test_output.strip():
+        answer_lines.append("**Вывод тестов:**\n```\n" + _clip(submission.test_output, _MAX_ATTACHMENT_CHARS) + "\n```")
+    if submission.diff and submission.diff.strip():
+        answer_lines.append("**Diff:**\n```diff\n" + _clip(submission.diff, _MAX_ATTACHMENT_CHARS) + "\n```")
+    for f in (submission.files or [])[:_MAX_FILES]:
+        name = f.get("path") or f.get("name") or "file" if isinstance(f, dict) else "file"
+        body = f.get("content") or f.get("text") or "" if isinstance(f, dict) else str(f)
+        if body:
+            answer_lines.append(f"**Файл: {name}**\n```\n{_clip(body, _MAX_ATTACHMENT_CHARS)}\n```")
+
     parts = ["\n\n".join(task_lines)]
-    parts.append("## Ответ ученика\n" + (_clip(solution_text, _MAX_ATTACHMENT_CHARS) or "(текст не указан)"))
+    parts.append("## Ответ ученика\n" + ("\n\n".join(answer_lines) or "(текст не указан)"))
 
     images = []
     for att in attachments:
@@ -104,7 +127,7 @@ async def evaluate_submission_ai(db: AsyncSession, submission: IdeSubmission):
     if not app_settings.llm_api_key:
         return await evaluate_submission_deterministic(db, submission)
 
-    content, has_images = _build_user_content(task, submission.reflection, attachments)
+    content, has_images = _build_user_content(task, submission, attachments)
     model = app_settings.llm_vision_model if has_images else app_settings.llm_model
     fallback = (
         app_settings.llm_vision_fallback_model if has_images else app_settings.llm_fallback_model

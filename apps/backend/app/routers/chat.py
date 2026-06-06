@@ -414,11 +414,16 @@ async def list_messages(session_id: str, db: AsyncSession = Depends(get_db)):
     return out
 
 
-async def _store_attachments(
-    db: AsyncSession, message_id: str, user_id: str, files: list[UploadFile]
+async def _read_attachments(
+    user_id: str, files: list[UploadFile]
 ) -> list[ChatAttachment]:
-    """Validate and persist uploaded files as ChatAttachment rows."""
-    stored: list[ChatAttachment] = []
+    """Validate and read uploads into in-memory ChatAttachment rows (no DB writes).
+
+    Building the rows before any DB write lets the caller persist the whole turn
+    atomically — a rejected file or a later LLM failure can't leave an orphaned
+    user message behind. ``message_id`` is assigned at persist time.
+    """
+    built: list[ChatAttachment] = []
     real_files = [f for f in files if f and f.filename]
     if len(real_files) > _MAX_ATTACHMENTS:
         raise HTTPException(
@@ -441,27 +446,24 @@ async def _store_attachments(
                 detail=f"Файл слишком большой: {upload.filename} (максимум 8 МБ)",
             )
         if is_image(upload.filename):
-            attachment = ChatAttachment(
-                message_id=message_id,
+            built.append(ChatAttachment(
                 user_id=user_id,
                 name=upload.filename,
                 mime_type=image_mime(upload.filename),
                 kind="image",
                 data_b64=base64.b64encode(data).decode("ascii"),
                 file_size=len(data),
-            )
+            ))
         else:
-            attachment = ChatAttachment(
-                message_id=message_id,
+            built.append(ChatAttachment(
                 user_id=user_id,
                 name=upload.filename,
                 mime_type=upload.content_type or "text/plain",
                 kind="text",
                 content_text=extract_from_bytes(upload.filename, data),
                 file_size=len(data),
-            )
-        stored.append(await chat_repo.add_chat_attachment(db, attachment))
-    return stored
+            ))
+    return built
 
 
 @router.post("/chat/sessions/{session_id}/turn", response_model=ChatTurnOut, status_code=201)
@@ -497,9 +499,9 @@ async def chat_turn(
     except (ValueError, TypeError, KeyError) as exc:
         raise HTTPException(status_code=400, detail="Некорректная история чата") from exc
 
-    # Persist the user message, then its attachments.
-    user_msg = await chat_repo.create_chat_message(db, session_id, "user", message)
-    attachments = await _store_attachments(db, user_msg.id, user_id, files)
+    # Read + validate uploads BEFORE any DB write so a rejected file or a later
+    # LLM failure can't leave an orphaned user message behind.
+    attachments = await _read_attachments(user_id, files)
 
     system = await _compose_system(db, user_id, session.topic_id)
     content, has_images = _build_chat_user_content(message, attachments)
@@ -558,7 +560,10 @@ async def chat_turn(
             status_code=502, detail="LLM error: провайдер вернул пустой ответ"
         )
 
-    assistant_msg = await chat_repo.create_chat_message(db, session_id, "assistant", reply)
+    # LLM reply validated — now persist the whole turn atomically.
+    user_msg, attachments, assistant_msg = await chat_repo.persist_turn(
+        db, session_id, message, attachments, reply
+    )
 
     # Reuse the every-N-user-messages card-generation trigger.
     all_messages = await chat_repo.list_chat_messages(db, session_id)

@@ -32,3 +32,4 @@ class FollowUp(Base):
     user_answer: Mapped[str] = mapped_column(Text, default="")
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     feedback_md: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

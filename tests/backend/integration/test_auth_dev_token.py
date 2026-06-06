@@ -49,3 +49,40 @@ async def test_dev_token_disabled_in_production(client, monkeypatch):
     )
 
     assert res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_send_link_succeeds_in_dev_without_mail_transport(client, monkeypatch):
+    """HIGH-1: with no SMTP/Resend configured, /send-link must return 200 in dev
+    (the console-printed link is the delivery), not 502."""
+    from app.services import email as email_service
+    monkeypatch.setattr(email_service.settings, "app_env", "development")
+    monkeypatch.setattr(email_service.settings, "smtp_host", "")
+    monkeypatch.setattr(email_service.settings, "smtp_user", "")
+    monkeypatch.setattr(email_service.settings, "smtp_password", "")
+    monkeypatch.setattr(email_service.settings, "resend_api_key", "")
+
+    res = await client.post(
+        "/api/auth/send-link",
+        json={"email": "login@example.com", "display_name": "Login"},
+    )
+    assert res.status_code == 200, res.text
+    assert "message" in res.json()
+
+
+@pytest.mark.asyncio
+async def test_send_link_returns_502_in_production_without_transport(client, monkeypatch):
+    """HIGH-1: in production a missing transport is a real failure → 502, not a
+    misleading 'mail sent' 200."""
+    from app.services import email as email_service
+    monkeypatch.setattr(email_service.settings, "app_env", "production")
+    monkeypatch.setattr(email_service.settings, "smtp_host", "")
+    monkeypatch.setattr(email_service.settings, "smtp_user", "")
+    monkeypatch.setattr(email_service.settings, "smtp_password", "")
+    monkeypatch.setattr(email_service.settings, "resend_api_key", "")
+
+    res = await client.post(
+        "/api/auth/send-link",
+        json={"email": "prod-login@example.com", "display_name": "ProdLogin"},
+    )
+    assert res.status_code == 502, res.text

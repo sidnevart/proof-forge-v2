@@ -70,5 +70,8 @@ def send_magic_link(email: str, token: str, display_name: str = "") -> bool:
             print(f"[email] Resend send failed for {email}: {exc!r}")
 
     # 3. Last-resort fallback: log the link so login is still possible in dev.
+    # In dev/test the console-printed link IS the delivery mechanism, so report
+    # success (matches the docstring). In production a missing transport is a real
+    # failure and must surface as a 502 — never tell the user a mail was sent.
     print(f"[email] No working mail transport. Magic link for {email}: {link}")
-    return False
+    return settings.app_env != "production"

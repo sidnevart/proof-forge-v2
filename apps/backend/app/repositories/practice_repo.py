@@ -286,7 +286,9 @@ async def get_follow_up(db: AsyncSession, follow_up_id: str) -> FollowUp | None:
 
 async def list_follow_ups_by_evaluation(db: AsyncSession, evaluation_id: str) -> list[FollowUp]:
     result = await db.execute(
-        select(FollowUp).where(FollowUp.evaluation_id == evaluation_id).order_by(FollowUp.id)
+        select(FollowUp)
+        .where(FollowUp.evaluation_id == evaluation_id)
+        .order_by(FollowUp.created_at.asc())
     )
     return list(result.scalars().all())
 

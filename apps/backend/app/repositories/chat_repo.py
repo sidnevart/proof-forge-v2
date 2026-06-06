@@ -61,6 +61,37 @@ async def add_chat_attachment(db: AsyncSession, attachment: ChatAttachment) -> C
     return attachment
 
 
+async def persist_turn(
+    db: AsyncSession,
+    session_id: str,
+    user_text: str,
+    attachments: list[ChatAttachment],
+    assistant_text: str,
+) -> tuple[ChatMessage, list[ChatAttachment], ChatMessage]:
+    """Persist a full chat turn (user message + attachments + assistant reply) atomically.
+
+    All rows are committed in a single transaction so a failure can't leave an
+    orphaned user message or partial attachments behind.
+    """
+    user_msg = ChatMessage(session_id=session_id, role="user", content=user_text)
+    db.add(user_msg)
+    await db.flush()  # assign user_msg.id without committing
+
+    for att in attachments:
+        att.message_id = user_msg.id
+        db.add(att)
+
+    assistant_msg = ChatMessage(session_id=session_id, role="assistant", content=assistant_text)
+    db.add(assistant_msg)
+
+    await db.commit()
+    await db.refresh(user_msg)
+    await db.refresh(assistant_msg)
+    for att in attachments:
+        await db.refresh(att)
+    return user_msg, attachments, assistant_msg
+
+
 async def list_chat_attachments(db: AsyncSession, message_id: str) -> list[ChatAttachment]:
     result = await db.execute(
         select(ChatAttachment)

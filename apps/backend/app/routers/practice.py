@@ -14,7 +14,7 @@ from app.database import get_db, async_session_factory
 from app.config import settings as app_settings
 from app.models.topic_material import TopicMaterial
 from app.models import PracticeTask, StudySession as StudySessionModel
-from app.repositories import practice_repo, topic_repo
+from app.repositories import mastery_repo, practice_repo, topic_repo
 from app.schemas.practice import (
     AnswerSubmissionOut,
     AttachmentOut,
@@ -438,6 +438,23 @@ async def submit_answer(
         await practice_repo.add_attachment(db, attachment)
 
     evaluation = await evaluate_submission_ai(db, submission)
+
+    # The web Practice tab never answers follow-ups (they're shown read-only), so
+    # mastery would never advance via finalize_evaluation_mastery. Record practice
+    # mastery directly on a passing answer instead.
+    if evaluation.status == "passed" and task.target_concepts:
+        for concept in task.target_concepts:
+            await mastery_repo.record(
+                db,
+                user_id=user_id,
+                topic_id=task.topic_id,
+                concept=concept,
+                kind="practice",
+                difficulty=task.difficulty,
+                quality_score=evaluation.score,
+                struggle_passed=1,
+            )
+
     follow_ups = await practice_repo.list_follow_ups_by_evaluation(db, evaluation.id)
     attachments = await practice_repo.list_attachments(db, submission.id)
 
