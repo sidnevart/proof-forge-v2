@@ -131,16 +131,14 @@ CONSPECT_SYSTEM_PROMPT = (
 )
 
 
-def _build_conspect_prompt(topic_name: str, materials: list[dict]) -> str:
-    materials_block = ""
-    for m in materials:
-        preview = m["content_text"][:3000].replace("\n", " ")
-        materials_block += f"\n\n--- Материал: {m['name']} ({m['type']}) ---\n{preview}"
+def _build_conspect_prompt(topic_name: str, materials_block: str) -> str:
+    if not materials_block.strip():
+        materials_block = "(материалов нет — используй свои знания о теме)"
 
     return f"""На основе материалов по теме «{topic_name}» напиши подробный, наглядный конспект.
 
 ## Материалы
-{materials_block if materials_block else "(материалов нет — используй свои знания о теме)"}
+{materials_block}
 
 ---
 
@@ -224,6 +222,45 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str) -> str:
 
 # ── Streaming generation ───────────────────────────────────────────────────────
 
+async def _prepare_materials_block(
+    settings: Any, topic: TopicInfo, materials: list[dict], q: asyncio.Queue
+) -> str:
+    """Build the materials block for the conspect prompt.
+
+    Small corpora go in whole. Large corpora are distilled via map-reduce so a big
+    file actually informs the conspect instead of contributing only its first chunk.
+    """
+    from app.services.content_reduction import SINGLE_PASS_LIMIT, map_reduce_digest
+
+    total_chars = sum(len(m.get("content_text", "")) for m in materials)
+    if total_chars <= SINGLE_PASS_LIMIT:
+        return "\n\n".join(
+            f"--- Материал: {m['name']} ({m.get('type', 'material')}) ---\n{m['content_text']}"
+            for m in materials
+            if m.get("content_text")
+        )
+
+    await q.put(("phase_change", {"phase": "study", "label": "Изучаю материалы..."}))
+
+    async def _progress(current: int, total: int) -> None:
+        await q.put(("progress", {
+            "phase": "study",
+            "label": f"Изучаю материалы {current}/{total}...",
+            "current": current,
+            "total": total,
+        }))
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
+        digest = await map_reduce_digest(
+            client,
+            settings,
+            topic.name,
+            [(m["name"], m["content_text"]) for m in materials if m.get("content_text")],
+            progress=_progress,
+        )
+    return "## Выжимка концепций из материалов\n\n" + digest
+
+
 async def stream_conspect_to_queue(
     settings: Any,
     topic: TopicInfo,
@@ -231,10 +268,12 @@ async def stream_conspect_to_queue(
     q: asyncio.Queue,
 ) -> str:
     """Stream conspect tokens to SSE queue. Returns conspect_md."""
+    materials_block = await _prepare_materials_block(settings, topic, materials, q)
+
     await q.put(("phase_change", {"phase": "conspect", "label": "Пишу конспект..."}))
 
     conspect_md = ""
-    prompt_conspect = _build_conspect_prompt(topic.name, materials)
+    prompt_conspect = _build_conspect_prompt(topic.name, materials_block)
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
         async for token in _llm_stream_tokens(

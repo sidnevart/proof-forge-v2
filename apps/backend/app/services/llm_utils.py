@@ -11,6 +11,12 @@ logger = logging.getLogger(__name__)
 
 _RETRY_DELAYS = (10, 30, 60)
 
+# Cap concurrent LLM calls across all flows (session-gen + card-gen + capsule +
+# map-reduce) so bursts can't trip the provider's per-minute rate limit. The free
+# OpenRouter tier is the binding constraint, not the model context window.
+_MAX_CONCURRENT_LLM_CALLS = 3
+_LLM_GATE = asyncio.Semaphore(_MAX_CONCURRENT_LLM_CALLS)
+
 
 def _parse_retry_after(response: httpx.Response, attempt: int) -> float:
     for header in ("Retry-After", "x-ratelimit-reset-requests", "x-ratelimit-reset"):
@@ -43,7 +49,9 @@ async def http_post_with_retry(
         if attempt > 0 and fallback_model:
             body["model"] = fallback_model
         try:
-            response = await client.post(url, headers=headers, json=body)
+            # Hold the gate only for the request itself, not the backoff sleep.
+            async with _LLM_GATE:
+                response = await client.post(url, headers=headers, json=body)
             response.raise_for_status()
             return response
         except httpx.HTTPStatusError as exc:
@@ -78,7 +86,8 @@ async def http_stream_with_retry(
         if attempt > 0 and fallback_model:
             body["model"] = fallback_model
         try:
-            async with client.stream("POST", url, headers=headers, json=body) as response:
+            # Hold the gate for the whole stream — it caps concurrent open connections.
+            async with _LLM_GATE, client.stream("POST", url, headers=headers, json=body) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if not line.startswith("data: "):
