@@ -300,6 +300,23 @@ export type FollowUp = {
   feedback_md: string
 }
 
+export type Attachment = {
+  id: string
+  submission_id: string
+  name: string
+  mime_type: string
+  kind: 'text' | 'image'
+  file_size: number | null
+  created_at: string
+}
+
+export type AnswerSubmissionResult = {
+  submission: IdeSubmission
+  evaluation: Evaluation
+  follow_ups: FollowUp[]
+  attachments: Attachment[]
+}
+
 export const practice = {
   startSession: (userId: string, topicId: string) =>
     req<{
@@ -332,6 +349,28 @@ export const practice = {
       method: 'POST',
       body: JSON.stringify({ user_answer: userAnswer, score, feedback_md: feedback ?? '' }),
     }),
+  submitAnswer: async (
+    taskId: string,
+    userId: string,
+    solutionText: string,
+    files: File[] = [],
+  ): Promise<AnswerSubmissionResult> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('grasp_token') : null
+    const form = new FormData()
+    form.append('user_id', userId)
+    form.append('solution_text', solutionText)
+    for (const file of files) form.append('files', file)
+    const res = await fetch(`${BASE}/api/practice-tasks/${taskId}/answer`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail ?? 'Submit error')
+    }
+    return res.json()
+  },
 }
 
 // ── Chat ──
@@ -345,12 +384,27 @@ export type ChatSession = {
   created_at: string
 }
 
+export type ChatAttachment = {
+  id: string
+  name: string
+  mime_type: string
+  kind: 'text' | 'image'
+  file_size: number | null
+  data_url: string | null
+}
+
 export type ChatMessage = {
   id: string
   session_id: string
   role: string
   content: string
   created_at: string
+  attachments?: ChatAttachment[]
+}
+
+export type ChatTurn = {
+  user_message: ChatMessage
+  assistant_message: ChatMessage
 }
 
 export const chat = {
@@ -364,6 +418,30 @@ export const chat = {
       method: 'POST',
       body: JSON.stringify({ user_id: userId, message, history, topic_id: topicId }),
     }),
+  turn: async (
+    sessionId: string,
+    userId: string,
+    message: string,
+    history: { role: string; content: string }[],
+    files: File[] = [],
+  ): Promise<ChatTurn> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('grasp_token') : null
+    const form = new FormData()
+    form.append('user_id', userId)
+    form.append('message', message)
+    form.append('history_json', JSON.stringify(history))
+    for (const file of files) form.append('files', file)
+    const res = await fetch(`${BASE}/api/chat/sessions/${sessionId}/turn`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail ?? 'Chat error')
+    }
+    return res.json()
+  },
   createSession: (userId: string, topicId: string, title: string, studySessionId?: string) =>
     req<ChatSession>('/api/chat/sessions', {
       method: 'POST',

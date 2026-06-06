@@ -218,6 +218,17 @@ export const dict: Dict = {
   'practice.back': '← к сессии',
   'practice.submit': 'Отправить решение',
   'practice.submitHint': 'Опиши свой подход и решение...',
+  'practice.attach': 'Прикрепить файлы',
+  'practice.attachHint': 'Код, PDF, текст или скриншоты',
+  'practice.submitting': 'Проверяю...',
+  'practice.submitError': 'Не удалось отправить ответ',
+  'practice.feedback': 'Обратная связь AI',
+  'practice.score': 'Оценка',
+  'practice.status.passed': 'Зачёт',
+  'practice.status.needs_revision': 'Нужна доработка',
+  'practice.status.failed': 'Не зачтено',
+  'practice.followUps': 'Контрольные вопросы',
+  'practice.resubmit': 'Отправить ещё раз',
 
   // Capsule
   'capsule.toc': 'Оглавление',
@@ -253,6 +264,10 @@ export const dict: Dict = {
   'chat.err.providerError': 'AI недоступен: провайдер вернул ошибку.',
   'chat.err.timeout': 'AI недоступен: провайдер не ответил за 45 секунд. Попробуй еще раз или проверь LLM-провайдера.',
   'chat.err.prefix': 'AI недоступен',
+  'chat.attach': 'Прикрепить файл или изображение',
+  'chat.attach.tooMany': 'Слишком много вложений (максимум 5)',
+  'chat.attach.tooBig': 'Файл слишком большой (максимум 8 МБ)',
+  'chat.attach.unsupported': 'Неподдерживаемый тип файла',
 
   // Admin (internal tool)
   'admin.loading': 'Загружаем метрики...',

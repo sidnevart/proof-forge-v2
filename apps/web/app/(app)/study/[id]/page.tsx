@@ -4,12 +4,16 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getStoredUser } from '@/lib/auth'
-import { practice, chat, topics, capsules, type PracticeTask, type StudySession, type ChatMessage, type ChatSession, type Capsule } from '@/lib/api'
+import { practice, chat, topics, capsules, type PracticeTask, type StudySession, type ChatMessage, type ChatSession, type Capsule, type AnswerSubmissionResult } from '@/lib/api'
 import { SkeletonText } from '@/components/ui/Skeleton'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { useT } from '@/lib/i18n'
 import { useSSEStream } from '@/hooks/useSSEStream'
 import { useDrawer } from '@/lib/drawer-context'
+import { CHAT_ACCEPT, PendingChip, MessageAttachment } from '@/app/(app)/_components/file-chip'
+
+const MAX_CHAT_FILES = 5
+const MAX_CHAT_FILE_BYTES = 8_000_000
 
 type Tab = 'chat' | 'theory' | 'practice' | 'capsule'
 
@@ -24,9 +28,11 @@ export default function StudySessionPage() {
   const [chatSession, setChatSession] = useState<ChatSession | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
+  const [chatFiles, setChatFiles] = useState<File[]>([])
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('chat')
+  const chatFileRef = useRef<HTMLInputElement>(null)
 
   // Capsule generation state
   const [capsule, setCapsule] = useState<Capsule | null>(null)
@@ -40,6 +46,11 @@ export default function StudySessionPage() {
   // Practice tab: selected task for inline view
   const [selectedTask, setSelectedTask] = useState<PracticeTask | null>(null)
   const [solution, setSolution] = useState('')
+  const [attachFiles, setAttachFiles] = useState<File[]>([])
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const [evalResult, setEvalResult] = useState<AnswerSubmissionResult | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Streaming state for generating sessions
   const [streamingConspect, setStreamingConspect] = useState('')
@@ -142,43 +153,69 @@ export default function StudySessionPage() {
     if (activeTab !== 'practice') {
       setSelectedTask(null)
       setSolution('')
+      setAttachFiles([])
+      setEvalResult(null)
+      setSubmitError('')
     }
   }, [activeTab])
 
+  const submitAnswer = useCallback(async () => {
+    if (!selectedTask || !user || submitting) return
+    if (!solution.trim() && attachFiles.length === 0) return
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      const result = await practice.submitAnswer(selectedTask.id, user.user_id, solution, attachFiles)
+      setEvalResult(result)
+      // Reflect the new task status (submitted/completed) in the list
+      practice.listActiveTasks(user.user_id)
+        .then((all) => setTasks(all.filter((t) => t.study_session_id === id)))
+        .catch(() => {})
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : t('practice.submitError'))
+    } finally {
+      setSubmitting(false)
+    }
+  }, [selectedTask, user, submitting, solution, attachFiles, id, t])
+
   const sendMessage = useCallback(async () => {
     const text = input.trim()
-    if (!text || sending || !user || !chatSession) return
+    if ((!text && chatFiles.length === 0) || sending || !user || !chatSession) return
 
+    const filesToSend = [...chatFiles]
     setInput('')
+    setChatFiles([])
     setSending(true)
     setChatError('')
 
     try {
-      await chat.createMessage(chatSession.id, 'user', text)
-    } catch {
-      // ignore save error, still show locally
-    }
-    setMessages((prev) => [...prev, { id: crypto.randomUUID(), session_id: chatSession.id, role: 'user', content: text, created_at: new Date().toISOString() }])
-
-    try {
       const history = messages.map((m) => ({ role: m.role, content: m.content }))
-      const res = await chat.send(user.user_id, text, history, chatSession.topic_id)
-      try {
-        await chat.createMessage(chatSession.id, 'assistant', res.message)
-      } catch {}
-      setMessages((prev) => [...prev, { id: crypto.randomUUID(), session_id: chatSession.id, role: 'assistant', content: res.message, created_at: new Date().toISOString() }])
+      const res = await chat.turn(chatSession.id, user.user_id, text, history, filesToSend)
+      setMessages((prev) => [...prev, res.user_message, res.assistant_message])
     } catch (err) {
       setChatError(getChatErrorMessage(err, t))
     } finally {
       setSending(false)
       textareaRef.current?.focus()
     }
-  }, [input, sending, user, chatSession, messages, t])
+  }, [input, chatFiles, sending, user, chatSession, messages, t])
+
+  const handleChatFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? [])
+    if (chatFileRef.current) chatFileRef.current.value = ''
+    const oversized = picked.filter((f) => f.size > MAX_CHAT_FILE_BYTES)
+    if (oversized.length) { setChatError(t('chat.attach.tooBig')); return }
+    setChatFiles((prev) => {
+      const next = [...prev, ...picked]
+      if (next.length > MAX_CHAT_FILES) { setChatError(t('chat.attach.tooMany')); return prev }
+      return next
+    })
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      sendMessage()
+      if (input.trim() || chatFiles.length > 0) sendMessage()
     }
   }
 
@@ -326,6 +363,13 @@ export default function StudySessionPage() {
                       ? 'bg-card border border-line text-ink rounded-tr-sm'
                       : 'bg-sand/40 border border-line/60 text-ink rounded-tl-sm'
                   }`}>
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {msg.attachments.map((att) => (
+                          <MessageAttachment key={att.id} att={att} />
+                        ))}
+                      </div>
+                    )}
                     {msg.role === 'assistant' ? (
                       <div className="prose-grasp">
                         <MarkdownRenderer
@@ -369,7 +413,37 @@ export default function StudySessionPage() {
             </div>
 
             <div className="shrink-0 border-t border-line px-3 py-2.5">
+              <input
+                ref={chatFileRef}
+                type="file"
+                multiple
+                accept={CHAT_ACCEPT}
+                className="hidden"
+                onChange={handleChatFiles}
+              />
+              {chatFiles.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2 max-w-3xl mx-auto">
+                  {chatFiles.map((file, idx) => (
+                    <PendingChip
+                      key={`${file.name}-${idx}`}
+                      file={file}
+                      onRemove={() => setChatFiles((prev) => prev.filter((_, i) => i !== idx))}
+                    />
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2 items-end max-w-3xl mx-auto">
+                <button
+                  type="button"
+                  onClick={() => chatFileRef.current?.click()}
+                  disabled={sending || !chatSession}
+                  title={t('chat.attach')}
+                  className="w-9 h-9 rounded-xl border border-line bg-card flex items-center justify-center text-mute hover:text-ink hover:border-accent/40 transition-colors disabled:opacity-40 shrink-0"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                  </svg>
+                </button>
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -382,7 +456,7 @@ export default function StudySessionPage() {
                 />
                 <button
                   onClick={sendMessage}
-                  disabled={!input.trim() || sending || !chatSession}
+                  disabled={(!input.trim() && chatFiles.length === 0) || sending || !chatSession}
                   className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center text-[#06140d] hover:bg-accentdk transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -430,7 +504,7 @@ export default function StudySessionPage() {
               {selectedTask ? (
                 <div>
                   <button
-                    onClick={() => { setSelectedTask(null); setSolution('') }}
+                    onClick={() => { setSelectedTask(null); setSolution(''); setAttachFiles([]); setEvalResult(null); setSubmitError('') }}
                     className="text-sm text-mute hover:text-ink font-mono mb-4 inline-flex items-center gap-1"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -454,15 +528,115 @@ export default function StudySessionPage() {
                       value={solution}
                       onChange={(e) => setSolution(e.target.value)}
                       placeholder={t('practice.submitHint')}
-                      className="w-full resize-y rounded-xl border border-line bg-card text-ink placeholder:text-mute/50 px-4 py-3 text-sm font-mono focus:outline-none focus:border-accent/60 transition-colors"
+                      disabled={submitting}
+                      className="w-full resize-y rounded-xl border border-line bg-card text-ink placeholder:text-mute/50 px-4 py-3 text-sm font-mono focus:outline-none focus:border-accent/60 transition-colors disabled:opacity-50"
                     />
+
+                    {/* File attachments */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/png,image/jpeg,image/webp,image/gif,.pdf,.md,.txt,.py,.js,.ts,.go,.rs,.java,.c,.cpp,.h,.json,.yaml,.yml,.csv,.sql,.sh,.kt,.rb,.php"
+                      className="hidden"
+                      onChange={(e) => {
+                        const picked = Array.from(e.target.files ?? [])
+                        if (picked.length) setAttachFiles((prev) => [...prev, ...picked])
+                        if (fileInputRef.current) fileInputRef.current.value = ''
+                      }}
+                    />
+                    <div className="mt-3 flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={submitting}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line text-xs text-mute hover:text-ink hover:border-accent/60 transition-colors disabled:opacity-50"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                        </svg>
+                        {t('practice.attach')}
+                      </button>
+                      <span className="text-[10px] text-mute/70">{t('practice.attachHint')}</span>
+                    </div>
+                    {attachFiles.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {attachFiles.map((file, idx) => (
+                          <div key={`${file.name}-${idx}`} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-card border border-line text-xs">
+                            <span className="text-ink truncate">{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setAttachFiles((prev) => prev.filter((_, i) => i !== idx))}
+                              disabled={submitting}
+                              className="text-mute hover:text-danger transition-colors shrink-0"
+                              aria-label="Remove file"
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {submitError && (
+                      <div className="mt-3 px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
+                        {submitError}
+                      </div>
+                    )}
+
                     <button
-                      disabled
-                      className="mt-3 px-4 py-2 rounded-xl bg-accent text-[#06140d] text-sm font-semibold hover:bg-accentdk transition-colors disabled:opacity-50"
+                      onClick={submitAnswer}
+                      disabled={submitting || (!solution.trim() && attachFiles.length === 0)}
+                      className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-accent text-[#06140d] text-sm font-semibold hover:bg-accentdk transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {t('practice.submit')}
+                      {submitting ? (
+                        <>
+                          <div className="w-3.5 h-3.5 rounded-full border-2 border-[#06140d] border-t-transparent animate-spin" />
+                          {t('practice.submitting')}
+                        </>
+                      ) : (
+                        evalResult ? t('practice.resubmit') : t('practice.submit')
+                      )}
                     </button>
                   </div>
+
+                  {/* AI feedback */}
+                  {evalResult && (
+                    <div className="surface rounded-2xl p-5 mb-6">
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <div className="text-[10px] font-mono text-accent uppercase tracking-wider">{t('practice.feedback')}</div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${
+                            evalResult.evaluation.status === 'passed'
+                              ? 'bg-accent/10 text-accent'
+                              : evalResult.evaluation.status === 'needs_revision'
+                              ? 'bg-sand text-mute'
+                              : 'bg-danger/10 text-danger'
+                          }`}>
+                            {t(`practice.status.${evalResult.evaluation.status}`)}
+                          </span>
+                          <span className="text-xs font-mono text-mute">
+                            {t('practice.score')}: {Math.round(evalResult.evaluation.score * 100)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="prose-grasp text-sm">
+                        <MarkdownRenderer>{evalResult.evaluation.feedback_md}</MarkdownRenderer>
+                      </div>
+                      {evalResult.follow_ups.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-line">
+                          <div className="text-xs font-semibold text-ink mb-2">{t('practice.followUps')}</div>
+                          <ul className="list-disc list-inside space-y-1 text-xs text-ink/90">
+                            {evalResult.follow_ups.map((fu) => (
+                              <li key={fu.id}>{fu.question}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -493,7 +667,7 @@ export default function StudySessionPage() {
                     {tasks.map((task) => (
                       <button
                         key={task.id}
-                        onClick={() => setSelectedTask(task)}
+                        onClick={() => { setSelectedTask(task); setSolution(''); setAttachFiles([]); setEvalResult(null); setSubmitError('') }}
                         className="surface surface-hover rounded-xl p-4 block w-full text-left"
                       >
                         <div className="flex items-start justify-between gap-2">

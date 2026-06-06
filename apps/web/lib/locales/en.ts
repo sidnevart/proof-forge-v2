@@ -216,6 +216,17 @@ export const dict = {
   'practice.back': '← back to session',
   'practice.submit': 'Submit solution',
   'practice.submitHint': 'Describe your approach and solution...',
+  'practice.attach': 'Attach files',
+  'practice.attachHint': 'Code, PDF, text, or screenshots',
+  'practice.submitting': 'Reviewing...',
+  'practice.submitError': 'Failed to submit answer',
+  'practice.feedback': 'AI feedback',
+  'practice.score': 'Score',
+  'practice.status.passed': 'Passed',
+  'practice.status.needs_revision': 'Needs revision',
+  'practice.status.failed': 'Failed',
+  'practice.followUps': 'Follow-up questions',
+  'practice.resubmit': 'Submit again',
 
   // Capsule
   'capsule.toc': 'Table of contents',
@@ -251,6 +262,10 @@ export const dict = {
   'chat.err.providerError': 'AI unavailable: provider returned an error.',
   'chat.err.timeout': 'AI unavailable: provider did not respond in 45 seconds. Try again or check the LLM provider.',
   'chat.err.prefix': 'AI unavailable',
+  'chat.attach': 'Attach file or image',
+  'chat.attach.tooMany': 'Too many attachments (max 5)',
+  'chat.attach.tooBig': 'File is too large (max 8 MB)',
+  'chat.attach.unsupported': 'Unsupported file type',
 
   // Admin (internal tool)
   'admin.loading': 'Loading metrics...',

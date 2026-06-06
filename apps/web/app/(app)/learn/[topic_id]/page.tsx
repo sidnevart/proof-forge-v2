@@ -6,22 +6,27 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import { getStoredUser } from '@/lib/auth'
-import { chat, topics, type Topic } from '@/lib/api'
+import { chat, topics, type Topic, type ChatMessage, type ChatSession } from '@/lib/api'
 import { useT } from '@/lib/i18n'
 import { useDrawer } from '@/lib/drawer-context'
+import { CHAT_ACCEPT, PendingChip, MessageAttachment } from '@/app/(app)/_components/file-chip'
 
-type Message = { role: 'user' | 'assistant'; content: string }
+const MAX_CHAT_FILES = 5
+const MAX_CHAT_FILE_BYTES = 8_000_000
 
 export default function LearnPage({ params }: { params: Promise<{ topic_id: string }> }) {
   const { topic_id } = use(params)
   const user = getStoredUser()
   const [topic, setTopic] = useState<Topic | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
+  const [chatSession, setChatSession] = useState<ChatSession | null>(null)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
+  const [chatFiles, setChatFiles] = useState<File[]>([])
   const [sending, setSending] = useState(false)
   const [chatError, setChatError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const chatFileRef = useRef<HTMLInputElement>(null)
   const t = useT()
   const { openDrawer } = useDrawer()
 
@@ -33,33 +38,56 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, sending])
 
+  // Lazily get-or-create a chat session for persistence.
+  const ensureSession = useCallback(async (): Promise<ChatSession> => {
+    if (chatSession) return chatSession
+    if (!user) throw new Error('Not authenticated')
+    const topicName = topic?.name ?? topic_id
+    const newSession = await chat.createSession(user.user_id, topic_id, topicName)
+    setChatSession(newSession)
+    return newSession
+  }, [chatSession, user, topic, topic_id])
+
   const send = useCallback(async () => {
     const text = input.trim()
-    if (!text || sending || !user) return
+    if ((!text && chatFiles.length === 0) || sending || !user) return
 
-    const userMsg: Message = { role: 'user', content: text }
-    setMessages((prev) => [...prev, userMsg])
+    const filesToSend = [...chatFiles]
     setInput('')
+    setChatFiles([])
     setSending(true)
     setChatError('')
 
     try {
+      const session = await ensureSession()
       const history = messages.map((m) => ({ role: m.role, content: m.content }))
-      const res = await chat.send(user.user_id, text, history, topic_id)
-      setMessages((prev) => [...prev, { role: 'assistant', content: res.message }])
+      const res = await chat.turn(session.id, user.user_id, text, history, filesToSend)
+      setMessages((prev) => [...prev, res.user_message, res.assistant_message])
     } catch (err) {
       setChatError(getChatErrorMessage(err, t))
     } finally {
       setSending(false)
       textareaRef.current?.focus()
     }
-  }, [input, sending, user, messages, topic_id, t])
+  }, [input, chatFiles, sending, user, messages, ensureSession, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      send()
+      if (input.trim() || chatFiles.length > 0) send()
     }
+  }
+
+  const handleChatFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? [])
+    if (chatFileRef.current) chatFileRef.current.value = ''
+    const oversized = picked.filter((f) => f.size > MAX_CHAT_FILE_BYTES)
+    if (oversized.length) { setChatError(t('chat.attach.tooBig')); return }
+    setChatFiles((prev) => {
+      const next = [...prev, ...picked]
+      if (next.length > MAX_CHAT_FILES) { setChatError(t('chat.attach.tooMany')); return prev }
+      return next
+    })
   }
 
   return (
@@ -116,8 +144,8 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+        {messages.map((msg) => (
+          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.role === 'assistant' && (
               <div className="w-7 h-7 rounded-lg bg-accentsoft border border-accent/20 flex items-center justify-center shrink-0 mr-2 mt-1">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" strokeWidth="2">
@@ -133,6 +161,13 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
                   : 'bg-sand/40 border border-line/60 text-ink rounded-tl-sm'
               }`}
             >
+              {msg.attachments && msg.attachments.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {msg.attachments.map((att) => (
+                    <MessageAttachment key={att.id} att={att} />
+                  ))}
+                </div>
+              )}
               {msg.role === 'assistant' ? (
                 <div className="prose-grasp text-sm">
                   <ReactMarkdown
@@ -192,7 +227,37 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
 
       {/* Input */}
       <div className="shrink-0 border-t border-line px-4 py-3">
+        <input
+          ref={chatFileRef}
+          type="file"
+          multiple
+          accept={CHAT_ACCEPT}
+          className="hidden"
+          onChange={handleChatFiles}
+        />
+        {chatFiles.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2 max-w-3xl mx-auto">
+            {chatFiles.map((file, idx) => (
+              <PendingChip
+                key={`${file.name}-${idx}`}
+                file={file}
+                onRemove={() => setChatFiles((prev) => prev.filter((_, i) => i !== idx))}
+              />
+            ))}
+          </div>
+        )}
         <div className="flex gap-2 items-end max-w-3xl mx-auto">
+          <button
+            type="button"
+            onClick={() => chatFileRef.current?.click()}
+            disabled={sending}
+            title={t('chat.attach')}
+            className="w-10 h-10 rounded-xl border border-line bg-card flex items-center justify-center text-mute hover:text-ink hover:border-accent/40 transition-colors disabled:opacity-40 shrink-0"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </button>
           <textarea
             ref={textareaRef}
             value={input}
@@ -205,7 +270,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
           />
           <button
             onClick={send}
-            disabled={!input.trim() || sending}
+            disabled={(!input.trim() && chatFiles.length === 0) || sending}
             className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center text-[#06140d] hover:bg-accentdk transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

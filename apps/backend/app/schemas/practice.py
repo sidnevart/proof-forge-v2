@@ -152,3 +152,22 @@ class FollowUpOut(BaseModel):
     feedback_md: str
 
     model_config = {"from_attributes": True}
+
+
+class AttachmentOut(BaseModel):
+    id: str
+    submission_id: str
+    name: str
+    mime_type: str
+    kind: str
+    file_size: int | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AnswerSubmissionOut(BaseModel):
+    submission: IdeSubmissionOut
+    evaluation: EvaluationOut
+    follow_ups: list[FollowUpOut] = Field(default_factory=list)
+    attachments: list[AttachmentOut] = Field(default_factory=list)

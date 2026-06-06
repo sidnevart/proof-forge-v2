@@ -1,16 +1,31 @@
+import base64
+import json
 from datetime import datetime
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings as app_settings
 from app.database import get_db
-from app.models import PracticeTask, StudySession, Topic
+from app.models import ChatAttachment, PracticeTask, StudySession, Topic
 from app.repositories import capsule_repo, chat_repo
 from app.services.card_generation import generate_cards_for_topic_background
+from app.services.file_parser import extract_from_bytes, image_mime, is_image
+
+# Limits for chat attachments (server is the source of truth; client mirrors for UX).
+_MAX_ATTACHMENTS = 5
+_MAX_ATTACHMENT_BYTES = 8_000_000  # 8 MB per file; base64 inflates ~33%
+_MAX_ATTACHMENT_CHARS = 12_000
+_MAX_IMAGES = 4
+_ALLOWED_EXTENSIONS = {
+    ".md", ".py", ".java", ".csv", ".txt", ".js", ".ts", ".go", ".rs", ".c",
+    ".cpp", ".h", ".json", ".yaml", ".yml", ".toml", ".sh", ".sql", ".html",
+    ".xml", ".rb", ".php", ".kt", ".pdf",
+    ".png", ".jpg", ".jpeg", ".webp", ".gif",
+}
 
 router = APIRouter(tags=["chat"])
 _CARD_GENERATION_MESSAGE_INTERVAL = 5
@@ -133,6 +148,52 @@ async def _build_topic_context(db: AsyncSession, user_id: str, topic_id: str) ->
     return "\n\n".join(parts)
 
 
+async def _compose_system(db: AsyncSession, user_id: str, topic_id: str | None) -> str:
+    """Build the full system prompt: base mentor prompt + topic context + weak spots."""
+    system = get_system_prompt()
+    if topic_id:
+        topic_context = await _build_topic_context(db, user_id, topic_id)
+        if topic_context:
+            system += f"\n\n{topic_context}"
+    weak = await capsule_repo.get_user_weak_spots(db, user_id)
+    if weak:
+        spots = ", ".join(f"{w.concept} (severity={w.severity})" for w in weak[:5])
+        system += f"\n\n## Контекст ученика\n\nСлабые места: {spots}"
+    return system
+
+
+def _build_chat_user_content(
+    text: str, attachments: list[ChatAttachment]
+) -> tuple[list | str, bool]:
+    """Build OpenAI-compatible message content from the user's text + attachments.
+
+    Returns ``(content, has_images)``. Without images, content is a plain string
+    (text-only model); with images, a list of content parts (vision model). Mirrors
+    ``ai_evaluation._build_user_content``.
+    """
+    parts = [text.strip() or "(сообщение без текста)"]
+    images: list[ChatAttachment] = []
+    for att in attachments:
+        if att.kind == "image" and att.data_b64 and len(images) < _MAX_IMAGES:
+            images.append(att)
+        elif att.kind == "text" and att.content_text:
+            parts.append(
+                f"## Файл: {att.name}\n```\n{_clip(att.content_text, _MAX_ATTACHMENT_CHARS)}\n```"
+            )
+
+    text_block = "\n\n".join(parts)
+    if not images:
+        return text_block, False
+
+    content: list = [{"type": "text", "text": text_block}]
+    for att in images:
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{att.mime_type};base64,{att.data_b64}"},
+        })
+    return content, True
+
+
 # ── Legacy / universal chat endpoint ──────────────────────────────────────────
 
 class ChatMessage(BaseModel):
@@ -156,18 +217,7 @@ async def chat(data: ChatRequest, db: AsyncSession = Depends(get_db)):
     if not app_settings.llm_api_key:
         raise HTTPException(status_code=503, detail="LLM не настроен")
 
-    system = get_system_prompt()
-
-    if data.topic_id:
-        topic_context = await _build_topic_context(db, data.user_id, data.topic_id)
-        if topic_context:
-            system += f"\n\n{topic_context}"
-
-    # Append mastery weak spots
-    weak = await capsule_repo.get_user_weak_spots(db, data.user_id)
-    if weak:
-        spots = ", ".join(f"{w.concept} (severity={w.severity})" for w in weak[:5])
-        system += f"\n\n## Контекст ученика\n\nСлабые места: {spots}"
+    system = await _compose_system(db, data.user_id, data.topic_id)
 
     messages = [{"role": m.role, "content": m.content} for m in data.history]
     messages.append({"role": "user", "content": data.message})
@@ -248,6 +298,16 @@ class ChatSessionOut(BaseModel):
     created_at: datetime
 
 
+class ChatAttachmentOut(BaseModel):
+    model_config = {"from_attributes": True}
+    id: str
+    name: str
+    mime_type: str
+    kind: str  # 'text' | 'image'
+    file_size: int | None = None
+    data_url: str | None = None  # populated for images only
+
+
 class ChatMessageOut(BaseModel):
     model_config = {"from_attributes": True}
     id: str
@@ -255,6 +315,19 @@ class ChatMessageOut(BaseModel):
     role: str
     content: str
     created_at: datetime
+    attachments: list[ChatAttachmentOut] = []
+
+
+class ChatTurnOut(BaseModel):
+    user_message: ChatMessageOut
+    assistant_message: ChatMessageOut
+
+
+def _attachment_out(att: ChatAttachment) -> ChatAttachmentOut:
+    out = ChatAttachmentOut.model_validate(att)
+    if att.kind == "image" and att.data_b64:
+        out.data_url = f"data:{att.mime_type};base64,{att.data_b64}"
+    return out
 
 
 def _format_chat_card_context(messages: list[ChatMessageOut] | list) -> str:
@@ -330,4 +403,178 @@ async def list_messages(session_id: str, db: AsyncSession = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
     messages = await chat_repo.list_chat_messages(db, session_id)
-    return [ChatMessageOut.model_validate(m) for m in messages]
+    att_map = await chat_repo.list_chat_attachments_for_messages(
+        db, [m.id for m in messages]
+    )
+    out: list[ChatMessageOut] = []
+    for m in messages:
+        msg_out = ChatMessageOut.model_validate(m)
+        msg_out.attachments = [_attachment_out(a) for a in att_map.get(m.id, [])]
+        out.append(msg_out)
+    return out
+
+
+async def _store_attachments(
+    db: AsyncSession, message_id: str, user_id: str, files: list[UploadFile]
+) -> list[ChatAttachment]:
+    """Validate and persist uploaded files as ChatAttachment rows."""
+    stored: list[ChatAttachment] = []
+    real_files = [f for f in files if f and f.filename]
+    if len(real_files) > _MAX_ATTACHMENTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Слишком много вложений (максимум {_MAX_ATTACHMENTS})",
+        )
+    for upload in real_files:
+        ext = "." + upload.filename.rsplit(".", 1)[-1].lower() if "." in upload.filename else ""
+        if ext not in _ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Неподдерживаемый тип файла: {upload.filename}",
+            )
+        data = await upload.read()
+        if not data:
+            continue
+        if len(data) > _MAX_ATTACHMENT_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Файл слишком большой: {upload.filename} (максимум 8 МБ)",
+            )
+        if is_image(upload.filename):
+            attachment = ChatAttachment(
+                message_id=message_id,
+                user_id=user_id,
+                name=upload.filename,
+                mime_type=image_mime(upload.filename),
+                kind="image",
+                data_b64=base64.b64encode(data).decode("ascii"),
+                file_size=len(data),
+            )
+        else:
+            attachment = ChatAttachment(
+                message_id=message_id,
+                user_id=user_id,
+                name=upload.filename,
+                mime_type=upload.content_type or "text/plain",
+                kind="text",
+                content_text=extract_from_bytes(upload.filename, data),
+                file_size=len(data),
+            )
+        stored.append(await chat_repo.add_chat_attachment(db, attachment))
+    return stored
+
+
+@router.post("/chat/sessions/{session_id}/turn", response_model=ChatTurnOut, status_code=201)
+async def chat_turn(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+    user_id: str = Form(...),
+    message: str = Form(""),
+    history_json: str = Form("[]"),
+    files: list[UploadFile] = File(default=[]),
+    db: AsyncSession = Depends(get_db),
+):
+    """One atomic chat turn with optional file/image attachments.
+
+    Persists the user message + attachments, calls the LLM (vision model when an
+    image is attached, text model otherwise), persists the assistant reply, and
+    returns both. Folds the previous 3-call client flow into one.
+    """
+    if not app_settings.llm_api_key:
+        raise HTTPException(status_code=503, detail="LLM не настроен")
+
+    session = await chat_repo.get_chat_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+
+    try:
+        history_raw = json.loads(history_json or "[]")
+        history = [
+            {"role": str(m["role"]), "content": str(m["content"])}
+            for m in history_raw
+            if isinstance(m, dict) and "role" in m and "content" in m
+        ]
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail="Некорректная история чата") from exc
+
+    # Persist the user message, then its attachments.
+    user_msg = await chat_repo.create_chat_message(db, session_id, "user", message)
+    attachments = await _store_attachments(db, user_msg.id, user_id, files)
+
+    system = await _compose_system(db, user_id, session.topic_id)
+    content, has_images = _build_chat_user_content(message, attachments)
+
+    model = app_settings.llm_vision_model if has_images else app_settings.llm_model
+    fallback = (
+        app_settings.llm_vision_fallback_model
+        if has_images
+        else app_settings.llm_fallback_model
+    )
+
+    messages = [{"role": "system", "content": system}] + history
+    messages.append({"role": "user", "content": content})
+
+    try:
+        from app.services.llm_utils import http_post_with_retry
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await http_post_with_retry(
+                client,
+                f"{app_settings.llm_base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {app_settings.llm_api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://proof-forge.ru",
+                    "X-Title": "Grasp",
+                },
+                json_body={
+                    "model": model,
+                    "messages": messages,
+                    "max_tokens": 2048,
+                    "temperature": 0.7,
+                },
+                fallback_model=fallback,
+            )
+    except httpx.TimeoutException as exc:
+        raise HTTPException(
+            status_code=504, detail="LLM timeout: провайдер не ответил"
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502, detail=f"LLM request failed: {str(exc)[:160]}"
+        ) from exc
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"LLM error: {resp.text[:200]}")
+
+    try:
+        reply = resp.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=502, detail="LLM error: провайдер вернул некорректный ответ"
+        ) from exc
+
+    if not isinstance(reply, str) or not reply.strip():
+        raise HTTPException(
+            status_code=502, detail="LLM error: провайдер вернул пустой ответ"
+        )
+
+    assistant_msg = await chat_repo.create_chat_message(db, session_id, "assistant", reply)
+
+    # Reuse the every-N-user-messages card-generation trigger.
+    all_messages = await chat_repo.list_chat_messages(db, session_id)
+    user_message_count = sum(1 for m in all_messages if m.role == "user")
+    if user_message_count > 0 and user_message_count % _CARD_GENERATION_MESSAGE_INTERVAL == 0:
+        background_tasks.add_task(
+            generate_cards_for_topic_background,
+            session.topic_id,
+            session.user_id,
+            _format_chat_card_context(all_messages),
+            2,
+        )
+
+    user_out = ChatMessageOut.model_validate(user_msg)
+    user_out.attachments = [_attachment_out(a) for a in attachments]
+    return ChatTurnOut(
+        user_message=user_out,
+        assistant_message=ChatMessageOut.model_validate(assistant_msg),
+    )

@@ -1,8 +1,9 @@
 import asyncio
+import base64
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 logger = logging.getLogger(__name__)
 from fastapi.responses import StreamingResponse
@@ -15,6 +16,8 @@ from app.models.topic_material import TopicMaterial
 from app.models import PracticeTask, StudySession as StudySessionModel
 from app.repositories import practice_repo, topic_repo
 from app.schemas.practice import (
+    AnswerSubmissionOut,
+    AttachmentOut,
     EvaluationCreate,
     EvaluationOut,
     FollowUpAnswer,
@@ -29,6 +32,9 @@ from app.schemas.practice import (
 )
 from app.schemas.capsule import CapsuleOut
 from app.services.practice_evaluation import evaluate_submission, finalize_evaluation_mastery
+from app.services.ai_evaluation import evaluate_submission_ai
+from app.services.file_parser import extract_from_bytes, image_mime, is_image
+from app.models.submission_attachment import SubmissionAttachment
 from app.services.practice_generation import (
     TopicInfo,
     build_study_session,
@@ -372,12 +378,83 @@ async def submit_practice_task(
     return await practice_repo.create_submission(db, data)
 
 
+@router.post("/practice-tasks/{task_id}/answer", response_model=AnswerSubmissionOut, status_code=201)
+async def submit_answer(
+    task_id: str,
+    user_id: str = Form(...),
+    solution_text: str = Form(""),
+    files: list[UploadFile] = File(default=[]),
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit a web practice answer with optional file/image attachments and get AI feedback.
+
+    Mirrors the multipart upload pattern of ``topics.upload_material_file``: creates an
+    IdeSubmission (web origin), stores each file as a SubmissionAttachment (text → extracted
+    text, image → base64), then runs the AI evaluator and returns the combined result.
+    """
+    task = await practice_repo.get_practice_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Practice task not found")
+
+    try:
+        submission = await practice_repo.create_submission(
+            db,
+            IdeSubmissionCreate(
+                practice_task_id=task_id,
+                user_id=user_id,
+                reflection=solution_text,
+                language="web",
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    for upload in files:
+        if not upload or not upload.filename:
+            continue
+        data = await upload.read()
+        if not data:
+            continue
+        if is_image(upload.filename):
+            attachment = SubmissionAttachment(
+                submission_id=submission.id,
+                user_id=user_id,
+                name=upload.filename,
+                mime_type=image_mime(upload.filename),
+                kind="image",
+                data_b64=base64.b64encode(data).decode("ascii"),
+                file_size=len(data),
+            )
+        else:
+            attachment = SubmissionAttachment(
+                submission_id=submission.id,
+                user_id=user_id,
+                name=upload.filename,
+                mime_type=upload.content_type or "text/plain",
+                kind="text",
+                content_text=extract_from_bytes(upload.filename, data),
+                file_size=len(data),
+            )
+        await practice_repo.add_attachment(db, attachment)
+
+    evaluation = await evaluate_submission_ai(db, submission)
+    follow_ups = await practice_repo.list_follow_ups_by_evaluation(db, evaluation.id)
+    attachments = await practice_repo.list_attachments(db, submission.id)
+
+    return AnswerSubmissionOut(
+        submission=IdeSubmissionOut.model_validate(submission),
+        evaluation=EvaluationOut.model_validate(evaluation),
+        follow_ups=[FollowUpOut.model_validate(fu) for fu in follow_ups],
+        attachments=[AttachmentOut.model_validate(a) for a in attachments],
+    )
+
+
 @router.post("/submissions/{submission_id}/evaluate", response_model=EvaluationOut, status_code=201)
 async def evaluate_submission_endpoint(submission_id: str, db: AsyncSession = Depends(get_db)):
     submission = await practice_repo.get_submission(db, submission_id)
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
-    evaluation = await evaluate_submission(db, submission)
+    evaluation = await evaluate_submission_ai(db, submission)
     return evaluation
 
 
