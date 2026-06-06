@@ -4,6 +4,7 @@ import { use, useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
 import { getStoredUser } from '@/lib/auth'
 import { chat, topics, type Topic } from '@/lib/api'
 import { useT } from '@/lib/i18n'
@@ -136,6 +137,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
                 <div className="prose-grasp text-sm">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
                     components={{
                       h1: ({ children }) => <h1 className="font-display text-lg font-bold text-ink mt-4 mb-2">{children}</h1>,
                       h2: ({ children }) => <h2 className="font-display text-base font-bold text-ink mt-3 mb-1.5">{children}</h2>,

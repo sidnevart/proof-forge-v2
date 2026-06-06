@@ -56,6 +56,42 @@ def _format_card_context_from_materials(topic_name: str, materials_list: list[di
     return f"## Тема\n{topic_name}\n\n## Материалы\n\n" + "\n\n---\n\n".join(blocks)
 
 
+def _format_card_context_from_session(
+    topic_name: str,
+    conspect_md: str,
+    tasks: list,
+) -> str:
+    """Build card-generation context from the freshly generated conspect and tasks.
+
+    Richer than raw materials: the conspect is the distilled theory and the task
+    concepts highlight what's worth memorising.
+    """
+    parts = [f"## Тема\n{topic_name}"]
+    if conspect_md.strip():
+        parts.append("## Конспект\n\n" + conspect_md[:6000])
+    concepts: list[str] = []
+    task_titles: list[str] = []
+    for t in tasks:
+        title = getattr(t, "title", None)
+        if title:
+            task_titles.append(str(title))
+        for concept in getattr(t, "target_concepts", None) or []:
+            if concept and concept not in concepts:
+                concepts.append(str(concept))
+    if task_titles:
+        parts.append("## Задания\n" + "\n".join(f"- {title}" for title in task_titles))
+    if concepts:
+        parts.append("## Ключевые концепции\n" + ", ".join(concepts))
+    return "\n\n".join(parts)
+
+
+def _spawn_card_generation(topic: TopicInfo, context_md: str) -> None:
+    """Fire-and-forget base card generation; never blocks session completion."""
+    asyncio.create_task(
+        generate_cards_for_topic_background(topic.id, topic.user_id, context_md)
+    )
+
+
 # ── Background generation task ─────────────────────────────────────────────────
 
 async def _run_session_generation(
@@ -114,6 +150,10 @@ async def _run_session_generation(
                         task_out = PracticeTaskOut.model_validate(task_obj)
                         await q.put(("task_ready", task_out.model_dump(mode="json")))
 
+            # Seed base cards from materials (no LLM conspect available here)
+            _spawn_card_generation(
+                topic, _format_card_context_from_materials(topic.name, materials_list)
+            )
             await q.put(("complete", {"session_id": session_id}))
         except Exception as exc:
             await q.put(("error", {"message": str(exc), "fallback": True}))
@@ -185,10 +225,19 @@ async def _run_session_generation(
 
                 await db.commit()
 
+        # Seed base cards from the freshly generated conspect + tasks
+        _spawn_card_generation(
+            topic,
+            _format_card_context_from_session(topic.name, conspect_md, task_creates),
+        )
         await q.put(("complete", {"session_id": session_id}))
 
     except Exception as exc:
         logger.error("Task generation failed for session %s: %s", session_id, exc, exc_info=True)
+        # Tasks failed but the conspect is ready — still seed base cards from it
+        _spawn_card_generation(
+            topic, _format_card_context_from_session(topic.name, conspect_md, [])
+        )
         await q.put(("error", {"message": str(exc), "fallback": False}))
         await q.put(("complete", {"session_id": session_id}))
 
@@ -229,14 +278,9 @@ async def create_study_session(data: dict, db: AsyncSession = Depends(get_db)):
 
     topic_info = TopicInfo(id=topic.id, name=topic.name, user_id=topic.user_id)
     create_stream(session_obj.id)
+    # Cards are generated *inside* _run_session_generation, after the conspect and
+    # tasks are ready, so they're seeded from the richest available context.
     asyncio.create_task(_run_session_generation(session_obj.id, topic_info, materials_list))
-    asyncio.create_task(
-        generate_cards_for_topic_background(
-            topic.id,
-            topic.user_id,
-            _format_card_context_from_materials(topic.name, materials_list),
-        )
-    )
 
     return {
         "session": StudySessionOut.model_validate(session_obj),
