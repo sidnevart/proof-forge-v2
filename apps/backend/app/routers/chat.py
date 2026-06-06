@@ -80,6 +80,18 @@ def _domain_tone(domain: str) -> str:
     return hint
 
 
+def _profile_tone(strategy_config: dict | None) -> str:
+    """Render the learner's StudyProfile (goal/known/focus) into a chat steering note."""
+    if not strategy_config:
+        return ""
+    from app.services.strategy_presets import profile_generation_notes, resolve_strategy
+
+    notes = profile_generation_notes(resolve_strategy(strategy_config))
+    if not notes:
+        return ""
+    return "ПРОФИЛЬ УЧЕНИКА (учитывай в ответах):\n" + notes
+
+
 async def _build_topic_context(db: AsyncSession, user_id: str, topic_id: str) -> str:
     parts: list[str] = []
 
@@ -96,6 +108,11 @@ async def _build_topic_context(db: AsyncSession, user_id: str, topic_id: str) ->
         domain_tone = _domain_tone(getattr(topic, "domain", "general"))
         if domain_tone:
             parts.append(domain_tone)
+        # Inject the StudyProfile (from the onboarding interview) so chat adapts to the
+        # learner's goal / known concepts / focus — same source of truth as generation.
+        profile_note = _profile_tone(getattr(topic, "strategy_config", None))
+        if profile_note:
+            parts.append(profile_note)
 
     capsules = await capsule_repo.get_user_capsules(db, user_id, topic_id)
     if capsules:

@@ -285,6 +285,40 @@ export const context = {
     req<AgentContext>(`/api/agent-context?user_id=${userId}`),
 }
 
+// ── Onboarding (adaptive pre-topic interview) ──
+export type OnboardingOption = { value: string; label: string }
+export type OnboardingSlot = {
+  id: string
+  question: string
+  multiselect: boolean
+  allow_free_text: boolean
+  options: OnboardingOption[]
+}
+export type StudyProfile = {
+  goal: string
+  known_concepts: string[]
+  focus_subtopics: string[]
+  conspect_format: string[]
+  task_format: string[]
+  depth: string
+  difficulty: string
+  include_diagrams: boolean
+  theory_practice_ratio: string
+}
+
+export const onboarding = {
+  questions: (userId: string, topicId: string) =>
+    req<{ domain: string; slots: OnboardingSlot[] }>('/api/onboarding/questions', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, topic_id: topicId }),
+    }),
+  plan: (userId: string, topicId: string, answers: Record<string, string | string[]>) =>
+    req<{ plan_md: string; study_profile: StudyProfile }>('/api/onboarding/plan', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, topic_id: topicId, answers }),
+    }),
+}
+
 // ── Practice Bridge ──
 export type StudySession = {
   id: string
@@ -369,7 +403,7 @@ export type AnswerSubmissionResult = {
 }
 
 export const practice = {
-  startSession: (userId: string, topicId: string, strategy?: { preset?: string } & Record<string, unknown>) =>
+  startSession: (userId: string, topicId: string, studyProfile?: StudyProfile | { preset?: string } & Record<string, unknown>) =>
     req<{
       session: StudySession
       tasks: PracticeTask[]
@@ -377,7 +411,7 @@ export const practice = {
       generation_error: string | null
     }>('/api/study-sessions', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, topic_id: topicId, strategy: strategy ?? null }),
+      body: JSON.stringify({ user_id: userId, topic_id: topicId, study_profile: studyProfile ?? null }),
     }),
   sessionEventsUrl: (sessionId: string) => sseUrl(`/api/study-sessions/${sessionId}/events`),
   listSessions: (userId: string) =>

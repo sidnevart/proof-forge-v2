@@ -131,7 +131,7 @@ CONSPECT_SYSTEM_PROMPT = (
 
 def build_conspect_system(profile, strategy) -> str:
     """Domain- and strategy-aware system prompt for the conspect writer."""
-    from app.services.strategy_presets import strategy_generation_notes
+    from app.services.strategy_presets import profile_generation_notes, strategy_generation_notes
 
     code_rule = (
         "- Код — в fenced-блоках с языком (```python, ```ts и т.п.).\n"
@@ -159,6 +159,7 @@ def build_conspect_system(profile, strategy) -> str:
         "- Не оставляй HTML-теги кроме обычного Markdown.\n"
         f"{profile.generation_note}\n"
         f"{strategy_generation_notes(strategy)}\n"
+        f"{profile_generation_notes(strategy)}\n"
         "Язык: русский, термины — на языке оригинала."
     )
 
@@ -258,7 +259,7 @@ def _build_conspect_prompt(topic_name: str, materials_block: str, profile, strat
 
 
 def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) -> str:
-    from app.services.strategy_presets import strategy_generation_notes
+    from app.services.strategy_presets import profile_generation_notes, strategy_generation_notes
 
     theory_spec = profile.task_recipe[0]
     practice_spec = profile.task_recipe[1] if len(profile.task_recipe) > 1 else profile.task_recipe[0]
@@ -269,6 +270,24 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) ->
         else "- НЕ используй программный код. Задания — текстовые/практические по сути темы."
     )
 
+    # Scale practice exercises to coverage instead of a fixed level count: one exercise
+    # per focus area (or key concept), plus a capstone for deep/interview goals.
+    if strategy.focus_subtopics:
+        coverage = (
+            "Сделай по заданию на КАЖДУЮ тему фокуса: " + ", ".join(strategy.focus_subtopics)
+            + ". Не ограничивай число заданий — дай столько, сколько нужно для закрепления."
+        )
+    else:
+        coverage = (
+            "Покрой ключевые концепции темы — по заданию на каждую. Не ограничивай число "
+            "заданий: дай столько, сколько нужно для закрепления."
+        )
+    capstone = (
+        " В конце добавь capstone — мини-проект/задачу уровня собеседования."
+        if strategy.goal in ("interview", "solve_task") or strategy.difficulty == "challenging"
+        else ""
+    )
+
     return f"""На основе конспекта по теме «{topic_name}» создай учебные задания для аудитории «{profile.audience}».
 
 ## Конспект
@@ -277,6 +296,7 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) ->
 ---
 
 {strategy_generation_notes(strategy)}
+{profile_generation_notes(strategy)}
 
 Ответь ТОЛЬКО валидным JSON объектом. Без markdown-блоков, без текста вне JSON.
 
@@ -299,7 +319,7 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) ->
   }},
   "practice_task": {{
     "title": "{practice_spec.title_hint}: {topic_name}",
-    "instructions_md": "Практическое задание ({practice_spec.instructions_hint}). Раздели на 2-3 уровня сложности по нарастающей. Для каждого уровня — условие и эталонное решение/ответ в <details>.",
+    "instructions_md": "Практические задания ({practice_spec.instructions_hint}). {coverage}{capstone} Каждое задание — ### заголовок, условие и эталонное решение/ответ в <details>. Сложность по нарастающей.",
     "target_concepts": ["концепт 1 из темы", "концепт 2 из темы"]
   }}
 }}"""

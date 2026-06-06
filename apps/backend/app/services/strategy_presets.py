@@ -7,7 +7,7 @@ decides "code or no code"; strategy decides "how deep, how hard, how much practi
 Phase 1 (now): a manual constructor + named presets. Auto-recommendation from learner
 history is deferred — see Workstream I (event logging) for the data groundwork.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # Knob value vocabularies (kept as plain strings so they round-trip through JSON).
 DEPTHS = ("brief", "moderate", "comprehensive")
@@ -24,6 +24,12 @@ class StrategyConfig:
     pacing: str = "standard"
     include_diagrams: bool = True         # honored only when domain allows diagrams
     weak_spot_focus: bool = True          # emphasize known weak spots in tasks
+    # ── StudyProfile signals (from the adaptive onboarding interview) ──────────
+    # Empty/neutral by default so preset-only and Skip paths behave exactly as before.
+    goal: str = ""                        # understand | refresh | interview | solve_task
+    known_concepts: list = field(default_factory=list)   # compress (don't omit) in conspect
+    focus_subtopics: list = field(default_factory=list)  # emphasize in conspect + tasks
+    task_format: list = field(default_factory=list)      # learner-preferred task kinds
 
     def to_dict(self) -> dict:
         return {
@@ -33,6 +39,10 @@ class StrategyConfig:
             "pacing": self.pacing,
             "include_diagrams": self.include_diagrams,
             "weak_spot_focus": self.weak_spot_focus,
+            "goal": self.goal,
+            "known_concepts": list(self.known_concepts),
+            "focus_subtopics": list(self.focus_subtopics),
+            "task_format": list(self.task_format),
         }
 
 
@@ -100,6 +110,12 @@ def resolve_strategy(config: dict | None) -> StrategyConfig:
         val = config.get(key) if isinstance(config, dict) else None
         return val if val in allowed else fallback
 
+    def _str_list(key: str) -> list:
+        val = config.get(key) if isinstance(config, dict) else None
+        if isinstance(val, list):
+            return [str(v).strip() for v in val if str(v).strip()]
+        return []
+
     return StrategyConfig(
         depth=pick("depth", DEPTHS, base.depth),
         theory_practice_ratio=pick("theory_practice_ratio", RATIOS, base.theory_practice_ratio),
@@ -109,6 +125,10 @@ def resolve_strategy(config: dict | None) -> StrategyConfig:
         if isinstance(config, dict) else base.include_diagrams,
         weak_spot_focus=bool(config.get("weak_spot_focus", base.weak_spot_focus))
         if isinstance(config, dict) else base.weak_spot_focus,
+        goal=str(config.get("goal", "")) if isinstance(config, dict) else "",
+        known_concepts=_str_list("known_concepts"),
+        focus_subtopics=_str_list("focus_subtopics"),
+        task_format=_str_list("task_format"),
     )
 
 
@@ -125,3 +145,29 @@ def strategy_generation_notes(strategy: StrategyConfig) -> str:
     if strategy.weak_spot_focus:
         parts.append("Если известны слабые места ученика — делай на них акцент.")
     return " ".join(p for p in parts if p)
+
+
+_GOAL_NOTE = {
+    "understand": "Цель ученика — понять тему с нуля; не предполагай предварительных знаний сверх пререквизитов.",
+    "refresh": "Цель ученика — освежить уже знакомую тему; будь сжатым, фокусируйся на ключевом и нюансах.",
+    "interview": "Цель ученика — подготовка к собеседованию; добавляй вопросы на механизм, trade-offs и edge cases.",
+    "solve_task": "Цель ученика — решить конкретную практическую задачу; делай упор на применимость.",
+}
+
+
+def profile_generation_notes(strategy: StrategyConfig) -> str:
+    """Render the StudyProfile signals (goal/known/focus) into prompt lines.
+
+    Empty when no profile signals are set, so preset-only and Skip paths are unaffected.
+    """
+    lines: list[str] = []
+    if strategy.goal and strategy.goal in _GOAL_NOTE:
+        lines.append(_GOAL_NOTE[strategy.goal])
+    if strategy.known_concepts:
+        lines.append(
+            "Ученик уже владеет: " + ", ".join(strategy.known_concepts)
+            + " — упомяни кратко, не разжёвывай (но не выкидывай из структуры)."
+        )
+    if strategy.focus_subtopics:
+        lines.append("Сделай акцент на: " + ", ".join(strategy.focus_subtopics) + ".")
+    return "\n".join(lines)

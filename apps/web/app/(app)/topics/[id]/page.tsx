@@ -4,20 +4,13 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getStoredUser } from '@/lib/auth'
-import { topics, practice, type Topic, type TopicMaterial } from '@/lib/api'
+import { topics, practice, type Topic, type TopicMaterial, type StudyProfile } from '@/lib/api'
+import { OnboardingChat } from '@/components/OnboardingChat'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { track } from '@/lib/analytics'
 import { useT, useLocale, ruPlural } from '@/lib/i18n'
 
 const ACCEPT = '.md,.py,.java,.csv,.txt,.js,.ts,.go,.rs,.c,.cpp,.h,.json,.yaml,.yml,.toml,.sh,.sql,.rb,.php,.kt,.pdf'
-
-// ── Learning strategy presets (mirror app/services/strategy_presets.py) ───────
-const STRATEGY_PRESETS = [
-  { key: 'deep_dive', icon: '🧠', labelKey: 'strategy.deepDive', descKey: 'strategy.deepDive.desc' },
-  { key: 'practical_sprint', icon: '⚡', labelKey: 'strategy.sprint', descKey: 'strategy.sprint.desc' },
-  { key: 'exam_cram', icon: '🎯', labelKey: 'strategy.cram', descKey: 'strategy.cram.desc' },
-  { key: 'gentle_intro', icon: '🌱', labelKey: 'strategy.gentle', descKey: 'strategy.gentle.desc' },
-] as const
 
 export default function TopicPage() {
   const { id: topicId } = useParams<{ id: string }>()
@@ -40,7 +33,7 @@ export default function TopicPage() {
 
   const [startingStudy, setStartingStudy] = useState(false)
   const [studyError, setStudyError] = useState('')
-  const [strategy, setStrategy] = useState<string>('deep_dive')
+  const [interviewing, setInterviewing] = useState(false)
 
   const loadTopic = useCallback(async () => {
     if (!user) return
@@ -111,19 +104,18 @@ export default function TopicPage() {
     }
   }
 
-  const handleStartStudy = async () => {
+  const handleStartStudy = useCallback(async (profile?: StudyProfile) => {
     if (!user || !topic) return
     setStartingStudy(true)
     setStudyError('')
     try {
-      const result = await practice.startSession(user.user_id, topic.id, { preset: strategy })
+      const result = await practice.startSession(user.user_id, topic.id, profile)
       router.push(`/study/${result.session.id}`)
     } catch (err: unknown) {
       setStudyError(err instanceof Error ? err.message : t('topic.startError'))
-    } finally {
       setStartingStudy(false)
     }
-  }
+  }, [user, topic, router, t])
 
   if (loadingTopic) {
     return (
@@ -273,38 +265,26 @@ export default function TopicPage() {
         <h2 className="font-display text-xl font-bold text-ink mb-2">{t('topic.study.title')}</h2>
         <p className="text-sm text-mute mb-4">{t('topic.study.desc')}</p>
 
-        {/* Learning strategy */}
-        <div className="mb-4">
-          <div className="text-xs font-medium text-ink mb-2">{t('strategy.title')}</div>
-          <div className="grid grid-cols-2 gap-2">
-            {STRATEGY_PRESETS.map((preset) => (
-              <button
-                key={preset.key}
-                type="button"
-                onClick={() => setStrategy(preset.key)}
-                className={`flex items-start gap-2 p-2.5 rounded-xl border text-left transition-all ${
-                  strategy === preset.key
-                    ? 'border-accent bg-accentsoft/50 ring-1 ring-accent/30'
-                    : 'border-line bg-card hover:border-accent/40'
-                }`}
-              >
-                <span className="text-base leading-none mt-0.5">{preset.icon}</span>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-ink leading-tight">{t(preset.labelKey)}</p>
-                  <p className="text-[11px] text-mute mt-0.5 leading-snug">{t(preset.descKey)}</p>
-                </div>
-              </button>
-            ))}
+        {startingStudy ? (
+          <div className="flex items-center gap-2 py-4 justify-center">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            <span className="text-xs text-mute font-mono">{t('topic.study.launching')}</span>
           </div>
-        </div>
-
-        <button
-          onClick={handleStartStudy}
-          disabled={startingStudy}
-          className="w-full py-3 rounded-xl bg-accent text-[#06140d] font-semibold text-sm hover:bg-accentdk transition-colors disabled:opacity-50"
-        >
-          {startingStudy ? t('topic.study.launching') : t('topic.study.cta')}
-        </button>
+        ) : interviewing ? (
+          <OnboardingChat
+            userId={user!.user_id}
+            topicId={topic.id}
+            onConfirm={(profile) => handleStartStudy(profile)}
+            onSkip={() => handleStartStudy()}
+          />
+        ) : (
+          <button
+            onClick={() => setInterviewing(true)}
+            className="w-full py-3 rounded-xl bg-accent text-[#06140d] font-semibold text-sm hover:bg-accentdk transition-colors"
+          >
+            {t('topic.study.cta')}
+          </button>
+        )}
       </div>
 
     </div>

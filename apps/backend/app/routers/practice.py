@@ -284,10 +284,11 @@ async def create_study_session(data: dict, db: AsyncSession = Depends(get_db)):
     if not topic or topic.user_id != data["user_id"]:
         raise HTTPException(status_code=404, detail="Topic not found")
 
-    # Optional learner strategy chosen at topic start — persist on the topic so it
-    # parametrizes this and future generations. None keeps the existing topic strategy
-    # (or the deep_dive default).
-    strategy = data.get("strategy")
+    # Learner profile/strategy chosen at topic start — persist on the topic so it
+    # parametrizes this and future generations. The adaptive onboarding sends a rich
+    # `study_profile`; the legacy preset path sends `strategy`. None keeps whatever the
+    # topic already has (the onboarding /plan step may have stored it), else the default.
+    strategy = data.get("study_profile") or data.get("strategy")
     if strategy is not None:
         topic.strategy_config = strategy
         await db.commit()
