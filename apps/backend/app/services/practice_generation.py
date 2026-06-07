@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import re
 from collections.abc import AsyncGenerator
@@ -9,6 +8,7 @@ from typing import Any
 import httpx
 
 from app.schemas.practice import PracticeTaskCreate, StudySessionCreate
+from app.services.llm_utils import extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -102,26 +102,10 @@ async def _llm_stream_tokens(
 
 
 def _extract_json(text: str) -> dict:
-    # Strip markdown code fences and backticks
-    text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
-    # Find the outermost JSON object (handles reasoning-model preamble)
-    start = text.find("{")
-    if start == -1:
-        raise ValueError(f"No JSON object found in LLM response (len={len(text)})")
-    # Find matching closing brace
-    depth = 0
-    end = -1
-    for i, ch in enumerate(text[start:], start):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                end = i + 1
-                break
-    if end == -1:
-        raise ValueError("Unmatched braces in LLM response")
-    return json.loads(text[start:end])
+    obj = extract_json(text)
+    if not isinstance(obj, dict):
+        raise ValueError("LLM response JSON is not a JSON object")
+    return obj
 
 
 def _resolve_lang(lang: str, *texts: str) -> str:
@@ -307,8 +291,12 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy, la
     practice_spec = profile.task_recipe[1] if len(profile.task_recipe) > 1 else profile.task_recipe[0]
 
     code_rule = (
-        "- Стартовый код и решения — в fenced-блоках с языком (```python, ```ts и т.п.). "
-        "Код должен быть настоящим и осмысленным, без заглушек «...»."
+        "- ЛЮБОЙ код — и условие, и решение, и многофайловые листинги — оборачивай в отдельный "
+        "fenced-блок с языком (```python, ```kotlin, ```ts и т.п.). НИКОГДА не выводи код как "
+        "обычный текст или одной строкой; имя файла указывай комментарием ПЕРВОЙ строкой ВНУТРИ блока "
+        "(напр. `// Forecast.kt`), а не до блока. Каждый файл — свой блок.\n"
+        "- Код должен быть настоящим и осмысленным, без заглушек «...». Держи строки покороче "
+        "(≈ до 80 символов), переноси длинные вызовы, чтобы не было горизонтальной прокрутки."
         if profile.allow_code
         else "- НЕ используй программный код. Задания — текстовые/практические по сути темы."
     )
@@ -331,6 +319,8 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy, la
 
     return f"""На основе конспекта по теме «{topic_name}» создай учебные задания для аудитории «{profile.audience}».
 Создай РОВНО 5 ОТДЕЛЬНЫХ практических заданий по НАРАСТАЮЩЕЙ сложности — каждое самостоятельное, проверяется отдельно и НЕ дублирует другие (1 — лёгкое прямое применение одной концепции; 2 — с усложнением; 3 — комбинация нескольких концепций темы; 4 — нетривиальный ход мысли/пограничный случай; 5 — капстоун: {level5}). Минимум 2 последних — уровня технического собеседования Middle+/Senior (trade-offs, edge cases). Задания должны заставлять думать, а не пересказывать конспект; не повторяй формулировки конспекта дословно.
+
+КАЖДОЕ задание — САМОДОСТАТОЧНО: учащийся решает его, видя ТОЛЬКО текст задания, без доступа к конспекту. Поэтому ВНУТРИ instructions_md приводи весь нужный контекст — исходный код/систему, которую надо доработать, данные, сигнатуры, входы-выходы, ограничения. НЕ ссылайся на «конспект», «выше», «предыдущее задание» или на файлы, которых нет в самом задании. Чем выше сложность — тем подробнее вводная: без неё задание невыполнимо.
 
 ## Конспект
 {conspect_md[:12000]}

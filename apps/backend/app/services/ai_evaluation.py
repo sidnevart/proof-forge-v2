@@ -7,9 +7,7 @@ submissions to a free vision model, parses a strict JSON contract, and persists 
 ``practice_evaluation.evaluate_submission`` when the LLM is not configured or the
 response can't be parsed — so tests and no-key environments keep working.
 """
-import json
 import logging
-import re
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +17,7 @@ from app.models import IdeSubmission
 from app.repositories import practice_repo, review_repo
 from app.schemas.practice import EvaluationCreate, FollowUpCreate
 from app.services.evaluation_prompt import get_evaluation_system_prompt
-from app.services.llm_utils import http_post_with_retry
+from app.services.llm_utils import extract_json, http_post_with_retry
 from app.services.practice_evaluation import evaluate_submission as evaluate_submission_deterministic
 
 logger = logging.getLogger(__name__)
@@ -37,24 +35,10 @@ def _clip(text: str, max_chars: int) -> str:
 
 
 def _extract_json(text: str) -> dict:
-    """Strip markdown fences and isolate the outermost JSON object."""
-    text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
-    start = text.find("{")
-    if start == -1:
-        raise ValueError(f"No JSON object found in LLM response (len={len(text)})")
-    depth = 0
-    end = -1
-    for i, ch in enumerate(text[start:], start):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                end = i + 1
-                break
-    if end == -1:
-        raise ValueError("Unmatched braces in LLM response")
-    return json.loads(text[start:end])
+    obj = extract_json(text)
+    if not isinstance(obj, dict):
+        raise ValueError("LLM response JSON is not a JSON object")
+    return obj
 
 
 def _build_user_content(task, submission: IdeSubmission, attachments: list) -> tuple[list | str, bool]:

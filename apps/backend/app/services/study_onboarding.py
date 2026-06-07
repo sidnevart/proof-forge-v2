@@ -16,12 +16,12 @@ This module depends only on llm_utils and domain_profiles, and is testable in is
 """
 import json
 import logging
-import re
 from typing import Any
 
 import httpx
 
 from app.services.domain_profiles import get_profile
+from app.services.llm_utils import extract_json
 
 logger = logging.getLogger(__name__)
 
@@ -76,19 +76,10 @@ _GOAL_KNOBS = {
 # ── LLM helper ──────────────────────────────────────────────────────────────────
 
 def _extract_json(text: str) -> dict:
-    text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
-    start = text.find("{")
-    if start == -1:
-        raise ValueError("no JSON object in response")
-    depth = 0
-    for i, ch in enumerate(text[start:], start):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                return json.loads(text[start:i + 1])
-    raise ValueError("unbalanced JSON in response")
+    obj = extract_json(text)
+    if not isinstance(obj, dict):
+        raise ValueError("LLM response JSON is not a JSON object")
+    return obj
 
 
 async def _llm_concepts_and_subtopics(

@@ -1,6 +1,5 @@
 import asyncio
 import json
-import re
 import time as _time
 
 import httpx
@@ -11,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db, async_session_factory
+from app.services.llm_utils import extract_json
 from app.repositories import topic_repo, capsule_repo
 from app.schemas.topic import TopicStart, TopicOut
 from app.schemas.capsule import CapsuleCreate, CapsuleOut, ReviewQuestionIn, ReviewQuestionOut
@@ -296,12 +296,10 @@ class GenerateTopicOut(BaseModel):
 
 
 def _extract_json(text: str) -> dict:
-    text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
-    start = text.find("{")
-    end = text.rfind("}") + 1
-    if start == -1 or end == 0:
-        raise ValueError("No JSON object found in LLM response")
-    return json.loads(text[start:end])
+    obj = extract_json(text)
+    if not isinstance(obj, dict):
+        raise ValueError("LLM response JSON is not a JSON object")
+    return obj
 
 
 async def _llm_call(

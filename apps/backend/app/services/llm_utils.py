@@ -2,12 +2,43 @@
 LLM resilience utilities: exponential backoff retry on 429, with fallback model.
 """
 import asyncio
+import json
 import logging
 from collections.abc import AsyncGenerator
+from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+def extract_json(text: str, *, container: str = "{") -> Any:
+    """Decode the first complete JSON value (object or array) from an LLM response.
+
+    Tolerates a ```json … ``` wrapper and reasoning-model preamble by scanning to the
+    first '{'/'[' and letting a real JSON decoder consume exactly one value.
+
+    Crucially it does NOT globally strip ``` fences or count braces by hand: generated
+    markdown fields (instructions_md, card answers, capsule body) legitimately contain
+    fenced code blocks and braces inside string values. A blanket fence strip turns
+    ```kotlin … ``` into bare run-on text, and a naive brace counter mis-matches on a
+    `{` inside code — both corrupt the output. The decoder respects string contents.
+
+    container selects which bracket to anchor on first: "{" (object, default) or
+    "[" (array). Whichever of '{'/'[' appears earliest from the preferred kind is used.
+    """
+    first_obj = text.find("{")
+    first_arr = text.find("[")
+    prefer, other = (first_obj, first_arr) if container == "{" else (first_arr, first_obj)
+    candidates = [i for i in (prefer, other) if i != -1]
+    if not candidates:
+        raise ValueError(f"No JSON value found in LLM response (len={len(text)})")
+    start = min(candidates)
+    try:
+        value, _ = json.JSONDecoder().raw_decode(text, start)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in LLM response: {exc}") from None
+    return value
 
 # Free-tier 429s ("temporarily rate-limited upstream") are transient — they clear within
 # a few seconds. A quick ramp rides them out without the long 30/60s stalls that used to

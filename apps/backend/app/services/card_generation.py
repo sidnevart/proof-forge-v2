@@ -1,4 +1,3 @@
-import json
 import re
 from difflib import SequenceMatcher
 from typing import Any
@@ -10,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import async_session_factory
 from app.models import StudySession, Topic, TopicCard, TopicMaterial
-from app.services.llm_utils import http_post_with_retry
+from app.services.llm_utils import extract_json, http_post_with_retry
 
 SUPPORTED_CARD_TYPES = {"FLASHCARD", "FILL_BLANK", "CODE_REVIEW", "PRACTICAL"}
 DEFAULT_MAX_CARDS = 12
@@ -55,18 +54,9 @@ def _normalize_difficulty(value: Any) -> int:
 
 
 def _extract_json_cards(text: str) -> list[dict[str, Any]]:
-    cleaned = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("`").strip()
-    start = cleaned.find("[")
-    end = cleaned.rfind("]")
-    if start != -1 and end != -1 and end > start:
-        parsed = json.loads(cleaned[start : end + 1])
-    else:
-        obj_start = cleaned.find("{")
-        obj_end = cleaned.rfind("}")
-        if obj_start == -1 or obj_end == -1 or obj_end <= obj_start:
-            raise ValueError("No JSON cards found in LLM response")
-        parsed_obj = json.loads(cleaned[obj_start : obj_end + 1])
-        parsed = parsed_obj.get("cards", [])
+    parsed = extract_json(text, container="[")
+    if isinstance(parsed, dict):
+        parsed = parsed.get("cards", [])
     if not isinstance(parsed, list):
         raise ValueError("Card generation response must be a JSON array")
     return [item for item in parsed if isinstance(item, dict)]
