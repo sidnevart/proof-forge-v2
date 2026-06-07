@@ -593,26 +593,29 @@ async def generate_tasks_from_conspect(
     lang = _resolve_lang(topic.lang, topic.name, conspect_md[:400])
     prompt_tasks = _build_tasks_prompt(topic.name, conspect_md, profile, strategy, lang=lang)
 
-    async with httpx.AsyncClient(timeout=180.0) as client:
-        raw = await _llm_call(
-            client,
-            settings,
-            prompt_tasks,
-            # 8-12 theory questions + 5 DISCRETE practice tasks, each with a full worked
-            # solution in <details>, needs substantial room — avoid truncating the JSON.
-            max_tokens=11000,
-            temperature=0.1,
-            system="You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations.",
-        )
-
-    # A truncated or malformed object must not zero out tasks: fall back to {} so the
-    # per-field defaults below still build domain-appropriate template tasks.
+    # Nothing here may leave the learner with zero tasks. The free tier frequently 429s
+    # (the tasks call is the last/largest LLM call of the run, so it's the first to be
+    # rate-limited), and a reasoning model can also truncate the JSON. On ANY failure —
+    # rate limit, timeout, malformed/truncated JSON — fall back to {} so the per-field
+    # defaults below still build domain-appropriate template tasks.
+    parsed: dict = {}
     try:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            raw = await _llm_call(
+                client,
+                settings,
+                prompt_tasks,
+                # 8-12 theory questions + 5 DISCRETE practice tasks, each with a full worked
+                # solution in <details>, needs substantial room — avoid truncating the JSON.
+                max_tokens=11000,
+                temperature=0.1,
+                system="You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations.",
+            )
         parsed = _extract_json(raw)
-    except (ValueError, json.JSONDecodeError) as exc:
+    except Exception as exc:  # noqa: BLE001 — task gen must degrade to templates, never to zero tasks
         logger.warning(
-            "Task JSON parse failed for topic %s (%s) — using template tasks. raw_len=%d",
-            topic.id, exc, len(raw),
+            "Task generation failed for topic %s (%s) — using template tasks.",
+            topic.id, exc,
         )
         parsed = {}
 

@@ -9,7 +9,20 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-_RETRY_DELAYS = (10, 30, 60)
+# Free-tier 429s ("temporarily rate-limited upstream") are transient — they clear within
+# a few seconds. A quick ramp rides them out without the long 30/60s stalls that used to
+# make generation give up and fall back to template content.
+_RETRY_DELAYS = (2, 4, 7, 11, 16, 22)
+_MAX_RETRY_AFTER = 20.0
+
+
+def _fallback_attempt_threshold(retries: int) -> int:
+    """First attempt index at which we switch to the fallback model.
+
+    Give the primary model the first attempts (transient 429s usually clear by then);
+    only fall back for the final couple of tries when it's persistently unavailable.
+    """
+    return max(1, retries - 1)
 
 # Cap concurrent LLM calls across all flows (session-gen + card-gen + capsule +
 # map-reduce) so bursts can't trip the provider's per-minute rate limit. The free
@@ -28,7 +41,9 @@ def _parse_retry_after(response: httpx.Response, attempt: int) -> float:
                 if seconds > 1_000_000_000:
                     import time
                     seconds = max(0, seconds - time.time())
-                return min(seconds, 120.0)
+                # Cap the honored wait: free-tier blips clear in seconds even when the
+                # server suggests a long Retry-After, so don't stall a whole minute.
+                return min(seconds, _MAX_RETRY_AFTER)
             except (ValueError, TypeError):
                 pass
     return _RETRY_DELAYS[min(attempt, len(_RETRY_DELAYS) - 1)]
@@ -39,14 +54,15 @@ async def http_post_with_retry(
     url: str,
     headers: dict,
     json_body: dict,
-    retries: int = 3,
+    retries: int = 6,
     fallback_model: str | None = None,
 ) -> httpx.Response:
-    """POST with exponential backoff on 429. Switches to fallback_model after first failure."""
+    """POST with backoff on 429. Retries the primary model first, then the fallback model."""
     last_exc: Exception | None = None
+    fallback_at = _fallback_attempt_threshold(retries)
     for attempt in range(retries + 1):
         body = dict(json_body)
-        if attempt > 0 and fallback_model:
+        if fallback_model and attempt >= fallback_at:
             body["model"] = fallback_model
         try:
             # Hold the gate only for the request itself, not the backoff sleep.
@@ -59,11 +75,9 @@ async def http_post_with_retry(
                 raise
             last_exc = exc
             delay = _parse_retry_after(exc.response, attempt)
-            model_label = body.get("model", "?")
             logger.warning(
-                "LLM 429 attempt %d/%d [%s] — waiting %.0fs then %s",
-                attempt + 1, retries + 1, model_label, delay,
-                f"switching to {fallback_model}" if (attempt == 0 and fallback_model) else "retrying",
+                "LLM 429 attempt %d/%d [%s] — waiting %.0fs then retrying",
+                attempt + 1, retries + 1, body.get("model", "?"), delay,
             )
             await asyncio.sleep(delay)
     raise last_exc  # type: ignore[misc]
@@ -74,16 +88,17 @@ async def http_stream_with_retry(
     url: str,
     headers: dict,
     json_body: dict,
-    retries: int = 2,
+    retries: int = 4,
     fallback_model: str | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Stream POST with retry on 429. Switches to fallback_model after first failure."""
+    """Stream POST with retry on 429. Retries the primary model first, then the fallback."""
     import json as _json
 
     last_exc: Exception | None = None
+    fallback_at = _fallback_attempt_threshold(retries)
     for attempt in range(retries + 1):
         body = dict(json_body)
-        if attempt > 0 and fallback_model:
+        if fallback_model and attempt >= fallback_at:
             body["model"] = fallback_model
         try:
             # Hold the gate for the whole stream — it caps concurrent open connections.
@@ -109,11 +124,9 @@ async def http_stream_with_retry(
                 raise
             last_exc = exc
             delay = _parse_retry_after(exc.response, attempt)
-            model_label = body.get("model", "?")
             logger.warning(
-                "LLM stream 429 attempt %d/%d [%s] — restarting in %.0fs then %s",
-                attempt + 1, retries + 1, model_label, delay,
-                f"switching to {fallback_model}" if (attempt == 0 and fallback_model) else "retrying",
+                "LLM stream 429 attempt %d/%d [%s] — restarting in %.0fs",
+                attempt + 1, retries + 1, body.get("model", "?"), delay,
             )
             await asyncio.sleep(delay)
     raise last_exc  # type: ignore[misc]
