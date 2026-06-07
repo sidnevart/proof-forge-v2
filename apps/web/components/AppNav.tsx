@@ -62,6 +62,9 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
     { href: NAV_HREFS[3], label: t('nav.capsules'), icon: NAV_ICONS[3] },
   ]
 
+  // Re-fetch on every navigation so a freshly created topic/session shows up without
+  // a manual reload — the sidebar lives in the persistent layout, so a user-keyed
+  // effect alone never refreshes after create → navigate.
   useEffect(() => {
     if (!storedUser) return
     Promise.all([
@@ -76,7 +79,7 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
       })
       .catch(() => {})
       .finally(() => setSessionsLoading(false))
-  }, [storedUser?.user_id])
+  }, [storedUser?.user_id, pathname])
 
   const handleCreateFolder = async () => {
     if (!storedUser || !newFolderName.trim()) return
@@ -146,7 +149,7 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
             <span className="text-[10px] font-mono text-mute uppercase tracking-wider flex-1">{t('nav.sessions')}</span>
             <button
               onClick={() => setCreatingFolder(true)}
-              title="Новая папка"
+              title={t('nav.newFolder')}
               className="text-mute hover:text-ink transition-colors"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -164,7 +167,7 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') setCreatingFolder(false) }}
-                placeholder="Имя папки"
+                placeholder={t('nav.folderName')}
                 className="flex-1 text-xs px-2 py-1 rounded-lg border border-line bg-card text-ink focus:outline-none focus:border-accent/60"
               />
               <button onClick={handleCreateFolder} className="text-accent text-xs px-1">✓</button>

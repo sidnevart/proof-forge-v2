@@ -13,6 +13,8 @@ export const dict: Dict = {
   'nav.learn': 'Учиться',
   'nav.capsules': 'Капсулы',
   'nav.sessionFallback': 'Урок',
+  'nav.newFolder': 'Новая папка',
+  'nav.folderName': 'Имя папки',
 
   // Dashboard
   'dash.morning': 'Доброе утро',
@@ -239,6 +241,20 @@ export const dict: Dict = {
   'study.tasksLoading': 'Задания загружаются...',
   'study.noTasks': 'Задания не созданы. Возможно, генерация завершилась с ошибкой. Попробуй обновить страницу или начать новую сессию.',
   'study.hint': 'Enter ↵ отправить · Shift+Enter новая строка',
+  'study.aiPreparing': 'AI готовит материал',
+  'study.phase.study': 'Изучаю материалы...',
+  'study.phase.conspect': 'Пишу конспект...',
+  'study.phase.tasks': 'Создаю задания...',
+  'study.phase.default': 'Подожди немного...',
+  'study.conspectHint': 'Конспект уже пишется на вкладке Теория →',
+  'study.creatingTasks': 'Создаю задания...',
+  'study.refresh': 'Обновить страницу',
+  'study.genError': 'Ошибка генерации',
+  'study.fallbackShown': 'показан шаблонный контент.',
+  'study.explainPrefix': 'Объясни',
+  'study.toc': 'Оглавление',
+  'study.capsuleLabel': 'Капсула',
+  'study.difficulty': 'Сложность',
 
   // Learn page
   'learn.mentor': 'Ментор',

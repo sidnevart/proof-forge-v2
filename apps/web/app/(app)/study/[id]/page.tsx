@@ -112,7 +112,13 @@ export default function StudySessionPage() {
     isStreaming ? practice.sessionEventsUrl(id) : null,
     (event) => {
       if (event.type === 'phase_change') {
-        setStreamingPhase((event.data.label as string) ?? '')
+        // Map the backend phase key to a localized label; the backend's `label` is
+        // Russian-only, so we ignore it and key off `phase` instead.
+        const phase = (event.data.phase as string) ?? ''
+        const key = ['study', 'conspect', 'tasks'].includes(phase)
+          ? `study.phase.${phase}`
+          : 'study.phase.default'
+        setStreamingPhase(t(key))
       } else if (event.type === 'token') {
         setStreamingConspect((prev) => prev + ((event.data.content as string) ?? ''))
       } else if (event.type === 'task_ready') {
@@ -131,7 +137,7 @@ export default function StudySessionPage() {
           setTasks(all.filter((t) => t.study_session_id === id))
         }).catch(() => {})
       } else if (event.type === 'error') {
-        setStreamError((event.data.message as string) ?? 'Ошибка генерации')
+        setStreamError((event.data.message as string) ?? t('study.genError'))
         setIsStreaming(false)
       }
     }
@@ -152,7 +158,7 @@ export default function StudySessionPage() {
       }
     } else if (event.type === 'error') {
       setCapsuleEventsUrl2(null)
-      setCapsuleGenError((event.data.message as string) ?? 'Ошибка генерации')
+      setCapsuleGenError((event.data.message as string) ?? t('study.genError'))
       setIsGeneratingCapsule(false)
     }
   })
@@ -168,7 +174,7 @@ export default function StudySessionPage() {
       setTasks(activeTasks.filter((task) => task.study_session_id === s.id))
       if (s.status === 'generating') {
         setIsStreaming(true)
-        setStreamingPhase('Готовлю материал...')
+        setStreamingPhase(t('study.phase.default'))
       }
 
       // Load or create chat session
@@ -293,7 +299,7 @@ export default function StudySessionPage() {
       pendingCapsuleId.current = result.capsule_id
       setCapsuleEventsUrl2(topics.capsuleEventsUrl(session.topic_id, result.capsule_id))
     } catch (err) {
-      setCapsuleGenError(err instanceof Error ? err.message : 'Ошибка генерации')
+      setCapsuleGenError(err instanceof Error ? err.message : t('study.genError'))
       setIsGeneratingCapsule(false)
     }
   }
@@ -401,9 +407,9 @@ export default function StudySessionPage() {
                   <div className="w-12 h-12 rounded-2xl bg-accentsoft border border-accent/20 flex items-center justify-center mx-auto mb-3">
                     <div className="w-5 h-5 rounded-full border-2 border-accentdk border-t-accent animate-spin" />
                   </div>
-                  <p className="text-sm font-medium text-ink mb-1">AI готовит материал</p>
-                  <p className="text-xs text-mute font-mono">{streamingPhase || 'Подожди немного...'}</p>
-                  <p className="text-xs text-mute mt-2">Конспект уже пишется на вкладке Теория →</p>
+                  <p className="text-sm font-medium text-ink mb-1">{t('study.aiPreparing')}</p>
+                  <p className="text-xs text-mute font-mono">{streamingPhase || t('study.phase.default')}</p>
+                  <p className="text-xs text-mute mt-2">{t('study.conspectHint')}</p>
                 </div>
               )}
               {!isStreaming && messages.length === 0 && !sending && (
@@ -572,7 +578,7 @@ export default function StudySessionPage() {
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/>
                   </svg>
-                  Оглавление
+                  {t('study.toc')}
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`transition-transform ${tocOpen ? 'rotate-180' : ''}`}>
                     <polyline points="6 9 12 15 18 9"/>
                   </svg>
@@ -590,7 +596,7 @@ export default function StudySessionPage() {
               {headings.length > 0 && (
                 <aside className="hidden md:block">
                   <div className="sticky top-4">
-                    <p className="text-[10px] font-mono text-mute uppercase tracking-wider mb-2 px-2">Оглавление</p>
+                    <p className="text-[10px] font-mono text-mute uppercase tracking-wider mb-2 px-2">{t('study.toc')}</p>
                     <ConspectToc headings={headings} activeId={activeHeadingId} />
                   </div>
                 </aside>
@@ -601,7 +607,7 @@ export default function StudySessionPage() {
                 <SelectionBubble
                   containerRef={theoryRef}
                   onAsk={(text) => {
-                    setInput(`Объясни: «${text}»`)
+                    setInput(`${t('study.explainPrefix')}: «${text}»`)
                     setActiveTab('chat')
                     setTimeout(() => textareaRef.current?.focus(), 50)
                   }}
@@ -614,7 +620,7 @@ export default function StudySessionPage() {
                 )}
                 {streamError && (
                   <div className="mb-4 px-3 py-2 rounded-lg bg-danger/10 border border-danger/20 text-xs text-danger">
-                    {streamError} — показан шаблонный контент.
+                    {streamError} — {t('study.fallbackShown')}
                   </div>
                 )}
                 <div className="prose-grasp text-sm">
@@ -781,7 +787,7 @@ export default function StudySessionPage() {
                   {isStreaming && tasks.length === 0 && (
                     <div className="flex items-center gap-2 py-8 justify-center">
                       <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-                      <span className="text-xs text-mute font-mono">Создаю задания...</span>
+                      <span className="text-xs text-mute font-mono">{t('study.creatingTasks')}</span>
                     </div>
                   )}
                   {!isStreaming && tasks.length === 0 && (
@@ -795,7 +801,7 @@ export default function StudySessionPage() {
                             onClick={() => window.location.reload()}
                             className="text-xs text-accent hover:text-accentdk underline"
                           >
-                            Обновить страницу
+                            {t('study.refresh')}
                           </button>
                         </>
                       )}
@@ -813,7 +819,7 @@ export default function StudySessionPage() {
                             <div className="flex items-center gap-2">
                               <div className="text-[10px] font-mono text-accent uppercase tracking-wide">{task.type}</div>
                               {task.type !== 'theory' && (
-                                <div className="flex items-center gap-0.5" title={`Сложность ${task.difficulty}/3`}>
+                                <div className="flex items-center gap-0.5" title={`${t('study.difficulty')} ${task.difficulty}/3`}>
                                   {[1, 2, 3].map((n) => (
                                     <span key={n} className={`w-1.5 h-1.5 rounded-full ${n <= task.difficulty ? 'bg-accent' : 'bg-mute/30'}`} />
                                   ))}
@@ -857,7 +863,7 @@ export default function StudySessionPage() {
               {capsule ? (
                 <div className="space-y-4">
                   <div className="surface rounded-xl p-4">
-                    <div className="text-[10px] font-mono text-accent uppercase tracking-wider mb-1.5">Капсула</div>
+                    <div className="text-[10px] font-mono text-accent uppercase tracking-wider mb-1.5">{t('study.capsuleLabel')}</div>
                     <p className="text-sm font-medium text-ink mb-3 leading-snug">{capsule.summary}</p>
                     <Link
                       href={`/capsule/${capsule.id}`}

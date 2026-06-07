@@ -604,7 +604,17 @@ async def generate_tasks_from_conspect(
             temperature=0.1,
             system="You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations.",
         )
+
+    # A truncated or malformed object must not zero out tasks: fall back to {} so the
+    # per-field defaults below still build domain-appropriate template tasks.
+    try:
         parsed = _extract_json(raw)
+    except (ValueError, json.JSONDecodeError) as exc:
+        logger.warning(
+            "Task JSON parse failed for topic %s (%s) — using template tasks. raw_len=%d",
+            topic.id, exc, len(raw),
+        )
+        parsed = {}
 
     theory_raw = parsed.get("theory_task", {})
     # New schema: an array of discrete, separately-gradable practice tasks. Fall back to
@@ -622,7 +632,8 @@ async def generate_tasks_from_conspect(
         title=theory_raw.get("title", f"{theory_spec.title_hint}: {topic.name}"),
         instructions_md=theory_raw.get(
             "instructions_md",
-            f"## {theory_spec.title_hint}: {topic.name}\n\nРазбери ключевые идеи из конспекта.",
+            f"## {theory_spec.title_hint}: {topic.name}\n\n{theory_spec.instructions_hint}\n\n"
+            "Разбери ключевые идеи из конспекта своими словами.",
         ),
         target_concepts=[topic.name],
         difficulty=theory_spec.difficulty,

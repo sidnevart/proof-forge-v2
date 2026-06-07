@@ -23,12 +23,13 @@ export function MobileDrawer({ open, onClose, user }: MobileDrawerProps) {
 
   useEffect(() => { setMounted(true) }, [])
 
-  // Load study sessions
+  // Load study sessions — re-fetch on navigation so newly created lessons appear
+  // without a manual reload.
   useEffect(() => {
     const stored = getStoredUser()
     if (!stored) return
     practice.listSessions(stored.user_id).then(setSessions).catch(() => {})
-  }, [])
+  }, [pathname])
 
   // Close on Escape
   useEffect(() => {

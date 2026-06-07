@@ -11,6 +11,8 @@ export const dict = {
   'nav.learn': 'Learn',
   'nav.capsules': 'Capsules',
   'nav.sessionFallback': 'Lesson',
+  'nav.newFolder': 'New folder',
+  'nav.folderName': 'Folder name',
 
   // Dashboard
   'dash.morning': 'Good morning',
@@ -237,6 +239,20 @@ export const dict = {
   'study.tasksLoading': 'Loading tasks...',
   'study.noTasks': 'No tasks created. The AI generation may have failed. Try refreshing the page or starting a new session.',
   'study.hint': 'Enter ↵ send · Shift+Enter new line',
+  'study.aiPreparing': 'AI is preparing your material',
+  'study.phase.study': 'Reading the materials...',
+  'study.phase.conspect': 'Writing the conspect...',
+  'study.phase.tasks': 'Creating tasks...',
+  'study.phase.default': 'One moment...',
+  'study.conspectHint': 'The conspect is already being written on the Theory tab →',
+  'study.creatingTasks': 'Creating tasks...',
+  'study.refresh': 'Refresh page',
+  'study.genError': 'Generation error',
+  'study.fallbackShown': 'template content is shown.',
+  'study.explainPrefix': 'Explain',
+  'study.toc': 'Table of contents',
+  'study.capsuleLabel': 'Capsule',
+  'study.difficulty': 'Difficulty',
 
   // Learn page
   'learn.mentor': 'Mentor',
