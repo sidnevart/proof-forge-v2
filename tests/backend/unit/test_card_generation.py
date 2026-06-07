@@ -20,7 +20,7 @@ async def test_generate_cards_for_topic_persists_all_supported_card_types(db, mo
         TopicStart(user_id=user.id, name="Kotlin coroutines"),
     )
 
-    async def fake_llm_cards(topic_name: str, context_md: str):
+    async def fake_llm_cards(topic_name: str, context_md: str, lang: str = "auto"):
         assert topic_name == "Kotlin coroutines"
         assert "launch starts" in context_md
         return [
@@ -95,7 +95,7 @@ async def test_generate_cards_for_topic_skips_duplicate_fronts(db, monkeypatch):
     )
     await db.commit()
 
-    async def fake_llm_cards(topic_name: str, context_md: str):
+    async def fake_llm_cards(topic_name: str, context_md: str, lang: str = "auto"):
         return [
             {
                 "type": "FLASHCARD",
