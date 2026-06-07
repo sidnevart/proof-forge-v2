@@ -810,7 +810,16 @@ export default function StudySessionPage() {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <div className="text-[10px] font-mono text-accent uppercase tracking-wide">{task.type}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="text-[10px] font-mono text-accent uppercase tracking-wide">{task.type}</div>
+                              {task.type !== 'theory' && (
+                                <div className="flex items-center gap-0.5" title={`Сложность ${task.difficulty}/3`}>
+                                  {[1, 2, 3].map((n) => (
+                                    <span key={n} className={`w-1.5 h-1.5 rounded-full ${n <= task.difficulty ? 'bg-accent' : 'bg-mute/30'}`} />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                             <div className="font-semibold text-ink mt-0.5">{task.title}</div>
                             <div className="text-xs text-mute mt-1 line-clamp-2">{task.instructions_md.slice(0, 120)}...</div>
                           </div>

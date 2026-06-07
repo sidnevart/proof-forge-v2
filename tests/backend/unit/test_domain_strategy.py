@@ -87,6 +87,26 @@ def test_tasks_prompt_uses_full_conspect_not_truncated():
     assert prompt.count("КОНСПЕКТ") > 500
 
 
+def test_practice_generation_emits_discrete_gradable_tasks():
+    topic = pg.TopicInfo(id="t", name="Хеш-таблицы", user_id="u", domain="coding")
+    pspec = get_profile("coding").task_recipe[1]
+    items = [
+        {"title": f"T{i}", "instructions_md": f"### T{i}", "target_concepts": ["c"]}
+        for i in range(5)
+    ]
+    tasks = pg._build_practice_task_creates(topic, pspec, items)
+    assert len(tasks) == 5  # one PracticeTask row per item, not a single blob
+    diffs = [t.difficulty for t in tasks]
+    assert diffs == sorted(diffs)            # ascending gradient
+    assert all(1 <= d <= 3 for d in diffs)   # clamped to schema range
+    assert all(t.type == pspec.key for t in tasks)
+    # an out-of-range model difficulty is ignored, not passed through
+    weird = pg._build_practice_task_creates(topic, pspec, [{"difficulty": 9, "instructions_md": "x"}])
+    assert 1 <= weird[0].difficulty <= 3
+    # never leaves a session with zero practice
+    assert len(pg._build_practice_task_creates(topic, pspec, [])) == 1
+
+
 def test_classifier_normalize():
     assert _normalize("coding") == "coding"
     assert _normalize("  Language.") == "language"

@@ -304,7 +304,7 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) ->
     )
 
     return f"""На основе конспекта по теме «{topic_name}» создай учебные задания для аудитории «{profile.audience}».
-Задания должны быть ДЕЙСТВИТЕЛЬНО сложными и заставлять думать, а не пересказывать конспект. Минимум треть заданий — уровня технического собеседования Middle+/Senior (нетривиальный ход мысли, пограничные случаи, trade-offs). Не повторяй формулировки конспекта дословно. Опирайся на конкретику темы, а не на общие фразы.
+Создай РОВНО 5 ОТДЕЛЬНЫХ практических заданий по НАРАСТАЮЩЕЙ сложности — каждое самостоятельное, проверяется отдельно и НЕ дублирует другие (1 — лёгкое прямое применение одной концепции; 2 — с усложнением; 3 — комбинация нескольких концепций темы; 4 — нетривиальный ход мысли/пограничный случай; 5 — капстоун: {level5}). Минимум 2 последних — уровня технического собеседования Middle+/Senior (trade-offs, edge cases). Задания должны заставлять думать, а не пересказывать конспект; не повторяй формулировки конспекта дословно.
 
 ## Конспект
 {conspect_md[:12000]}
@@ -334,12 +334,16 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) ->
     "title": "{theory_spec.title_hint}: {topic_name}",
     "instructions_md": "Глубокая проверка понимания: 8-12 вопросов СТРОГО по нарастающей сложности. Первые 2-3 — на факты и определения; затем на МЕХАНИЗМ («почему и как именно это работает»); затем на TRADE-OFFS и сравнение подходов; последние 2-3 — на EDGE CASES и нетривиальные ситуации. Каждый вопрос оформи как «### Вопрос N — <короткая суть>», под ним эталонный ответ в <details><summary>Ответ</summary> … </details> с пояснением ПОЧЕМУ так, а не просто «что». Вопросы конкретные по теме «{topic_name}», без воды."
   }},
-  "practice_task": {{
-    "title": "{practice_spec.title_hint}: {topic_name}",
-    "instructions_md": "Практика из РОВНО 5 уровней сложности по нарастающей. Каждый уровень — отдельный заголовок вида «### Уровень N — <название>». Уровень 1 (лёгкий): прямое применение одной концепции. Уровень 2 (чуть сложнее): применение с небольшим усложнением. Уровень 3 (средний): комбинация нескольких концепций темы. Уровень 4 (выше среднего): нужен нетривиальный ход мысли, есть подвох или пограничный случай. Уровень 5 (сложный, надо хорошо подумать): {level5}. У КАЖДОГО уровня — блок «**Задача:** …», понятное условие и подробное эталонное решение/ответ в <details><summary>Решение</summary> … </details>. Уровни не должны дублировать друг друга по сложности.",
-    "target_concepts": ["ключевой концепт 1 из темы", "ключевой концепт 2 из темы"]
-  }}
-}}"""
+  "practice_tasks": [
+    {{
+      "title": "Короткое название задания (без слова «Уровень»)",
+      "difficulty": 1,
+      "instructions_md": "### <название>\n**Задача:** <понятное условие>\n\n<details><summary>Решение</summary>\n\n<полное эталонное решение с пояснением>\n\n</details>",
+      "target_concepts": ["концепт 1 из темы", "концепт 2 из темы"]
+    }}
+  ]
+}}
+Поле practice_tasks — массив РОВНО из 5 объектов по нарастающей сложности; difficulty целое от 1 до 3. Каждое задание самостоятельное и не дублирует другие."""
 
 
 # ── Streaming generation ───────────────────────────────────────────────────────
@@ -421,6 +425,54 @@ async def stream_conspect_to_queue(
     return conspect_md
 
 
+def _build_practice_task_creates(topic, practice_spec, items: list) -> list[PracticeTaskCreate]:
+    """Turn parsed practice items into discrete, separately-gradable task rows.
+
+    Each item becomes its own PracticeTask so the learner submits and is graded per
+    task. difficulty is clamped to the schema's 1..3 range; when the model omits it we
+    derive an ascending gradient from position so the list still ramps up.
+    """
+    valid = [it for it in items if isinstance(it, dict) and it.get("instructions_md")]
+    out: list[PracticeTaskCreate] = []
+    n = len(valid)
+    for i, item in enumerate(valid):
+        raw_diff = item.get("difficulty")
+        if isinstance(raw_diff, int) and 1 <= raw_diff <= 3:
+            diff = raw_diff
+        else:
+            diff = min(3, 1 + (i * 3) // max(1, n))
+        title = str(item.get("title") or f"{practice_spec.title_hint} {i + 1}: {topic.name}")
+        concepts = item.get("target_concepts")
+        if not isinstance(concepts, list) or not concepts:
+            concepts = [topic.name]
+        out.append(PracticeTaskCreate(
+            user_id=topic.user_id,
+            topic_id=topic.id,
+            study_session_id="",
+            type=practice_spec.key,
+            title=title[:200],
+            instructions_md=str(item["instructions_md"]),
+            target_concepts=[str(c) for c in concepts][:6],
+            difficulty=diff,
+            expected_evidence=list(practice_spec.expected_evidence),
+            check_commands=[],
+        ))
+    if not out:
+        out.append(PracticeTaskCreate(
+            user_id=topic.user_id,
+            topic_id=topic.id,
+            study_session_id="",
+            type=practice_spec.key,
+            title=f"{practice_spec.title_hint}: {topic.name}",
+            instructions_md=f"## {practice_spec.title_hint}\n\nВыполни практическое задание по теме {topic.name}.",
+            target_concepts=[topic.name],
+            difficulty=practice_spec.difficulty,
+            expected_evidence=list(practice_spec.expected_evidence),
+            check_commands=[],
+        ))
+    return out
+
+
 async def generate_tasks_from_conspect(
     settings: Any,
     topic: TopicInfo,
@@ -453,18 +505,21 @@ async def generate_tasks_from_conspect(
             client,
             settings,
             prompt_tasks,
-            # 8-12 theory questions + 5 graded practice levels, each with a full worked
-            # solution in <details>, needs substantially more room than the old 2-task set.
-            max_tokens=8000,
+            # 8-12 theory questions + 5 DISCRETE practice tasks, each with a full worked
+            # solution in <details>, needs substantial room — avoid truncating the JSON.
+            max_tokens=11000,
             temperature=0.1,
             system="You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations.",
         )
         parsed = _extract_json(raw)
 
     theory_raw = parsed.get("theory_task", {})
-    # The practice task key is "practice_task" in the current schema; accept the legacy
-    # "mini_project_task" key too for forward/backward compatibility.
-    practice_raw = parsed.get("practice_task") or parsed.get("mini_project_task", {})
+    # New schema: an array of discrete, separately-gradable practice tasks. Fall back to
+    # the legacy single "practice_task"/"mini_project_task" blob for older responses.
+    practice_items = parsed.get("practice_tasks")
+    if not isinstance(practice_items, list) or not practice_items:
+        legacy = parsed.get("practice_task") or parsed.get("mini_project_task")
+        practice_items = [legacy] if isinstance(legacy, dict) else []
 
     theory = PracticeTaskCreate(
         user_id=topic.user_id,
@@ -482,26 +537,10 @@ async def generate_tasks_from_conspect(
         check_commands=[],
     )
 
-    practice = PracticeTaskCreate(
-        user_id=topic.user_id,
-        topic_id=topic.id,
-        study_session_id="",
-        type=practice_spec.key,
-        title=practice_raw.get("title", f"{practice_spec.title_hint}: {topic.name}"),
-        instructions_md=practice_raw.get(
-            "instructions_md",
-            f"## {practice_spec.title_hint}\n\nВыполни практическое задание по теме {topic.name}.",
-        ),
-        target_concepts=practice_raw.get("target_concepts", [topic.name]),
-        difficulty=practice_spec.difficulty,
-        expected_evidence=practice_raw.get(
-            "expected_evidence", list(practice_spec.expected_evidence)
-        ),
-        check_commands=[],
-    )
+    practice_tasks = _build_practice_task_creates(topic, practice_spec, practice_items)
 
     learning_goals = parsed.get("learning_goals", [f"Изучить {topic.name}"])
-    return learning_goals, [theory, practice]
+    return learning_goals, [theory, *practice_tasks]
 
 
 async def stream_study_content_to_queue(
