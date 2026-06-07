@@ -70,6 +70,32 @@ export function MarkdownRenderer({ children, components }: MarkdownRendererProps
         li({ children }) {
           return <li className="pl-1">{children}</li>
         },
+        // GFM tables — react-markdown emits bare <table> with no styling, so columns
+        // collide. Wrap in a horizontally-scrollable container with bordered, padded cells.
+        // `table-auto` + `min-w-full` lets columns size to content and the container scroll
+        // on narrow screens instead of cells squishing/overlapping ("drift").
+        table({ children }) {
+          return (
+            <div className="my-4 overflow-x-auto rounded-xl border border-line">
+              <table className="min-w-full table-auto border-collapse text-sm">{children}</table>
+            </div>
+          )
+        },
+        thead({ children }) {
+          return <thead className="bg-sand/40">{children}</thead>
+        },
+        tr({ children }) {
+          return <tr className="border-b border-line/60 last:border-0">{children}</tr>
+        },
+        th({ children }) {
+          return <th className="px-3 py-2 text-left align-top font-semibold text-ink border-r border-line/40 last:border-0 whitespace-normal break-words">{children}</th>
+        },
+        td({ children }) {
+          return <td className="px-3 py-2 align-top text-ink/90 border-r border-line/40 last:border-0 whitespace-normal break-words [overflow-wrap:anywhere]">{children}</td>
+        },
+        blockquote({ children }) {
+          return <blockquote className="border-l-2 border-accent/50 pl-4 my-3 text-ink/80 italic">{children}</blockquote>
+        },
         // Caller overrides win for the keys above.
         ...components,
         // code/pre/details/summary are always ours (code/pre excluded from caller type).
@@ -96,12 +122,23 @@ export function MarkdownRenderer({ children, components }: MarkdownRendererProps
 
           if (lang === 'mermaid') return <MermaidBlock code={code} />
 
-          if (className) {
+          // Treat as a block when the fence carried a language OR the content spans
+          // multiple lines. Without this, language-less multi-line fences (common from
+          // the LLM) fall through to the inline pill and render as wrapped garbage.
+          const isBlock = !!className || code.includes('\n')
+          if (isBlock) {
             return (
               <SyntaxHighlighter
                 style={oneDark}
-                language={lang}
-                customStyle={{ borderRadius: '0.75rem', fontSize: '0.75rem', margin: '0.75rem 0' }}
+                language={lang || 'text'}
+                customStyle={{
+                  borderRadius: '0.75rem',
+                  fontSize: '0.8125rem',
+                  lineHeight: '1.5',
+                  margin: '0.75rem 0',
+                  maxWidth: '100%',
+                  overflowX: 'auto',
+                }}
               >
                 {code}
               </SyntaxHighlighter>
@@ -109,7 +146,7 @@ export function MarkdownRenderer({ children, components }: MarkdownRendererProps
           }
 
           return (
-            <code className="font-mono text-accent bg-accentsoft px-1 py-0.5 rounded text-xs">
+            <code className="font-mono text-accent bg-accentsoft px-1 py-0.5 rounded text-[0.85em] break-words">
               {children}
             </code>
           )

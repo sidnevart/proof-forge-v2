@@ -153,7 +153,8 @@ def build_conspect_system(profile, strategy) -> str:
         "- Основные секции разделяй горизонтальной чертой `---`.\n"
         "- Для списков — маркированные списки, не плотный текст.\n"
         "- **Жирным** выделяй ключевые термины при первом упоминании.\n"
-        "- Для сравнений (подходы, trade-offs) — Markdown-таблица.\n"
+        "- Для сравнений (подходы, trade-offs) — Markdown-таблица. Перед таблицей и после неё "
+        "обязательно пустая строка; таблица не шире 3-4 столбцов, ячейки краткие (без переносов строк внутри ячейки).\n"
         f"{code_rule}"
         f"{diagram_rule}"
         "- Не оставляй HTML-теги кроме обычного Markdown.\n"
@@ -265,30 +266,24 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) ->
     practice_spec = profile.task_recipe[1] if len(profile.task_recipe) > 1 else profile.task_recipe[0]
 
     code_rule = (
-        "- Стартовый код и решения — в fenced-блоках с языком (```python, ```ts и т.п.)."
+        "- Стартовый код и решения — в fenced-блоках с языком (```python, ```ts и т.п.). "
+        "Код должен быть настоящим и осмысленным, без заглушек «...»."
         if profile.allow_code
         else "- НЕ используй программный код. Задания — текстовые/практические по сути темы."
     )
 
-    # Scale practice exercises to coverage instead of a fixed level count: one exercise
-    # per focus area (or key concept), plus a capstone for deep/interview goals.
-    if strategy.focus_subtopics:
-        coverage = (
-            "Сделай по заданию на КАЖДУЮ тему фокуса: " + ", ".join(strategy.focus_subtopics)
-            + ". Не ограничивай число заданий — дай столько, сколько нужно для закрепления."
-        )
-    else:
-        coverage = (
-            "Покрой ключевые концепции темы — по заданию на каждую. Не ограничивай число "
-            "заданий: дай столько, сколько нужно для закрепления."
-        )
-    capstone = (
-        " В конце добавь capstone — мини-проект/задачу уровня собеседования."
-        if strategy.goal in ("interview", "solve_task") or strategy.difficulty == "challenging"
-        else ""
+    # Level 5 adapts to the domain: a coding topic gets a "design or improve a mini-system"
+    # capstone; non-code domains get the hardest domain-appropriate equivalent.
+    level5 = (
+        "спроектировать небольшую систему С НУЛЯ ИЛИ внести изменения в предложенную систему и "
+        "улучшить её — с продуманной архитектурой, рабочим кодом и обоснованием trade-offs"
+        if profile.allow_code
+        else "комплексное самостоятельное задание: развёрнутый разбор/эссе/полное решение "
+        "с обоснованием каждого шага и разбором альтернатив"
     )
 
     return f"""На основе конспекта по теме «{topic_name}» создай учебные задания для аудитории «{profile.audience}».
+Задания должны быть ДЕЙСТВИТЕЛЬНО сложными и заставлять думать, а не пересказывать конспект. Опирайся на конкретику темы, а не на общие фразы.
 
 ## Конспект
 {conspect_md[:2500]}
@@ -300,27 +295,28 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) ->
 
 Ответь ТОЛЬКО валидным JSON объектом. Без markdown-блоков, без текста вне JSON.
 
-Требования к форматированию поля instructions_md (это Markdown, который будет отрендерен):
-- Каждое задание начинай с заголовка ### и понятного названия.
+Требования к форматированию полей instructions_md (это Markdown, который будет отрендерен):
+- Каждый блок начинай с заголовка ### и понятного названия.
 {code_rule}
-- Условие давай блоками: «**Задача:** …», и где уместно «**Артефакт:** …», «**Edge cases:** …».
+- Условие давай блоками: «**Задача:** …», и где уместно «**Что проверяется:** …», «**Edge cases:** …».
 - Решение/ответ оборачивай в сворачивалку: <details><summary>Решение</summary> … </details>.
   ВНУТРИ <details> оставляй пустую строку после <summary> и перед </details>.
+- Перед таблицей и после неё — пустая строка; таблицы не шире 3-4 столбцов.
 
 {{
   "learning_goals": [
-    "Понять [ключевую идею 1] и объяснить своими словами",
-    "Применить [идею 2] на практике",
-    "Разобрать типичные ошибки и как их избегать"
+    "Понять механизм [ключевой идеи 1] и объяснить его своими словами",
+    "Применить [идею 2] в нетривиальном случае",
+    "Разобрать trade-offs и типичные ошибки"
   ],
   "theory_task": {{
     "title": "{theory_spec.title_hint}: {topic_name}",
-    "instructions_md": "Задание на проверку понимания ({theory_spec.instructions_hint}). 4-6 вопросов, ответы скрой в <details><summary>Ответы</summary>...</details> с пояснением почему."
+    "instructions_md": "Глубокая проверка понимания: 8-12 вопросов СТРОГО по нарастающей сложности. Первые 2-3 — на факты и определения; затем на МЕХАНИЗМ («почему и как именно это работает»); затем на TRADE-OFFS и сравнение подходов; последние 2-3 — на EDGE CASES и нетривиальные ситуации. Каждый вопрос оформи как «### Вопрос N — <короткая суть>», под ним эталонный ответ в <details><summary>Ответ</summary> … </details> с пояснением ПОЧЕМУ так, а не просто «что». Вопросы конкретные по теме «{topic_name}», без воды."
   }},
   "practice_task": {{
     "title": "{practice_spec.title_hint}: {topic_name}",
-    "instructions_md": "Практические задания ({practice_spec.instructions_hint}). {coverage}{capstone} Каждое задание — ### заголовок, условие и эталонное решение/ответ в <details>. Сложность по нарастающей.",
-    "target_concepts": ["концепт 1 из темы", "концепт 2 из темы"]
+    "instructions_md": "Практика из РОВНО 5 уровней сложности по нарастающей. Каждый уровень — отдельный заголовок вида «### Уровень N — <название>». Уровень 1 (лёгкий): прямое применение одной концепции. Уровень 2 (чуть сложнее): применение с небольшим усложнением. Уровень 3 (средний): комбинация нескольких концепций темы. Уровень 4 (выше среднего): нужен нетривиальный ход мысли, есть подвох или пограничный случай. Уровень 5 (сложный, надо хорошо подумать): {level5}. У КАЖДОГО уровня — блок «**Задача:** …», понятное условие и подробное эталонное решение/ответ в <details><summary>Решение</summary> … </details>. Уровни не должны дублировать друг друга по сложности.",
+    "target_concepts": ["ключевой концепт 1 из темы", "ключевой концепт 2 из темы"]
   }}
 }}"""
 
@@ -436,7 +432,9 @@ async def generate_tasks_from_conspect(
             client,
             settings,
             prompt_tasks,
-            max_tokens=3000,
+            # 8-12 theory questions + 5 graded practice levels, each with a full worked
+            # solution in <details>, needs substantially more room than the old 2-task set.
+            max_tokens=6000,
             temperature=0.1,
             system="You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations.",
         )

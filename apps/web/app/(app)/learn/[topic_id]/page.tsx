@@ -2,9 +2,7 @@
 
 import { use, useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeRaw from 'rehype-raw'
+import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { getStoredUser } from '@/lib/auth'
 import { chat, topics, type Topic, type ChatMessage, type ChatSession } from '@/lib/api'
 import { useT } from '@/lib/i18n'
@@ -179,22 +177,12 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
               )}
               {msg.role === 'assistant' ? (
                 <div className="prose-grasp text-sm">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    rehypePlugins={[rehypeRaw]}
+                  <MarkdownRenderer
                     components={{
                       h1: ({ children }) => <h1 className="font-display text-lg font-bold text-ink mt-4 mb-2">{children}</h1>,
                       h2: ({ children }) => <h2 className="font-display text-base font-bold text-ink mt-3 mb-1.5">{children}</h2>,
                       h3: ({ children }) => <h3 className="font-semibold text-ink mt-2 mb-1">{children}</h3>,
                       p: ({ children }) => <p className="text-ink/90 leading-relaxed mb-2 last:mb-0">{children}</p>,
-                      code: ({ children, className }) =>
-                        className ? (
-                          <code className="code-surface block p-3 rounded-xl font-mono text-xs my-2 overflow-x-auto whitespace-pre">
-                            {children}
-                          </code>
-                        ) : (
-                          <code className="font-mono text-accent bg-accentsoft px-1 py-0.5 rounded text-xs">{children}</code>
-                        ),
                       ul: ({ children }) => <ul className="list-disc list-inside space-y-0.5 mb-2 text-ink/90">{children}</ul>,
                       ol: ({ children }) => <ol className="list-decimal list-inside space-y-0.5 mb-2 text-ink/90">{children}</ol>,
                       blockquote: ({ children }) => (
@@ -204,7 +192,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
                     }}
                   >
                     {msg.content}
-                  </ReactMarkdown>
+                  </MarkdownRenderer>
                 </div>
               ) : (
                 <p className="text-sm whitespace-pre-wrap">{msg.content}</p>

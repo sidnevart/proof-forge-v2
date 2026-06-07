@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { practice, type PracticeTask } from '@/lib/api'
+import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { SkeletonText } from '@/components/ui/Skeleton'
 import { useT } from '@/lib/i18n'
 
@@ -36,8 +35,8 @@ export default function PracticeTaskPage() {
         <h1 className="font-display text-3xl font-bold text-ink">{task.title}</h1>
       </div>
 
-      <div className="surface rounded-2xl p-5 mb-6">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.instructions_md}</ReactMarkdown>
+      <div className="surface rounded-2xl p-5 mb-6 prose-grasp text-sm">
+        <MarkdownRenderer>{task.instructions_md}</MarkdownRenderer>
       </div>
 
       {/* Solution editor */}

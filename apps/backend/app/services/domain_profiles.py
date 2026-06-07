@@ -67,16 +67,16 @@ _CODING = DomainProfile(
         TaskType(
             key="theory",
             title_hint="Проверь себя",
-            instructions_hint="концептуальные вопросы + вопросы уровня собеседования",
+            instructions_hint="8-12 вопросов по нарастающей: факты → механизм → trade-offs → edge cases",
             expected_evidence=["written_explanation"],
             difficulty=1,
         ),
         TaskType(
             key="mini_project",
             title_hint="Практика",
-            instructions_hint="задания в три уровня со стартовым кодом и разбором решения",
+            instructions_hint="5 уровней сложности со стартовым кодом и разбором; уровень 5 — спроектировать или улучшить мини-систему",
             expected_evidence=["source_files", "diff", "test_output", "reflection"],
-            difficulty=2,
+            difficulty=3,
         ),
     ],
     generation_note="Код — в fenced-блоках с языком. Минимум 1-2 Mermaid-диаграммы.",
@@ -102,7 +102,7 @@ _LANGUAGE = DomainProfile(
         TaskType(
             key="theory",
             title_hint="Грамматика и понимание",
-            instructions_hint="вопросы на правила + перевод фраз с разбором",
+            instructions_hint="8-12 вопросов по нарастающей: правила → употребление → нюансы → ложные друзья и edge cases",
             expected_evidence=["written_explanation"],
             difficulty=1,
         ),
@@ -110,11 +110,11 @@ _LANGUAGE = DomainProfile(
             key="written",
             title_hint="Практика языка",
             instructions_hint=(
-                "упражнения: заполни пропуски, составь предложения, переведи диалог, "
-                "напиши короткий текст. С эталонными ответами в <details>"
+                "5 уровней сложности: от подстановки до составления связного текста; "
+                "уровень 5 — самостоятельный текст/диалог с разбором. Эталоны в <details>"
             ),
             expected_evidence=["written_explanation"],
-            difficulty=2,
+            difficulty=3,
         ),
     ],
     generation_note="Без кода и без технических диаграмм. Примеры — фразы и таблицы форм.",
@@ -139,7 +139,7 @@ _THEORY_MATH = DomainProfile(
         TaskType(
             key="theory",
             title_hint="Понимание теории",
-            instructions_hint="вопросы на определения, интуицию и связи между понятиями",
+            instructions_hint="8-12 вопросов по нарастающей: определения → интуиция → связи понятий → нетривиальные случаи",
             expected_evidence=["written_explanation"],
             difficulty=1,
         ),
@@ -147,10 +147,11 @@ _THEORY_MATH = DomainProfile(
             key="written",
             title_hint="Решение задач",
             instructions_hint=(
-                "задачи в три уровня сложности с полным разбором решения в <details>"
+                "5 уровней сложности с полным разбором в <details>; уровень 5 — "
+                "комплексная задача/доказательство с обоснованием каждого шага"
             ),
             expected_evidence=["written_explanation"],
-            difficulty=2,
+            difficulty=3,
         ),
     ],
     generation_note="Формулы — в виде понятной записи. Без программного кода.",
@@ -175,7 +176,7 @@ _HUMANITIES = DomainProfile(
         TaskType(
             key="theory",
             title_hint="Проверь понимание",
-            instructions_hint="вопросы на смысл, контекст и связи идей",
+            instructions_hint="8-12 вопросов по нарастающей: смысл → контекст → связи идей → спорные трактовки",
             expected_evidence=["written_explanation"],
             difficulty=1,
         ),
@@ -183,11 +184,11 @@ _HUMANITIES = DomainProfile(
             key="written",
             title_hint="Эссе и анализ",
             instructions_hint=(
-                "задания на аргументацию: мини-эссе, анализ источника, сравнение позиций. "
-                "С разбором сильного ответа в <details>"
+                "5 уровней сложности: от короткого ответа до развёрнутого эссе/анализа источника; "
+                "уровень 5 — самостоятельная аргументация с разбором сильного ответа в <details>"
             ),
             expected_evidence=["written_explanation"],
-            difficulty=2,
+            difficulty=3,
         ),
     ],
     generation_note="Без кода и диаграмм. Опирайся на примеры, цитаты и контекст.",
@@ -212,16 +213,16 @@ _GENERAL = DomainProfile(
         TaskType(
             key="theory",
             title_hint="Проверь себя",
-            instructions_hint="вопросы на понимание ключевых идей",
+            instructions_hint="8-12 вопросов по нарастающей: факты → механизм → связи → нетривиальные случаи",
             expected_evidence=["written_explanation"],
             difficulty=1,
         ),
         TaskType(
             key="written",
             title_hint="Практика",
-            instructions_hint="практические задания на применение с разбором в <details>",
+            instructions_hint="5 уровней сложности на применение с разбором в <details>; уровень 5 — комплексное задание",
             expected_evidence=["written_explanation"],
-            difficulty=2,
+            difficulty=3,
         ),
     ],
     generation_note="Подбирай примеры под характер темы; код используй только если он уместен.",
