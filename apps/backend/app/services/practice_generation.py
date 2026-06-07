@@ -144,6 +144,13 @@ def build_conspect_system(profile, strategy) -> str:
         if (profile.allow_diagrams and strategy.include_diagrams)
         else ""
     )
+    math_rule = (
+        "- Любые формулы и математику пиши ТОЛЬКО в LaTeX: `$...$` инлайн (напр. $O(n\\log n)$, "
+        "$P(A\\mid B)$), `$$...$$` для отдельных формул. НИКОГДА не записывай формулы простым "
+        "текстом, Unicode-символами (∑, √, ≤) или внутри код-блоков.\n"
+        if getattr(profile, "math_notation", False)
+        else ""
+    )
     return (
         f"{profile.persona}\n\n"
         "Форматирование (строго соблюдай — это влияет на читаемость):\n"
@@ -157,6 +164,7 @@ def build_conspect_system(profile, strategy) -> str:
         "обязательно пустая строка; таблица не шире 3-4 столбцов, ячейки краткие (без переносов строк внутри ячейки).\n"
         f"{code_rule}"
         f"{diagram_rule}"
+        f"{math_rule}"
         "- Не оставляй HTML-теги кроме обычного Markdown.\n"
         f"{profile.generation_note}\n"
         f"{strategy_generation_notes(strategy)}\n"
@@ -192,6 +200,13 @@ def _conspect_body_sections(profile, strategy) -> str:
                 f"[наглядный пример{code_hint}]\n\n"
                 "### [Название 2]\n[аналогично]\n\n"
                 "[3-5 пунктов, каждый с ### заголовком. Не сливай в один текст.]"
+            )
+        elif "соотношен" in low:
+            guidance = (
+                "[Сведи КЛЮЧЕВЫЕ формулы темы в этот раздел. Каждую крупную формулу — отдельной "
+                "строкой в блочном LaTeX `$$...$$`, сразу под ней расшифруй обозначения. Затем "
+                "выведи 1-2 важнейшие формулы пошагово (каждый шаг — `$$...$$` с пояснением). "
+                "Не пропускай формулы темы и не записывай их простым текстом.]"
             )
         elif "сравн" in low:
             guidance = "[Markdown-таблица: вариант / когда использовать / плюсы / минусы.]"
@@ -271,6 +286,12 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) ->
         if profile.allow_code
         else "- НЕ используй программный код. Задания — текстовые/практические по сути темы."
     )
+    math_rule = (
+        "\n- Любые формулы в условиях и решениях — ТОЛЬКО в LaTeX ($...$ инлайн, $$...$$ блочные), "
+        "никогда простым текстом или Unicode-символами."
+        if getattr(profile, "math_notation", False)
+        else ""
+    )
 
     # Level 5 adapts to the domain: a coding topic gets a "design or improve a mini-system"
     # capstone; non-code domains get the hardest domain-appropriate equivalent.
@@ -283,10 +304,10 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) ->
     )
 
     return f"""На основе конспекта по теме «{topic_name}» создай учебные задания для аудитории «{profile.audience}».
-Задания должны быть ДЕЙСТВИТЕЛЬНО сложными и заставлять думать, а не пересказывать конспект. Опирайся на конкретику темы, а не на общие фразы.
+Задания должны быть ДЕЙСТВИТЕЛЬНО сложными и заставлять думать, а не пересказывать конспект. Минимум треть заданий — уровня технического собеседования Middle+/Senior (нетривиальный ход мысли, пограничные случаи, trade-offs). Не повторяй формулировки конспекта дословно. Опирайся на конкретику темы, а не на общие фразы.
 
 ## Конспект
-{conspect_md[:2500]}
+{conspect_md[:12000]}
 
 ---
 
@@ -297,7 +318,7 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) ->
 
 Требования к форматированию полей instructions_md (это Markdown, который будет отрендерен):
 - Каждый блок начинай с заголовка ### и понятного названия.
-{code_rule}
+{code_rule}{math_rule}
 - Условие давай блоками: «**Задача:** …», и где уместно «**Что проверяется:** …», «**Edge cases:** …».
 - Решение/ответ оборачивай в сворачивалку: <details><summary>Решение</summary> … </details>.
   ВНУТРИ <details> оставляй пустую строку после <summary> и перед </details>.
@@ -388,7 +409,7 @@ async def stream_conspect_to_queue(
             client,
             settings,
             prompt_conspect,
-            max_tokens=4000,
+            max_tokens=8000,
             system=system_prompt,
         ):
             conspect_md += token
@@ -434,7 +455,7 @@ async def generate_tasks_from_conspect(
             prompt_tasks,
             # 8-12 theory questions + 5 graded practice levels, each with a full worked
             # solution in <details>, needs substantially more room than the old 2-task set.
-            max_tokens=6000,
+            max_tokens=8000,
             temperature=0.1,
             system="You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations.",
         )

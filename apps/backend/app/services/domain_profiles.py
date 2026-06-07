@@ -45,6 +45,9 @@ class DomainProfile:
     task_recipe: list[TaskType]
     # Short instruction appended to generation prompts to enforce domain norms.
     generation_note: str
+    # Whether mathematical notation must be rendered as LaTeX ($...$ inline,
+    # $$...$$ block). Enables the KaTeX-rendered formula path for technical domains.
+    math_notation: bool = False
 
 
 _CODING = DomainProfile(
@@ -79,7 +82,11 @@ _CODING = DomainProfile(
             difficulty=3,
         ),
     ],
-    generation_note="Код — в fenced-блоках с языком. Минимум 1-2 Mermaid-диаграммы.",
+    generation_note=(
+        "Код — в fenced-блоках с языком. Минимум 1-2 Mermaid-диаграммы. "
+        "Оценки сложности и любую математику пиши в LaTeX ($O(n\\log n)$, $\\Theta(1)$)."
+    ),
+    math_notation=True,
 )
 
 _LANGUAGE = DomainProfile(
@@ -124,14 +131,16 @@ _THEORY_MATH = DomainProfile(
     domain="theory_math",
     persona=(
         "Ты — сильный преподаватель точных наук. Объясняешь интуицию за формулами, "
-        "выводишь ключевые соотношения и показываешь разбор задач по шагам."
+        "выводишь ключевые соотношения по шагам и показываешь разбор задач. "
+        "ВСЕ формулы записываешь в LaTeX и никогда не теряешь математику темы."
     ),
     audience="изучающие математику и теоретические дисциплины",
     allow_code=False,
     allow_diagrams=True,
     conspect_sections=[
         "Ключевые понятия и определения",
-        "Интуиция и вывод",
+        "Формулы и ключевые соотношения",
+        "Интуиция и вывод формул",
         "Разбор задач шаг за шагом",
         "Типичные ошибки",
     ],
@@ -154,7 +163,12 @@ _THEORY_MATH = DomainProfile(
             difficulty=3,
         ),
     ],
-    generation_note="Формулы — в виде понятной записи. Без программного кода.",
+    generation_note=(
+        "ВСЕ формулы — ТОЛЬКО в LaTeX: $...$ инлайн, $$...$$ блочные. "
+        "Обязательно приведи ключевые формулы темы и выведи важнейшие пошагово. "
+        "Никогда не записывай формулы простым текстом или Unicode-символами. Без программного кода."
+    ),
+    math_notation=True,
 )
 
 _HUMANITIES = DomainProfile(
@@ -225,7 +239,11 @@ _GENERAL = DomainProfile(
             difficulty=3,
         ),
     ],
-    generation_note="Подбирай примеры под характер темы; код используй только если он уместен.",
+    generation_note=(
+        "Подбирай примеры под характер темы; код используй только если он уместен. "
+        "Если в теме есть формулы — записывай их в LaTeX ($...$ / $$...$$)."
+    ),
+    math_notation=True,
 )
 
 

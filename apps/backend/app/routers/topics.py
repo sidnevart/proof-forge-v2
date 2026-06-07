@@ -380,19 +380,21 @@ async def _generate_single_pass(
 
 {{
   "summary": "Одно предложение — что охватывает капсула",
-  "content_md": "Структурированный markdown (800-1200 слов). Разделы: ## Обзор, ## Ключевые концепции (с примерами кода/псевдокода где уместно), ## Практические примеры, ## Разбор ошибок, ## Важно запомнить",
+  "content_md": "Структурированный, глубокий markdown (1400-2000 слов). Разделы: ## Обзор, ## Ключевые концепции (с примерами кода/псевдокода где уместно), ## Практические примеры (минимум 2 разобранных примера с пояснением), ## Разбор ошибок, ## Важно запомнить. Формулы и оценки сложности — ТОЛЬКО в LaTeX ($...$ инлайн, $$...$$ блочные), никогда простым текстом.",
   "review_questions": [
     {{"question": "...", "correct_answer": "...", "difficulty": 1}},
     {{"question": "...", "correct_answer": "...", "difficulty": 1}},
     {{"question": "...", "correct_answer": "...", "difficulty": 2}},
     {{"question": "...", "correct_answer": "...", "difficulty": 2}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 2}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 3}},
     {{"question": "...", "correct_answer": "...", "difficulty": 3}},
     {{"question": "Объясни своими словами: ...", "correct_answer": "...", "difficulty": 3}}
   ]
 }}
 
-Основывайся на материалах. {_lang_instruction(lang, topic_name=topic_name)} 6 вопросов: 2 лёгких (факты), 2 средних (применение), 2 сложных (понимание + объяснение)."""
-    raw, usage = await _llm_call(client, settings, prompt, max_tokens=4000)
+Основывайся на материалах. {_lang_instruction(lang, topic_name=topic_name)} 8 вопросов: 2 лёгких (факты), 3 средних (применение), 3 сложных (понимание + объяснение)."""
+    raw, usage = await _llm_call(client, settings, prompt, max_tokens=8000)
     return _extract_json(raw), usage
 
 
@@ -500,19 +502,21 @@ async def _run_capsule_generation(
 
 {{
   "summary": "Одно предложение — что охватывает капсула",
-  "content_md": "Структурированный markdown (800-1200 слов). Разделы: ## Обзор, ## Ключевые концепции (с примерами кода/псевдокода где уместно), ## Практические примеры, ## Разбор ошибок, ## Важно запомнить",
+  "content_md": "Структурированный, глубокий markdown (1400-2000 слов). Разделы: ## Обзор, ## Ключевые концепции (с примерами кода/псевдокода где уместно), ## Практические примеры (минимум 2 разобранных примера с пояснением), ## Разбор ошибок, ## Важно запомнить. Формулы и оценки сложности — ТОЛЬКО в LaTeX ($...$ инлайн, $$...$$ блочные), никогда простым текстом.",
   "review_questions": [
     {{"question": "...", "correct_answer": "...", "difficulty": 1}},
     {{"question": "...", "correct_answer": "...", "difficulty": 1}},
     {{"question": "...", "correct_answer": "...", "difficulty": 2}},
     {{"question": "...", "correct_answer": "...", "difficulty": 2}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 2}},
+    {{"question": "...", "correct_answer": "...", "difficulty": 3}},
     {{"question": "...", "correct_answer": "...", "difficulty": 3}},
     {{"question": "Объясни своими словами: ...", "correct_answer": "...", "difficulty": 3}}
   ]
 }}
 
-{_lang_instruction(lang, topic_name=topic_name)} 6 вопросов: 2 лёгких (факты), 2 средних (применение), 2 сложных (понимание + объяснение)."""
-                raw, reduce_u = await _llm_call(client, settings, reduce_prompt, max_tokens=4000)
+{_lang_instruction(lang, topic_name=topic_name)} 8 вопросов: 2 лёгких (факты), 3 средних (применение), 3 сложных (понимание + объяснение)."""
+                raw, reduce_u = await _llm_call(client, settings, reduce_prompt, max_tokens=8000)
                 for k in ("prompt_tokens", "completion_tokens", "total_tokens", "latency_ms"):
                     usage[k] = usage.get(k, 0) + reduce_u.get(k, 0)
                 parsed = _extract_json(raw)

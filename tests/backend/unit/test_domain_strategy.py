@@ -61,6 +61,32 @@ def test_word_count_scales_with_depth():
     )
 
 
+def test_math_domains_enable_latex_notation():
+    for d in ("coding", "theory_math", "general"):
+        assert get_profile(d).math_notation is True
+    for d in ("language", "humanities"):
+        assert get_profile(d).math_notation is False
+
+
+def test_theory_math_conspect_requires_latex_formulas():
+    strat = resolve_strategy(None)
+    p = get_profile("theory_math")
+    assert "Формулы и ключевые соотношения" in p.conspect_sections
+    system = pg.build_conspect_system(p, strat)
+    assert "LaTeX" in system
+    body = pg._build_conspect_prompt("Теорема Байеса", "материалы", p, strat)
+    assert "$$" in body  # formula-sheet LaTeX guidance present
+
+
+def test_tasks_prompt_uses_full_conspect_not_truncated():
+    strat = resolve_strategy(None)
+    p = get_profile("coding")
+    long_conspect = "КОНСПЕКТ " * 1000  # ~9000 chars, well past the old 2500-char cap
+    prompt = pg._build_tasks_prompt("Тема", long_conspect, p, strat)
+    # The old cap let only ~277 occurrences through; the fix carries most of the conspect.
+    assert prompt.count("КОНСПЕКТ") > 500
+
+
 def test_classifier_normalize():
     assert _normalize("coding") == "coding"
     assert _normalize("  Language.") == "language"
