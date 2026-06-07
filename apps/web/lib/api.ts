@@ -205,13 +205,14 @@ export const topics = {
     }),
   deleteMaterial: (topicId: string, materialId: string) =>
     req<void>(`/api/topics/${topicId}/materials/${materialId}`, { method: 'DELETE' }),
-  generateCapsule: (topicId: string, userId: string, chatMessages?: { role: string; content: string }[], existingCapsuleId?: string) =>
+  generateCapsule: (topicId: string, userId: string, chatMessages?: { role: string; content: string }[], existingCapsuleId?: string, lang: string = 'auto') =>
     req<{ topic_id: string; capsule_id: string; status: string }>(
       `/api/topics/${topicId}/capsule/generate`,
       { method: 'POST', body: JSON.stringify({
         user_id: userId,
         chat_messages: chatMessages ?? null,
         existing_capsule_id: existingCapsuleId ?? null,
+        lang,
       }) }
     ),
   capsuleEventsUrl: (topicId: string, capsuleId: string) =>
