@@ -138,25 +138,47 @@ async def _llm_concepts_and_subtopics(
 
 # ── Slot assembly ───────────────────────────────────────────────────────────────
 
-def _task_format_options(domain: str) -> list[dict]:
+# English labels for the folded-in task_recipe keys (their title_hints are Russian).
+_TASK_KEY_LABELS_EN = {
+    "theory": "Self-check",
+    "mini_project": "Mini-project",
+    "written": "Practical exercises",
+    "code": "Code",
+    "interview": "Interview problems",
+}
+
+
+def _task_format_options(domain: str, lang: str = "ru") -> list[dict]:
     """Domain-aware task-format chips, derived from the domain profile's task recipe."""
     profile = get_profile(domain)
+    en = lang == "en"
     seen: dict[str, str] = {}
     for spec in profile.task_recipe:
         seen[spec.key] = spec.title_hint
     # Always offer a couple of recognizable formats per domain.
-    extras = {
+    extras_ru = {
         "coding": [("code", "Код"), ("mini_project", "Мини-проект"), ("interview", "Собес-задачи")],
         "language": [("dialogue", "Диалоги"), ("grammar", "Грамматика"), ("vocabulary", "Лексика")],
         "theory_math": [("problems", "Задачи с разбором"), ("proofs", "Доказательства")],
         "humanities": [("essay", "Эссе"), ("analysis", "Анализ источника")],
         "general": [("written", "Практические задания")],
-    }.get(domain, [("written", "Практические задания")])
+    }
+    extras_en = {
+        "coding": [("code", "Code"), ("mini_project", "Mini-project"), ("interview", "Interview problems")],
+        "language": [("dialogue", "Dialogues"), ("grammar", "Grammar"), ("vocabulary", "Vocabulary")],
+        "theory_math": [("problems", "Worked problems"), ("proofs", "Proofs")],
+        "humanities": [("essay", "Essay"), ("analysis", "Source analysis")],
+        "general": [("written", "Practical exercises")],
+    }
+    table = extras_en if en else extras_ru
+    default = [("written", "Practical exercises")] if en else [("written", "Практические задания")]
+    extras = table.get(domain, default)
     options: list[dict] = [{"value": k, "label": v} for k, v in extras]
-    # Fold in the recipe keys not already present.
+    # Fold in the recipe keys not already present (English label when on EN).
     for key, hint in seen.items():
         if key not in {o["value"] for o in options}:
-            options.append({"value": key, "label": hint})
+            label = (_TASK_KEY_LABELS_EN.get(key, key.replace("_", " ").capitalize())) if en else hint
+            options.append({"value": key, "label": label})
     return options[:4]
 
 
@@ -207,7 +229,7 @@ def _build_slots(domain: str, concepts: list[str], subtopics: list[str], lang: s
         "question": "What type of exercises do you prefer?" if en else "Какие задания тебе ближе?",
         "multiselect": True,
         "allow_free_text": True,
-        "options": _task_format_options(domain),
+        "options": _task_format_options(domain, lang),
     })
     return slots
 

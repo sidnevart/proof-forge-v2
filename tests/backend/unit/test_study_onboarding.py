@@ -28,14 +28,25 @@ def test_questions_fallback_has_fixed_slots():
 
 
 def test_task_format_options_are_domain_aware():
-    coding = asyncio.run(so.generate_questions(_NoLLM(), "Go", "", "coding"))
-    language = asyncio.run(so.generate_questions(_NoLLM(), "English", "", "language"))
+    # lang is explicit so the assertion does not depend on topic-name detection
+    coding = asyncio.run(so.generate_questions(_NoLLM(), "Go", "", "coding", lang="ru"))
+    language = asyncio.run(so.generate_questions(_NoLLM(), "English", "", "language", lang="ru"))
     coding_tf = next(s for s in coding if s["id"] == "task_format")
     lang_tf = next(s for s in language if s["id"] == "task_format")
     coding_labels = " ".join(o["label"] for o in coding_tf["options"]).lower()
     lang_labels = " ".join(o["label"] for o in lang_tf["options"]).lower()
     assert "код" in coding_labels
     assert "код" not in lang_labels  # language never offers code tasks
+
+
+def test_task_format_chips_are_localized():
+    # On English the task-format chips must be English too (no leftover Russian labels)
+    coding_en = asyncio.run(so.generate_questions(_NoLLM(), "Go", "", "coding", lang="en"))
+    tf = next(s for s in coding_en if s["id"] == "task_format")
+    labels = " ".join(o["label"] for o in tf["options"])
+    assert "Code" in labels and "Mini-project" in labels
+    # no Cyrillic leaked into the English chips
+    assert not any("а" <= ch.lower() <= "я" for ch in labels)
 
 
 def test_build_study_profile_maps_answers():
