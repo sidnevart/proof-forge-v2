@@ -316,15 +316,15 @@ export type StudyProfile = {
 }
 
 export const onboarding = {
-  questions: (userId: string, topicId: string) =>
+  questions: (userId: string, topicId: string, lang: string = 'auto') =>
     req<{ domain: string; slots: OnboardingSlot[] }>('/api/onboarding/questions', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, topic_id: topicId }),
+      body: JSON.stringify({ user_id: userId, topic_id: topicId, lang }),
     }),
-  plan: (userId: string, topicId: string, answers: Record<string, string | string[]>) =>
+  plan: (userId: string, topicId: string, answers: Record<string, string | string[]>, lang: string = 'auto') =>
     req<{ plan_md: string; study_profile: StudyProfile }>('/api/onboarding/plan', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, topic_id: topicId, answers }),
+      body: JSON.stringify({ user_id: userId, topic_id: topicId, answers, lang }),
     }),
 }
 
