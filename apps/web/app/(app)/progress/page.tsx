@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { getStoredUser } from '@/lib/auth'
-import { mastery, cards, type MasteryProgress, type CardStats } from '@/lib/api'
+import { mastery, cards, topics, context, type MasteryProgress, type CardStats } from '@/lib/api'
 import { MasteryBadge } from '@/components/MasteryBadge'
 import { StreakCounter } from '@/components/StreakCounter'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -16,6 +16,9 @@ export default function ProgressPage() {
   const user = getStoredUser()
   const [progress, setProgress] = useState<MasteryProgress | null>(null)
   const [stats, setStats] = useState<CardStats | null>(null)
+  const [topicCount, setTopicCount] = useState<number | null>(null)
+  const [capsuleCount, setCapsuleCount] = useState<number | null>(null)
+  const [weakSpots, setWeakSpots] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<Level | 'all'>('all')
   const t = useT()
@@ -36,13 +39,20 @@ export default function ProgressPage() {
 
   useEffect(() => {
     if (!user) return
-    Promise.all([
-      mastery.progress(user.user_id),
-      cards.stats(user.user_id),
-    ]).then(([p, s]) => {
-      setProgress(p)
-      setStats(s)
-    }).catch(console.error).finally(() => setLoading(false))
+    const uid = user.user_id
+    // Each source is independent — one failing call must not blank the whole page.
+    const core = Promise.allSettled([
+      mastery.progress(uid).then(setProgress),
+      cards.stats(uid).then(setStats),
+    ])
+    topics.list(uid).then((ts) => setTopicCount(ts.length)).catch(() => {})
+    context.get(uid)
+      .then((ctx) => {
+        setCapsuleCount(ctx.capsules.length)
+        setWeakSpots(ctx.weak_spots.map((w) => w.concept))
+      })
+      .catch(() => {})
+    core.finally(() => setLoading(false))
   }, [user?.user_id])
 
   const filtered = progress?.concepts.filter(
@@ -62,12 +72,42 @@ export default function ProgressPage() {
         {stats && <StreakCounter streak={stats.streak} />}
       </div>
 
-      {/* Rollup stats */}
+      {/* Activity summary — fills from normal usage (cards, topics, capsules), so the
+          page is never blank for an active user even before any graded practice. */}
       {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {[0,1,2,3].map(i => <Skeleton key={i} className="h-20" />)}
         </div>
-      ) : rollup && (
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <RollupCard label={t('progress.activity.topics')} value={topicCount ?? 0} />
+          <RollupCard label={t('progress.activity.reviewed')} value={stats?.reviewed_today ?? 0} />
+          <RollupCard label={t('progress.activity.capsules')} value={capsuleCount ?? 0} />
+          <RollupCard label={t('progress.activity.due')} value={stats?.due_today ?? 0} accent />
+        </div>
+      )}
+
+      {/* Weak spots — surfaced from agent context */}
+      {!loading && weakSpots.length > 0 && (
+        <div className="surface rounded-2xl p-5 mb-8 border border-warn/20">
+          <div className="text-xs font-mono text-warn mb-3">{t('progress.weakSpots')}</div>
+          <div className="flex flex-wrap gap-2">
+            {weakSpots.map((concept) => (
+              <span key={concept} className="px-2.5 py-1 rounded-lg bg-warn/10 border border-warn/20 text-xs text-ink">
+                {concept}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Mastery (deep) ─────────────────────────────────────────────────── */}
+      {!loading && rollup && rollup.total_concepts > 0 && (
+        <h2 className="text-xs font-mono text-mute uppercase tracking-wider mb-3">{t('progress.masteryHeading')}</h2>
+      )}
+
+      {/* Rollup stats */}
+      {!loading && rollup && rollup.total_concepts > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
           <RollupCard label={t('progress.rollup.concepts')} value={rollup.total_concepts} />
           <RollupCard label={t('progress.rollup.applyPlus')} value={rollup.apply_plus} accent />

@@ -129,10 +129,10 @@ export type MasteryProgress = {
 
 export const mastery = {
   progress: (userId: string, topic?: string) =>
-    req<MasteryProgress>(`/api/mastery/progress?user_id=${userId}${topic ? `&topic=${topic}` : ''}`),
+    req<MasteryProgress>(`/api/mastery/progress?userId=${userId}${topic ? `&topic=${topic}` : ''}`),
   nextFocus: (userId: string, topic?: string) =>
     req<{ concept: string; mastery_level: string; reason: string }>(
-      `/api/mastery/next?user_id=${userId}${topic ? `&topic=${topic}` : ''}`
+      `/api/mastery/next?userId=${userId}${topic ? `&topic=${topic}` : ''}`
     ),
 }
 
