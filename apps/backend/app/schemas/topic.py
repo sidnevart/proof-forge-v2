@@ -14,6 +14,7 @@ class TopicOut(BaseModel):
     name: str
     status: str
     started_at: datetime
+    folder_id: str | None = None
     domain: str = "general"
     strategy_config: dict | None = None
 

@@ -7,26 +7,52 @@ import rehypeRaw from 'rehype-raw'
 import rehypeKatex from 'rehype-katex'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { useEffect, useRef, useId } from 'react'
+import { useEffect, useRef, useId, useState } from 'react'
 import type { Components } from 'react-markdown'
+
+// Free models routinely emit slightly-wrong mermaid (e.g. `flow TD` instead of
+// `flowchart TD`, `sequence` instead of `sequenceDiagram`). Fix the cheap, safe
+// keyword mistakes; anything still invalid falls back to showing the source.
+function normalizeMermaid(src: string): string {
+  return src
+    .trim()
+    .replace(/^flow\b/, 'flowchart')
+    .replace(/^sequence\b/, 'sequenceDiagram')
+}
 
 function MermaidBlock({ code }: { code: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const uid = useId().replace(/:/g, '')
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    import('mermaid').then(m => {
+    setFailed(false)
+    const src = normalizeMermaid(code)
+    import('mermaid').then(async m => {
       if (cancelled) return
       m.default.initialize({ startOnLoad: false, theme: 'dark' })
-      m.default.render(`mermaid-${uid}`, code)
-        .then(({ svg }) => {
-          if (!cancelled && ref.current) ref.current.innerHTML = svg
-        })
-        .catch(console.error)
-    })
+      try {
+        // parse() validates syntax and rejects without polluting the DOM with
+        // mermaid's error SVG (render() injects a #d... node on failure).
+        await m.default.parse(src)
+        const { svg } = await m.default.render(`mermaid-${uid}`, src)
+        if (!cancelled && ref.current) ref.current.innerHTML = svg
+      } catch {
+        if (!cancelled) setFailed(true)
+      }
+    }).catch(() => { if (!cancelled) setFailed(true) })
     return () => { cancelled = true }
   }, [code, uid])
+
+  // Graceful fallback: a broken diagram shows its source instead of an empty box.
+  if (failed) {
+    return (
+      <pre className="p-4 border border-line rounded-xl my-3 overflow-x-auto text-xs font-mono text-ink/80 bg-sand/30 whitespace-pre">
+        {code.trim()}
+      </pre>
+    )
+  }
 
   return <div ref={ref} className="p-4 border border-line rounded-xl my-3 overflow-x-auto" />
 }

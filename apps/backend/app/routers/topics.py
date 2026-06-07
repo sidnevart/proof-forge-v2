@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time as _time
+from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -116,26 +117,17 @@ class FolderOut(BaseModel):
     id: str
     user_id: str
     name: str
-    created_at: str
+    created_at: datetime
 
 
 @router.get("/topic-folders", response_model=list[FolderOut])
 async def list_folders(user_id: str, db: AsyncSession = Depends(get_db)):
-    from sqlalchemy.exc import ProgrammingError, OperationalError
-    try:
-        result = await db.execute(
-            select(TopicFolder)
-            .where(TopicFolder.user_id == user_id)
-            .order_by(TopicFolder.created_at.asc())
-        )
-        return list(result.scalars().all())
-    except (ProgrammingError, OperationalError):
-        # Migration not yet applied — return empty list instead of 500-ing.
-        # A 500 here bypasses CORS middleware and surfaces as a fake CORS error
-        # in the browser, hiding the real cause. Empty list is safe: the sidebar
-        # degrades gracefully (no folders shown) until the migration is applied.
-        await db.rollback()
-        return []
+    result = await db.execute(
+        select(TopicFolder)
+        .where(TopicFolder.user_id == user_id)
+        .order_by(TopicFolder.created_at.asc())
+    )
+    return list(result.scalars().all())
 
 
 @router.post("/topic-folders", response_model=FolderOut, status_code=201)
