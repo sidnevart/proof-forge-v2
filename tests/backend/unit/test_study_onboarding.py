@@ -78,8 +78,14 @@ def test_empty_answers_resolve_to_defaults():
 
 
 def test_plan_fallback_is_templated_without_llm():
+    # English topic name -> plan in English
     profile = so.build_study_profile({"goal": "interview", "focus": ["select"]}, "coding")
-    plan = asyncio.run(so.generate_plan(_NoLLM(), "Go channels", profile))
-    assert "Go channels" in plan
-    assert "select" in plan
-    assert plan.strip().endswith("Поехали?")
+    plan_en = asyncio.run(so.generate_plan(_NoLLM(), "Go channels", profile))
+    assert "Go channels" in plan_en
+    assert "select" in plan_en
+    assert plan_en.strip().endswith("Shall we start?")
+
+    # Russian topic name -> plan in Russian
+    plan_ru = asyncio.run(so.generate_plan(_NoLLM(), "Горутины и каналы", profile))
+    assert "Горутины и каналы" in plan_ru
+    assert plan_ru.strip().endswith("Поехали?")
