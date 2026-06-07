@@ -412,7 +412,7 @@ export type AnswerSubmissionResult = {
 }
 
 export const practice = {
-  startSession: (userId: string, topicId: string, studyProfile?: StudyProfile | { preset?: string } & Record<string, unknown>) =>
+  startSession: (userId: string, topicId: string, studyProfile?: StudyProfile | { preset?: string } & Record<string, unknown>, lang: string = 'auto') =>
     req<{
       session: StudySession
       tasks: PracticeTask[]
@@ -420,7 +420,7 @@ export const practice = {
       generation_error: string | null
     }>('/api/study-sessions', {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId, topic_id: topicId, study_profile: studyProfile ?? null }),
+      body: JSON.stringify({ user_id: userId, topic_id: topicId, study_profile: studyProfile ?? null, lang }),
     }),
   sessionEventsUrl: (sessionId: string) => sseUrl(`/api/study-sessions/${sessionId}/events`),
   listSessions: (userId: string) =>

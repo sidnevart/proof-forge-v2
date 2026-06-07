@@ -48,7 +48,7 @@ export default function TopicPage() {
     setStartingStudy(true)
     setStudyError('')
     try {
-      const result = await practice.startSession(user.user_id, topic.id, profile)
+      const result = await practice.startSession(user.user_id, topic.id, profile, locale)
       router.push(`/study/${result.session.id}`)
     } catch (err: unknown) {
       setStudyError(err instanceof Error ? err.message : t('topic.startError'))

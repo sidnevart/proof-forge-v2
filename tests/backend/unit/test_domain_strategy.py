@@ -121,6 +121,21 @@ def test_conspect_validator_flags_short_and_missing_formulas():
     assert pg._conspect_quality_gaps(long_ok, get_profile("coding"), strat) == []
 
 
+def test_generation_respects_explicit_language():
+    p = get_profile("coding")
+    strat = resolve_strategy(None)
+    # explicit English forces an English instruction into conspect system + tasks
+    assert "English" in pg.build_conspect_system(p, strat, lang="en")
+    assert pg._build_conspect_prompt("Hash tables", "m", p, strat, lang="en").startswith("Language: write")
+    assert "English" in pg._build_tasks_prompt("Hash tables", "x" * 100, p, strat, lang="en")
+    # default stays Russian (backward compatible)
+    assert "Язык: русский" in pg.build_conspect_system(p, strat)
+    # _resolve_lang: explicit wins, auto detects from text
+    assert pg._resolve_lang("en", "что-то") == "en"
+    assert pg._resolve_lang("auto", "Kotlin Coroutines") == "en"
+    assert pg._resolve_lang("auto", "Эконометрика регрессия") == "ru"
+
+
 def test_classifier_normalize():
     assert _normalize("coding") == "coding"
     assert _normalize("  Language.") == "language"

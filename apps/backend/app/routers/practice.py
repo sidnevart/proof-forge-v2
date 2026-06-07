@@ -101,7 +101,9 @@ def _format_card_context_from_session(
 def _spawn_card_generation(topic: TopicInfo, context_md: str) -> None:
     """Fire-and-forget base card generation; never blocks session completion."""
     asyncio.create_task(
-        generate_cards_for_topic_background(topic.id, topic.user_id, context_md)
+        generate_cards_for_topic_background(
+            topic.id, topic.user_id, context_md, lang=getattr(topic, "lang", "auto")
+        )
     )
 
 
@@ -334,6 +336,7 @@ async def create_study_session(data: dict, db: AsyncSession = Depends(get_db)):
         user_id=topic.user_id,
         domain=topic.domain,
         strategy_config=topic.strategy_config,
+        lang=data.get("lang", "auto"),
     )
     create_stream(session_obj.id)
     # Cards are generated *inside* _run_session_generation, after the conspect and

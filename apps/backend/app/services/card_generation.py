@@ -72,7 +72,15 @@ def _extract_json_cards(text: str) -> list[dict[str, Any]]:
     return [item for item in parsed if isinstance(item, dict)]
 
 
-def _build_generation_prompt(topic_name: str, context_md: str) -> str:
+def _build_generation_prompt(topic_name: str, context_md: str, lang: str = "auto") -> str:
+    from app.services.study_onboarding import _detect_lang
+    if lang not in ("ru", "en"):
+        lang = _detect_lang(topic_name + " " + context_md)
+    lang_line = (
+        "IMPORTANT: write every card (front and back) in English. Keep technical terms in their original form."
+        if lang == "en"
+        else "Язык ответа: русский, технические термины на языке оригинала."
+    )
     context = context_md.strip() or "(материалов нет — используй базовые знания по теме)"
     return f"""Ты — методист Proof Forge. Создай карточки интервального повторения по теме «{topic_name}».
 
@@ -96,10 +104,18 @@ def _build_generation_prompt(topic_name: str, context_md: str) -> str:
 - back должен быть кратким, но достаточным ответом.
 - difficulty: 1, 2 или 3.
 - Для CODE_REVIEW используй fenced code block с языком, если код уместен.
-- Язык ответа: русский, технические термины на языке оригинала."""
+- {lang_line}"""
 
 
-def _fallback_cards(topic_name: str, context_md: str) -> list[dict[str, Any]]:
+def _fallback_cards(topic_name: str, context_md: str, lang: str = "auto") -> list[dict[str, Any]]:
+    from app.services.study_onboarding import _detect_lang
+    if lang not in ("ru", "en"):
+        lang = _detect_lang(topic_name + " " + context_md)
+    if lang == "en":
+        return [
+            {"type": "FLASHCARD", "front": f"What is the core idea of \"{topic_name}\"?", "back": f"State the main idea of {topic_name} and link it to a practical use.", "difficulty": 1},
+            {"type": "PRACTICAL", "front": f"Describe a real scenario where knowing \"{topic_name}\" changes an engineering decision.", "back": "Name the context, the constraint, the chosen approach and why.", "difficulty": 2},
+        ]
     context_hint = _clip(context_md, 300).replace("\n", " ") if context_md.strip() else topic_name
     return [
         {
@@ -123,11 +139,11 @@ def _fallback_cards(topic_name: str, context_md: str) -> list[dict[str, Any]]:
     ]
 
 
-async def _generate_cards_with_llm(topic_name: str, context_md: str) -> list[dict[str, Any]]:
+async def _generate_cards_with_llm(topic_name: str, context_md: str, lang: str = "auto") -> list[dict[str, Any]]:
     if not settings.llm_api_key:
-        return _fallback_cards(topic_name, context_md)
+        return _fallback_cards(topic_name, context_md, lang)
 
-    prompt = _build_generation_prompt(topic_name, context_md)
+    prompt = _build_generation_prompt(topic_name, context_md, lang)
     async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
         response = await http_post_with_retry(
             client,
@@ -201,6 +217,7 @@ async def generate_cards_for_topic(
     db: AsyncSession,
     context_md: str,
     max_new_cards: int | None = DEFAULT_MAX_CARDS,
+    lang: str = "auto",
 ) -> list[TopicCard]:
     topic_result = await db.execute(
         select(Topic).where(Topic.id == topic_id, Topic.user_id == user_id)
@@ -220,7 +237,7 @@ async def generate_cards_for_topic(
     )
     existing_fronts = [_normalize_front(front) for front in existing_result.scalars().all()]
 
-    generated = await _generate_cards_with_llm(topic.name, context_md)
+    generated = await _generate_cards_with_llm(topic.name, context_md, lang)
     created: list[TopicCard] = []
     for item in generated:
         front = str(item.get("front") or item.get("question") or "").strip()
@@ -259,6 +276,7 @@ async def generate_cards_for_topic_background(
     user_id: str,
     context_md: str = "",
     max_new_cards: int | None = DEFAULT_MAX_CARDS,
+    lang: str = "auto",
 ) -> None:
     try:
         async with async_session_factory() as db:
@@ -268,6 +286,7 @@ async def generate_cards_for_topic_background(
                 db,
                 context_md=context_md,
                 max_new_cards=max_new_cards,
+                lang=lang,
             )
     except Exception:
         # Card generation is opportunistic background work. Request flows must not

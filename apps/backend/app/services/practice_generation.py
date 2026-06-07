@@ -23,6 +23,9 @@ class TopicInfo:
     # the LLM-less fallback path (tests) behaving exactly as before.
     domain: str = "general"
     strategy_config: dict | None = None
+    # UI locale for generated content ("ru"/"en"/"auto"). "auto" detects from the topic
+    # name + materials, so untouched callers keep their prior behaviour.
+    lang: str = "auto"
 
 
 # ── LLM helpers ───────────────────────────────────────────────────────────────
@@ -121,6 +124,24 @@ def _extract_json(text: str) -> dict:
     return json.loads(text[start:end])
 
 
+def _resolve_lang(lang: str, *texts: str) -> str:
+    """Explicit 'ru'/'en' wins; otherwise detect from the given texts (topic, materials)."""
+    if lang in ("ru", "en"):
+        return lang
+    from app.services.study_onboarding import _detect_lang
+    return _detect_lang(" ".join(t for t in texts if t))
+
+
+def _lang_line(lang: str, *, translate_headers: bool = False) -> str:
+    """The output-language instruction injected into generation prompts."""
+    if lang == "en":
+        base = "Language: write EVERYTHING in English"
+        if translate_headers:
+            base += " (translate any Russian section headings/labels from the template to natural English)"
+        return base + ". Keep technical terms in their original form."
+    return "Язык: русский, термины — на языке оригинала."
+
+
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 # Backward-compatible default system prompt (coding persona). The adaptive,
@@ -132,7 +153,7 @@ CONSPECT_SYSTEM_PROMPT = (
 )
 
 
-def build_conspect_system(profile, strategy) -> str:
+def build_conspect_system(profile, strategy, lang: str = "ru") -> str:
     """Domain- and strategy-aware system prompt for the conspect writer."""
     from app.services.strategy_presets import profile_generation_notes, strategy_generation_notes
 
@@ -172,7 +193,7 @@ def build_conspect_system(profile, strategy) -> str:
         f"{profile.generation_note}\n"
         f"{strategy_generation_notes(strategy)}\n"
         f"{profile_generation_notes(strategy)}\n"
-        "Язык: русский, термины — на языке оригинала."
+        f"{_lang_line(lang, translate_headers=True)}"
     )
 
 
@@ -224,7 +245,7 @@ def _conspect_body_sections(profile, strategy) -> str:
     return "\n\n---\n\n".join(blocks)
 
 
-def _build_conspect_prompt(topic_name: str, materials_block: str, profile, strategy) -> str:
+def _build_conspect_prompt(topic_name: str, materials_block: str, profile, strategy, lang: str = "ru") -> str:
     from app.services.strategy_presets import conspect_word_count
 
     if not materials_block.strip():
@@ -238,7 +259,9 @@ def _build_conspect_prompt(topic_name: str, materials_block: str, profile, strat
     )
     body = _conspect_body_sections(profile, strategy)
 
-    return f"""На основе материалов по теме «{topic_name}» напиши подробный, наглядный конспект для аудитории «{profile.audience}».
+    return f"""{_lang_line(lang, translate_headers=True)}
+
+На основе материалов по теме «{topic_name}» напиши подробный, наглядный конспект для аудитории «{profile.audience}».
 
 ## Материалы
 {materials_block}
@@ -277,7 +300,7 @@ def _build_conspect_prompt(topic_name: str, materials_block: str, profile, strat
 Начинай сразу с конспекта, без предисловий."""
 
 
-def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) -> str:
+def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy, lang: str = "ru") -> str:
     from app.services.strategy_presets import profile_generation_notes, strategy_generation_notes
 
     theory_spec = profile.task_recipe[0]
@@ -318,6 +341,7 @@ def _build_tasks_prompt(topic_name: str, conspect_md: str, profile, strategy) ->
 {profile_generation_notes(strategy)}
 
 Ответь ТОЛЬКО валидным JSON объектом. Без markdown-блоков, без текста вне JSON.
+{_lang_line(lang, translate_headers=True)}
 
 Требования к форматированию полей instructions_md (это Markdown, который будет отрендерен):
 - Каждый блок начинай с заголовка ### и понятного названия.
@@ -454,12 +478,13 @@ async def stream_conspect_to_queue(
     strategy = resolve_strategy(topic.strategy_config)
 
     materials_block = await _prepare_materials_block(settings, topic, materials, q)
+    lang = _resolve_lang(topic.lang, topic.name, materials_block[:400])
 
     await q.put(("phase_change", {"phase": "conspect", "label": "Пишу конспект..."}))
 
     conspect_md = ""
-    prompt_conspect = _build_conspect_prompt(topic.name, materials_block, profile, strategy)
-    system_prompt = build_conspect_system(profile, strategy)
+    prompt_conspect = _build_conspect_prompt(topic.name, materials_block, profile, strategy, lang=lang)
+    system_prompt = build_conspect_system(profile, strategy, lang=lang)
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
         async for token in _llm_stream_tokens(
@@ -565,7 +590,8 @@ async def generate_tasks_from_conspect(
     await asyncio.sleep(4)
     await q.put(("phase_change", {"phase": "tasks", "label": "Создаю задания..."}))
 
-    prompt_tasks = _build_tasks_prompt(topic.name, conspect_md, profile, strategy)
+    lang = _resolve_lang(topic.lang, topic.name, conspect_md[:400])
+    prompt_tasks = _build_tasks_prompt(topic.name, conspect_md, profile, strategy, lang=lang)
 
     async with httpx.AsyncClient(timeout=180.0) as client:
         raw = await _llm_call(
