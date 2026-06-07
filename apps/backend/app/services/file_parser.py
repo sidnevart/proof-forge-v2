@@ -60,7 +60,7 @@ def extract_from_bytes(filename: str, data: bytes) -> str:
         text = data.decode("utf-8", errors="replace")
     except Exception:
         text = data.decode("latin-1", errors="replace")
-    return _truncate(text)
+    return _truncate(text.replace("\x00", ""))
 
 
 def _extract_pdf(data: bytes) -> str:
@@ -72,7 +72,7 @@ def _extract_pdf(data: bytes) -> str:
             text = page.extract_text() or ""
             if text.strip():
                 pages.append(text)
-        return _truncate("\n\n".join(pages))
+        return _truncate("\n\n".join(pages).replace("\x00", ""))
     except ImportError:
         return "[PDF parsing requires pypdf — установи зависимость]"
     except Exception as e:

@@ -42,6 +42,29 @@ CONSPECT_FORMAT_OPTIONS = [
 ]
 
 # goal → strategy knobs (so resolve_strategy and the generators get sensible values)
+GOAL_OPTIONS_EN = [
+    {"value": "understand", "label": "Learn from scratch"},
+    {"value": "refresh", "label": "Refresh my knowledge"},
+    {"value": "interview", "label": "Interview preparation"},
+    {"value": "solve_task", "label": "Solve a specific task"},
+]
+
+CONSPECT_FORMAT_OPTIONS_EN = [
+    {"value": "thorough", "label": "Detailed, with examples"},
+    {"value": "concise", "label": "Concise and to the point"},
+    {"value": "diagrams", "label": "With diagrams"},
+    {"value": "analogies", "label": "With everyday analogies"},
+]
+
+
+def _detect_lang(text: str) -> str:
+    """Heuristic: count ASCII alpha vs Cyrillic chars; return 'en' if mostly Latin."""
+    sample = text[:300]
+    latin = sum(1 for c in sample if c.isascii() and c.isalpha())
+    cyrillic = sum(1 for c in sample if "Ѐ" <= c <= "ӿ")
+    return "en" if latin > cyrillic else "ru"
+
+
 _GOAL_KNOBS = {
     "understand": {"depth": "comprehensive", "difficulty": "gentle"},
     "refresh": {"depth": "brief", "difficulty": "standard"},
@@ -137,22 +160,25 @@ def _task_format_options(domain: str) -> list[dict]:
     return options[:4]
 
 
-def _build_slots(domain: str, concepts: list[str], subtopics: list[str]) -> list[dict]:
+def _build_slots(domain: str, concepts: list[str], subtopics: list[str], lang: str = "ru") -> list[dict]:
     """Assemble the (up to) 5-slot backbone. Slots with no content are skipped."""
     profile = get_profile(domain)
+    en = lang == "en"
+    goal_opts = GOAL_OPTIONS_EN if en else GOAL_OPTIONS
+    cf_opts_all = CONSPECT_FORMAT_OPTIONS_EN if en else CONSPECT_FORMAT_OPTIONS
     slots: list[dict] = [
         {
             "id": "goal",
-            "question": "Какая у тебя цель по этой теме?",
+            "question": "What is your goal for this topic?" if en else "Какая у тебя цель по этой теме?",
             "multiselect": False,
             "allow_free_text": True,
-            "options": GOAL_OPTIONS,
+            "options": goal_opts,
         }
     ]
     if concepts:
         slots.append({
             "id": "known",
-            "question": "Что из этого ты уже знаешь? (отмечу — не буду разжёвывать)",
+            "question": "What do you already know? (I'll skip basics)" if en else "Что из этого ты уже знаешь? (отмечу — не буду разжёвывать)",
             "multiselect": True,
             "allow_free_text": True,
             "options": [{"value": c, "label": c} for c in concepts],
@@ -160,25 +186,25 @@ def _build_slots(domain: str, concepts: list[str], subtopics: list[str]) -> list
     if subtopics:
         slots.append({
             "id": "focus",
-            "question": "На чём сделать акцент?",
+            "question": "What should I focus on?" if en else "На чём сделать акцент?",
             "multiselect": True,
             "allow_free_text": True,
             "options": [{"value": s, "label": s} for s in subtopics],
         })
     conspect_opts = [
-        o for o in CONSPECT_FORMAT_OPTIONS
+        o for o in cf_opts_all
         if o["value"] != "diagrams" or profile.allow_diagrams
     ]
     slots.append({
         "id": "conspect_format",
-        "question": "Каким хочешь конспект?",
+        "question": "What style of notes do you prefer?" if en else "Каким хочешь конспект?",
         "multiselect": True,
         "allow_free_text": True,
         "options": conspect_opts,
     })
     slots.append({
         "id": "task_format",
-        "question": "Какие задания тебе ближе?",
+        "question": "What type of exercises do you prefer?" if en else "Какие задания тебе ближе?",
         "multiselect": True,
         "allow_free_text": True,
         "options": _task_format_options(domain),
@@ -187,9 +213,11 @@ def _build_slots(domain: str, concepts: list[str], subtopics: list[str]) -> list
 
 
 async def generate_questions(
-    settings: Any, topic_name: str, materials_preview: str, domain: str
+    settings: Any, topic_name: str, materials_preview: str, domain: str, lang: str = "auto"
 ) -> list[dict]:
     """Return the interview slots. AI fills concepts/subtopics; deterministic fallback."""
+    if lang == "auto":
+        lang = _detect_lang(topic_name + " " + materials_preview)
     concepts: list[str] = []
     subtopics: list[str] = []
     if getattr(settings, "llm_api_key", ""):
@@ -200,7 +228,7 @@ async def generate_questions(
                 )
         except Exception as exc:  # noqa: BLE001 — never block the interview
             logger.warning("Onboarding question generation failed for %s: %s", topic_name, exc)
-    return _build_slots(domain, concepts, subtopics)
+    return _build_slots(domain, concepts, subtopics, lang=lang)
 
 
 # ── Answer → StudyProfile ─────────────────────────────────────────────────────
@@ -252,17 +280,31 @@ _GOAL_LABELS = {o["value"]: o["label"] for o in GOAL_OPTIONS}
 
 
 def _templated_plan(topic_name: str, profile: dict) -> str:
-    parts = [f"Напишу конспект по теме «{topic_name}»."]
-    if profile.get("focus_subtopics"):
-        parts.append("Фокус: " + ", ".join(profile["focus_subtopics"]) + ".")
-    if profile.get("known_concepts"):
-        parts.append("Уже знаешь (упомяну кратко): " + ", ".join(profile["known_concepts"]) + ".")
-    goal = _GOAL_LABELS.get(profile.get("goal", ""), "")
-    if goal:
-        parts.append(f"Цель: {goal}.")
-    if profile.get("task_format"):
-        parts.append("Задания: " + ", ".join(profile["task_format"]) + ".")
-    parts.append("Поехали?")
+    lang = _detect_lang(topic_name)
+    if lang == "en":
+        parts = [f'I will write notes on the topic "{topic_name}".']
+        if profile.get("focus_subtopics"):
+            parts.append("Focus: " + ", ".join(profile["focus_subtopics"]) + ".")
+        if profile.get("known_concepts"):
+            parts.append("You already know (brief mention): " + ", ".join(profile["known_concepts"]) + ".")
+        goal = _GOAL_LABELS.get(profile.get("goal", ""), "")
+        if goal:
+            parts.append(f"Goal: {goal}.")
+        if profile.get("task_format"):
+            parts.append("Exercises: " + ", ".join(profile["task_format"]) + ".")
+        parts.append("Shall we start?")
+    else:
+        parts = [f"Напишу конспект по теме «{topic_name}»."]
+        if profile.get("focus_subtopics"):
+            parts.append("Фокус: " + ", ".join(profile["focus_subtopics"]) + ".")
+        if profile.get("known_concepts"):
+            parts.append("Уже знаешь (упомяну кратко): " + ", ".join(profile["known_concepts"]) + ".")
+        goal = _GOAL_LABELS.get(profile.get("goal", ""), "")
+        if goal:
+            parts.append(f"Цель: {goal}.")
+        if profile.get("task_format"):
+            parts.append("Задания: " + ", ".join(profile["task_format"]) + ".")
+        parts.append("Поехали?")
     return " ".join(parts)
 
 
@@ -272,12 +314,22 @@ async def generate_plan(settings: Any, topic_name: str, profile: dict) -> str:
         return _templated_plan(topic_name, profile)
     from app.services.llm_utils import http_post_with_retry
 
-    prompt = (
-        f"Ты — учебный ментор. Кратко (2-3 предложения, от первого лица) опиши план: что "
-        f"напишешь в конспекте по теме «{topic_name}» с учётом предпочтений ученика:\n"
-        f"{json.dumps(profile, ensure_ascii=False)}\n\n"
-        "Без markdown-заголовков. Заверши вопросом «Поехали?». Только сам текст плана."
-    )
+    lang = _detect_lang(topic_name)
+    if lang == "en":
+        prompt = (
+            f'You are a learning mentor. Briefly (2-3 sentences, first person) describe your plan: '
+            f'what you will cover in the notes for the topic "{topic_name}" '
+            f"given the learner's preferences:\n"
+            f"{json.dumps(profile, ensure_ascii=False)}\n\n"
+            'No markdown headers. End with "Shall we start?". Only the plan text itself.'
+        )
+    else:
+        prompt = (
+            f"Ты — учебный ментор. Кратко (2-3 предложения, от первого лица) опиши план: что "
+            f"напишешь в конспекте по теме «{topic_name}» с учётом предпочтений ученика:\n"
+            f"{json.dumps(profile, ensure_ascii=False)}\n\n"
+            "Без markdown-заголовков. Заверши вопросом «Поехали?». Только сам текст плана."
+        )
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0)) as client:
             response = await http_post_with_retry(
