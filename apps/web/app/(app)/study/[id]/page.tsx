@@ -66,6 +66,7 @@ export default function StudySessionPage() {
 
   // TOC + selection state
   const [tocOpen, setTocOpen] = useState(false)
+  const [desktopTocOpen, setDesktopTocOpen] = useState(true)
   const [activeHeadingId, setActiveHeadingId] = useState('')
   const [selectedText, setSelectedText] = useState('')
 
@@ -591,13 +592,41 @@ export default function StudySessionPage() {
               </div>
             )}
 
-            <div className="max-w-5xl mx-auto p-4 md:p-6 md:grid md:grid-cols-[200px_1fr] md:gap-8">
-              {/* Desktop TOC — sticky sidebar */}
+            <div
+              className="max-w-5xl mx-auto p-4 md:p-6 md:grid md:gap-8"
+              style={{ gridTemplateColumns: headings.length > 0 ? (desktopTocOpen ? '200px 1fr' : '28px 1fr') : '1fr' }}
+            >
+              {/* Desktop TOC — sticky sidebar with open/close toggle */}
               {headings.length > 0 && (
                 <aside className="hidden md:block">
                   <div className="sticky top-4">
-                    <p className="text-[10px] font-mono text-mute uppercase tracking-wider mb-2 px-2">{t('study.toc')}</p>
-                    <ConspectToc headings={headings} activeId={activeHeadingId} />
+                    {desktopTocOpen ? (
+                      <>
+                        <div className="flex items-center justify-between mb-2 px-2">
+                          <p className="text-[10px] font-mono text-mute uppercase tracking-wider">{t('study.toc')}</p>
+                          <button
+                            onClick={() => setDesktopTocOpen(false)}
+                            title="Свернуть содержание"
+                            className="text-mute hover:text-ink transition-colors"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <polyline points="15 18 9 12 15 6"/>
+                            </svg>
+                          </button>
+                        </div>
+                        <ConspectToc headings={headings} activeId={activeHeadingId} />
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setDesktopTocOpen(true)}
+                        title="Открыть содержание"
+                        className="flex items-center justify-center w-7 h-7 rounded-lg text-mute hover:text-ink hover:bg-card transition-colors"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/>
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </aside>
               )}

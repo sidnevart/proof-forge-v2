@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { clearSession } from '@/lib/auth'
@@ -51,8 +51,12 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
   // Folder creation inline
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
+  const [folderError, setFolderError] = useState(false)
   // Collapsed folders
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  // Move-to-folder popover
+  const [moveMenu, setMoveMenu] = useState<string | null>(null)
+  const moveMenuRef = useRef<HTMLDivElement>(null)
   const t = useT()
 
   const navItems = [
@@ -83,11 +87,34 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
 
   const handleCreateFolder = async () => {
     if (!storedUser || !newFolderName.trim()) return
-    const folder = await folders.create(storedUser.user_id, newFolderName.trim())
-    setAllFolders((prev) => [...prev, folder])
-    setNewFolderName('')
-    setCreatingFolder(false)
+    setFolderError(false)
+    try {
+      const folder = await folders.create(storedUser.user_id, newFolderName.trim())
+      setAllFolders((prev) => [...prev, folder])
+      setNewFolderName('')
+      setCreatingFolder(false)
+    } catch {
+      setFolderError(true)
+    }
   }
+
+  const handleMoveToFolder = async (topicId: string, folderId: string | null) => {
+    setMoveMenu(null)
+    try {
+      await topics.update(topicId, { folderId })
+      setAllTopics((prev) => prev.map((tp) => tp.id === topicId ? { ...tp, folder_id: folderId ?? undefined } : tp))
+    } catch { /* silent — sidebar stays consistent */ }
+  }
+
+  // Close move-menu when clicking outside
+  useEffect(() => {
+    if (!moveMenu) return
+    const handler = (e: MouseEvent) => {
+      if (moveMenuRef.current && !moveMenuRef.current.contains(e.target as Node)) setMoveMenu(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [moveMenu])
 
   const toggleCollapse = (id: string) =>
     setCollapsed((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
@@ -161,17 +188,20 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
 
           {/* New folder input */}
           {creatingFolder && (
-            <div className="flex gap-1 px-2 mb-1">
-              <input
-                autoFocus
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') setCreatingFolder(false) }}
-                placeholder={t('nav.folderName')}
-                className="flex-1 text-xs px-2 py-1 rounded-lg border border-line bg-card text-ink focus:outline-none focus:border-accent/60"
-              />
-              <button onClick={handleCreateFolder} className="text-accent text-xs px-1">✓</button>
-              <button onClick={() => setCreatingFolder(false)} className="text-mute text-xs px-1">✕</button>
+            <div className="px-2 mb-1">
+              <div className="flex gap-1">
+                <input
+                  autoFocus
+                  value={newFolderName}
+                  onChange={(e) => { setNewFolderName(e.target.value); setFolderError(false) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') { setCreatingFolder(false); setFolderError(false) } }}
+                  placeholder={t('nav.folderName')}
+                  className={`flex-1 text-xs px-2 py-1 rounded-lg border bg-card text-ink focus:outline-none transition-colors ${folderError ? 'border-danger/60 focus:border-danger' : 'border-line focus:border-accent/60'}`}
+                />
+                <button onClick={handleCreateFolder} className="text-accent text-xs px-1">✓</button>
+                <button onClick={() => { setCreatingFolder(false); setFolderError(false) }} className="text-mute text-xs px-1">✕</button>
+              </div>
+              {folderError && <p className="text-[10px] text-danger mt-0.5">Не удалось создать</p>}
             </div>
           )}
 
@@ -203,10 +233,39 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
                       const href = s ? `/study/${s.id}` : `/topics/${tp.id}`
                       const active = pathname.startsWith(`/study/${s?.id}`) || pathname === `/topics/${tp.id}`
                       return (
-                        <Link key={tp.id} href={href} className={`flex items-center gap-2 pl-7 pr-2 py-1.5 rounded-lg text-xs transition-colors ${active ? 'bg-accentsoft text-accent font-medium' : 'text-mute hover:text-ink hover:bg-card'}`}>
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                          <span className="truncate">{tp.name}</span>
-                        </Link>
+                        <div key={tp.id} className="relative group">
+                          <Link href={href} className={`flex items-center gap-2 pl-7 pr-7 py-1.5 rounded-lg text-xs transition-colors ${active ? 'bg-accentsoft text-accent font-medium' : 'text-mute hover:text-ink hover:bg-card'}`}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                            <span className="truncate">{tp.name}</span>
+                          </Link>
+                          <button
+                            onClick={(e) => { e.preventDefault(); setMoveMenu(moveMenu === tp.id ? null : tp.id) }}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-mute hover:text-ink"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                          </button>
+                          {moveMenu === tp.id && (
+                            <div ref={moveMenuRef} className="absolute right-0 top-full z-50 mt-0.5 rounded-xl bg-card border border-line shadow-lg py-1 min-w-[140px]">
+                              <button
+                                onClick={() => handleMoveToFolder(tp.id, null)}
+                                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-mute hover:text-ink hover:bg-sand transition-colors"
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                Убрать из папки
+                              </button>
+                              {allFolders.filter((f) => f.id !== folder.id).map((f) => (
+                                <button
+                                  key={f.id}
+                                  onClick={() => handleMoveToFolder(tp.id, f.id)}
+                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-mute hover:text-ink hover:bg-sand transition-colors"
+                                >
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                                  {f.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )
                     })}
                   </div>
@@ -219,10 +278,36 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
                 const href = s ? `/study/${s.id}` : `/topics/${tp.id}`
                 const active = pathname.startsWith(`/study/${s?.id}`) || pathname === `/topics/${tp.id}`
                 return (
-                  <Link key={tp.id} href={href} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors ${active ? 'bg-accentsoft text-accent font-medium' : 'text-mute hover:text-ink hover:bg-card'}`}>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-                    <span className="truncate">{tp.name}</span>
-                  </Link>
+                  <div key={tp.id} className="relative group">
+                    <Link href={href} className={`flex items-center gap-2 px-2 pr-7 py-1.5 rounded-lg text-xs transition-colors ${active ? 'bg-accentsoft text-accent font-medium' : 'text-mute hover:text-ink hover:bg-card'}`}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+                      <span className="truncate">{tp.name}</span>
+                    </Link>
+                    {allFolders.length > 0 && (
+                      <>
+                        <button
+                          onClick={(e) => { e.preventDefault(); setMoveMenu(moveMenu === tp.id ? null : tp.id) }}
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-mute hover:text-ink"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                        </button>
+                        {moveMenu === tp.id && (
+                          <div ref={moveMenuRef} className="absolute right-0 top-full z-50 mt-0.5 rounded-xl bg-card border border-line shadow-lg py-1 min-w-[140px]">
+                            {allFolders.map((f) => (
+                              <button
+                                key={f.id}
+                                onClick={() => handleMoveToFolder(tp.id, f.id)}
+                                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-mute hover:text-ink hover:bg-sand transition-colors"
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                                {f.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 )
               })}
 
