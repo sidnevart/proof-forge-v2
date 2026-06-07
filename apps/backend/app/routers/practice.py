@@ -504,6 +504,11 @@ async def submit_answer(
     # mastery would never advance via finalize_evaluation_mastery. Record practice
     # mastery directly on a passing answer instead.
     if evaluation.status == "passed" and task.target_concepts:
+        # struggle_passed gates the top "explain" mastery level. The web Practice tab
+        # never collects follow-up answers, so granting it on every pass handed "explain"
+        # to easy wins. Grant it only when a genuinely hard task (difficulty 3) is passed
+        # with high quality — an honest proxy for "handled a hard case under pressure".
+        hard_pass = 1 if (task.difficulty >= 3 and evaluation.score >= 0.8) else 0
         for concept in task.target_concepts:
             await mastery_repo.record(
                 db,
@@ -513,7 +518,7 @@ async def submit_answer(
                 kind="practice",
                 difficulty=task.difficulty,
                 quality_score=evaluation.score,
-                struggle_passed=1,
+                struggle_passed=hard_pass,
             )
 
     db.add(LearningEvent(

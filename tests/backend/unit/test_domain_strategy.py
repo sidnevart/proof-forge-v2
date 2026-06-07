@@ -107,6 +107,20 @@ def test_practice_generation_emits_discrete_gradable_tasks():
     assert len(pg._build_practice_task_creates(topic, pspec, [])) == 1
 
 
+def test_conspect_validator_flags_short_and_missing_formulas():
+    strat = resolve_strategy(None)
+    long_ok = "слово " * 1300  # comfortably above the length floor
+    # too short -> flagged
+    assert pg._conspect_quality_gaps("очень короткий конспект", get_profile("coding"), strat)
+    # math topic without any LaTeX -> flagged
+    math_gaps = pg._conspect_quality_gaps(long_ok, get_profile("theory_math"), strat)
+    assert any("формул" in g for g in math_gaps)
+    # long math conspect with a formula -> clean
+    assert pg._conspect_quality_gaps(long_ok + " $E=mc^2$", get_profile("theory_math"), strat) == []
+    # long coding conspect without formulas -> clean (only theory_math requires them)
+    assert pg._conspect_quality_gaps(long_ok, get_profile("coding"), strat) == []
+
+
 def test_classifier_normalize():
     assert _normalize("coding") == "coding"
     assert _normalize("  Language.") == "language"

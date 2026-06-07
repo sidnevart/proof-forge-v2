@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import re
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
@@ -8,6 +9,8 @@ from typing import Any
 import httpx
 
 from app.schemas.practice import PracticeTaskCreate, StudySessionCreate
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -387,6 +390,56 @@ async def _prepare_materials_block(
     return "## Выжимка концепций из материалов\n\n" + digest
 
 
+def _conspect_quality_gaps(conspect_md: str, profile, strategy) -> list[str]:
+    """Deterministic, LLM-free quality gate. Returns detected gaps (empty == OK).
+
+    Only flags the high-confidence, high-complaint failure modes — too-short conspect
+    and a math topic with zero LaTeX formulas — so a repair call fires rarely and never
+    on a sound conspect (no extra LLM cost in the common case).
+    """
+    from app.services.strategy_presets import conspect_word_count
+
+    gaps: list[str] = []
+    words = len(conspect_md.split())
+    m = re.search(r"(\d+)", conspect_word_count(strategy))
+    floor = int(m.group(1)) if m else 1500
+    if words < int(floor * 0.6):
+        gaps.append(
+            f"конспект слишком короткий (~{words} слов при целевом минимуме ~{floor}) — "
+            "раскрой разделы глубже, добавь примеры и разбор, ничего не выкидывая"
+        )
+    if getattr(profile, "domain", "") == "theory_math" and "$" not in conspect_md:
+        gaps.append(
+            "в конспекте по точной дисциплине нет ни одной формулы в LaTeX — добавь раздел "
+            "с ключевыми формулами ($$...$$) и пошаговым выводом важнейших из них"
+        )
+    return gaps
+
+
+async def _repair_conspect(
+    client: httpx.AsyncClient, settings, topic_name: str, conspect_md: str,
+    gaps: list[str], profile, strategy,
+) -> str:
+    """One repair pass: rewrite the conspect fixing the detected gaps. Never shrinks it.
+
+    Returns the original conspect unchanged if the repair is empty or a length regression,
+    so a flaky repair call can only help, never degrade.
+    """
+    gap_lines = "\n".join(f"- {g}" for g in gaps)
+    prompt = (
+        f"Ниже черновик конспекта по теме «{topic_name}». В нём есть недочёты:\n{gap_lines}\n\n"
+        "Перепиши конспект, УСТРАНИВ эти недочёты и СОХРАНИВ всё ценное из черновика. "
+        "Не сокращай — дополняй и углубляй. Соблюдай ту же структуру Markdown-заголовков.\n\n"
+        f"## Черновик\n{conspect_md[:14000]}\n\n"
+        "Верни ТОЛЬКО улучшенный конспект в Markdown, без преамбулы."
+    )
+    system = build_conspect_system(profile, strategy)
+    repaired = (await _llm_call(client, settings, prompt, max_tokens=8000, temperature=0.4, system=system) or "").strip()
+    if len(repaired) > 200 and len(repaired) >= int(len(conspect_md) * 0.9):
+        return repaired
+    return conspect_md
+
+
 async def stream_conspect_to_queue(
     settings: Any,
     topic: TopicInfo,
@@ -421,6 +474,20 @@ async def stream_conspect_to_queue(
 
     if not conspect_md.strip():
         raise ValueError("LLM вернул пустой конспект")
+
+    # Post-generation quality gate. Deterministic checks fire a single repair call only
+    # on a real gap; the UI reloads the conspect from the DB on `complete`, so saving the
+    # repaired version is enough — no extra streaming or frontend change needed.
+    gaps = _conspect_quality_gaps(conspect_md, profile, strategy)
+    if gaps and getattr(settings, "llm_api_key", ""):
+        await q.put(("phase_change", {"phase": "polish", "label": "Дополняю конспект..."}))
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
+                conspect_md = await _repair_conspect(
+                    client, settings, topic.name, conspect_md, gaps, profile, strategy
+                )
+        except Exception as exc:  # noqa: BLE001 — repair must never break generation
+            logger.warning("Conspect repair failed for %s: %s", topic.name, exc)
 
     return conspect_md
 
