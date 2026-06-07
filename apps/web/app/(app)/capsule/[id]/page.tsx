@@ -49,7 +49,7 @@ export default function CapsulePage({ params }: { params: Promise<{ id: string }
     if (!user || !capsule || isRegenerating) return
     setIsRegenerating(true)
     try {
-      const result = await topics.generateCapsule(capsule.topic_id, user.user_id, undefined, capsule.id)
+      const result = await topics.generateCapsule(capsule.topic_id, user.user_id, undefined, capsule.id, locale)
       pendingRegenId.current = result.capsule_id
       setRegenEventsUrl(topics.capsuleEventsUrl(capsule.topic_id, result.capsule_id))
     } catch {

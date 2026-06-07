@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { onboarding, type OnboardingSlot, type StudyProfile } from '@/lib/api'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
-import { useT } from '@/lib/i18n'
+import { useT, useLocale } from '@/lib/i18n'
 
 type Phase = 'loading' | 'asking' | 'planning' | 'plan' | 'error'
 
@@ -24,6 +24,7 @@ interface Props {
  */
 export function OnboardingChat({ userId, topicId, onConfirm, onSkip }: Props) {
   const t = useT()
+  const { locale } = useLocale()
   const [phase, setPhase] = useState<Phase>('loading')
   const [slots, setSlots] = useState<OnboardingSlot[]>([])
   const [step, setStep] = useState(0)
@@ -36,7 +37,7 @@ export function OnboardingChat({ userId, topicId, onConfirm, onSkip }: Props) {
 
   useEffect(() => {
     let cancelled = false
-    onboarding.questions(userId, topicId)
+    onboarding.questions(userId, topicId, locale)
       .then((res) => {
         if (cancelled) return
         setSlots(res.slots)
@@ -80,7 +81,7 @@ export function OnboardingChat({ userId, topicId, onConfirm, onSkip }: Props) {
   const requestPlan = async (finalAnswers: Record<string, string[]>) => {
     setPhase('planning')
     try {
-      const res = await onboarding.plan(userId, topicId, finalAnswers)
+      const res = await onboarding.plan(userId, topicId, finalAnswers, locale)
       setPlanMd(res.plan_md)
       setProfile(res.study_profile)
       setPhase('plan')

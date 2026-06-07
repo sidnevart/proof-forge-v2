@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { getStoredUser } from '@/lib/auth'
 import { chat, topics, type Topic, type ChatMessage, type ChatSession } from '@/lib/api'
-import { useT } from '@/lib/i18n'
+import { useT, useLocale } from '@/lib/i18n'
 import { useDrawer } from '@/lib/drawer-context'
 import { CHAT_ACCEPT, PendingChip, MessageAttachment } from '@/app/(app)/_components/file-chip'
 import { LIMITS, validateFiles, limitErrorMessage } from '@/lib/upload-limits'
@@ -24,6 +24,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const chatFileRef = useRef<HTMLInputElement>(null)
   const t = useT()
+  const { locale } = useLocale()
   const { openDrawer } = useDrawer()
 
   useEffect(() => {
@@ -64,7 +65,7 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
 
     try {
       const session = await ensureSession()
-      const res = await chat.turn(session.id, user.user_id, text, history, filesToSend)
+      const res = await chat.turn(session.id, user.user_id, text, history, filesToSend, locale)
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== tempId),
         res.user_message,

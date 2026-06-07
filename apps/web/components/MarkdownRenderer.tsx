@@ -2,7 +2,9 @@
 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import rehypeRaw from 'rehype-raw'
+import rehypeKatex from 'rehype-katex'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { useEffect, useRef, useId } from 'react'
@@ -37,11 +39,12 @@ interface MarkdownRendererProps {
 export function MarkdownRenderer({ children, components }: MarkdownRendererProps) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkMath]}
       // rehype-raw lets us render the <details>/<summary> collapsibles the LLM
       // emits in practice tasks. Content is self-generated, so we accept unsanitized
       // raw HTML here (same trust level as the rest of the rendered LLM markdown).
-      rehypePlugins={[rehypeRaw]}
+      // rehype-katex renders $$...$$  and $...$ math nodes produced by remark-math.
+      rehypePlugins={[rehypeRaw, rehypeKatex]}
       components={{
         // Default heading/text rhythm for the conspect (Theory tab). Callers that pass
         // their own `components` (e.g. the compact chat bubble) override these below.

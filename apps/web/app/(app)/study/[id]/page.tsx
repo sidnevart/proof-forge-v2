@@ -7,7 +7,7 @@ import { getStoredUser } from '@/lib/auth'
 import { practice, chat, topics, capsules, type PracticeTask, type StudySession, type ChatMessage, type ChatSession, type Capsule, type AnswerSubmissionResult } from '@/lib/api'
 import { SkeletonText } from '@/components/ui/Skeleton'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
-import { useT } from '@/lib/i18n'
+import { useT, useLocale } from '@/lib/i18n'
 import { useSSEStream } from '@/hooks/useSSEStream'
 import { useDrawer } from '@/lib/drawer-context'
 import { CHAT_ACCEPT, PendingChip, MessageAttachment } from '@/app/(app)/_components/file-chip'
@@ -22,6 +22,7 @@ export default function StudySessionPage() {
   const searchParams = useSearchParams()
   const user = getStoredUser()
   const t = useT()
+  const { locale } = useLocale()
 
   const [session, setSession] = useState<StudySession | null>(null)
   const [tasks, setTasks] = useState<PracticeTask[]>([])
@@ -248,7 +249,7 @@ export default function StudySessionPage() {
     ])
 
     try {
-      const res = await chat.turn(chatSession.id, user.user_id, text, history, filesToSend)
+      const res = await chat.turn(chatSession.id, user.user_id, text, history, filesToSend, locale)
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== tempId),
         res.user_message,
@@ -288,7 +289,7 @@ export default function StudySessionPage() {
     setCapsuleGenError('')
     try {
       const chatMessages = messages.map((m) => ({ role: m.role, content: m.content }))
-      const result = await topics.generateCapsule(session.topic_id, user.user_id, chatMessages)
+      const result = await topics.generateCapsule(session.topic_id, user.user_id, chatMessages, undefined, locale)
       pendingCapsuleId.current = result.capsule_id
       setCapsuleEventsUrl2(topics.capsuleEventsUrl(session.topic_id, result.capsule_id))
     } catch (err) {

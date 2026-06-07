@@ -286,6 +286,7 @@ class GenerateCapsuleRequest(BaseModel):
     user_id: str
     chat_messages: list[dict] | None = None
     existing_capsule_id: str | None = None
+    lang: str = "auto"
 
 
 class GenerateTopicOut(BaseModel):
@@ -364,6 +365,7 @@ def _format_chat_context(chat_messages: list[dict] | None) -> str:
 async def _generate_single_pass(
     client: httpx.AsyncClient, settings, topic_name: str, materials_block: str,
     chat_messages: list[dict] | None = None,
+    lang: str = "auto",
 ) -> tuple[dict, dict]:
     """Returns (parsed_capsule, usage_dict)."""
     chat_ctx = _format_chat_context(chat_messages)
@@ -389,10 +391,24 @@ async def _generate_single_pass(
   ]
 }}
 
-Основывайся на материалах. Language: detect automatically from the materials and topic name. Write in the same language as the source content — Russian if materials are in Russian, English if in English. Technical terms may stay in their original language. 6 вопросов: 2 лёгких (факты), 2 средних (применение), 2 сложных (понимание + объяснение)."""
+Основывайся на материалах. {_lang_instruction(lang, topic_name=topic_name)} 6 вопросов: 2 лёгких (факты), 2 средних (применение), 2 сложных (понимание + объяснение)."""
     raw, usage = await _llm_call(client, settings, prompt, max_tokens=4000)
     return _extract_json(raw), usage
 
+
+
+
+def _lang_instruction(lang: str, materials_text: str = "", topic_name: str = "") -> str:
+    if lang == "en":
+        return "Language: English only. Write all content in English."
+    if lang == "ru":
+        return "Язык: только русский. Весь контент пишем по-русски."
+    # auto-detect
+    from app.services.study_onboarding import _detect_lang
+    detected = _detect_lang(topic_name + " " + materials_text[:200])
+    if detected == "en":
+        return "Language: English only. Write all content in English."
+    return "Язык: только русский. Весь контент пишем по-русски."
 
 async def _run_capsule_generation(
     capsule_id: str,
@@ -401,6 +417,7 @@ async def _run_capsule_generation(
     user_id: str,
     materials_snapshot: list,
     chat_messages: list[dict] | None = None,
+    lang: str = "auto",
 ) -> None:
     """Background task: generate capsule content and stream progress via SSE bridge."""
     from app.config import settings
@@ -494,7 +511,7 @@ async def _run_capsule_generation(
   ]
 }}
 
-Language: detect automatically from the materials and topic name. Write in the same language as the source content — Russian if materials are in Russian, English if in English. Technical terms may stay in their original language. 6 вопросов: 2 лёгких (факты), 2 средних (применение), 2 сложных (понимание + объяснение)."""
+{_lang_instruction(lang, topic_name=topic_name)} 6 вопросов: 2 лёгких (факты), 2 средних (применение), 2 сложных (понимание + объяснение)."""
                 raw, reduce_u = await _llm_call(client, settings, reduce_prompt, max_tokens=4000)
                 for k in ("prompt_tokens", "completion_tokens", "total_tokens", "latency_ms"):
                     usage[k] = usage.get(k, 0) + reduce_u.get(k, 0)
@@ -505,7 +522,7 @@ Language: detect automatically from the materials and topic name. Write in the s
                     f"### Материал: {m['name']}\n\n{m['content_text']}"
                     for m in materials_snapshot
                 )
-                parsed, u = await _generate_single_pass(client, settings, topic_name, materials_block, chat_messages)
+                parsed, u = await _generate_single_pass(client, settings, topic_name, materials_block, chat_messages, lang=lang)
                 for k in ("prompt_tokens", "completion_tokens", "total_tokens", "latency_ms"):
                     usage[k] = usage.get(k, 0) + u.get(k, 0)
 
@@ -634,7 +651,7 @@ async def generate_capsule_from_materials(
 
     create_stream(capsule.id)
     asyncio.create_task(_run_capsule_generation(
-        capsule.id, topic_id, topic.name, data.user_id, materials_snapshot, data.chat_messages
+        capsule.id, topic_id, topic.name, data.user_id, materials_snapshot, data.chat_messages, data.lang
     ))
 
     return {"topic_id": topic_id, "capsule_id": capsule.id, "status": "generating"}

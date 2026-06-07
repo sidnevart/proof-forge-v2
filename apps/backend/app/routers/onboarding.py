@@ -28,12 +28,14 @@ router = APIRouter(tags=["onboarding"])
 class QuestionsRequest(BaseModel):
     topic_id: str
     user_id: str
+    lang: str = "auto"
 
 
 class PlanRequest(BaseModel):
     topic_id: str
     user_id: str
     answers: dict = {}
+    lang: str = "auto"
 
 
 async def _materials_preview(db: AsyncSession, topic_id: str) -> str:
@@ -67,7 +69,7 @@ async def onboarding_questions(data: QuestionsRequest, db: AsyncSession = Depend
         raise HTTPException(status_code=404, detail="Topic not found")
     preview = await _materials_preview(db, topic.id)
     domain = await _resolve_domain(db, topic, preview)
-    slots = await study_onboarding.generate_questions(app_settings, topic.name, preview, domain)
+    slots = await study_onboarding.generate_questions(app_settings, topic.name, preview, domain, lang=data.lang)
     return {"domain": domain, "slots": slots}
 
 
@@ -78,7 +80,7 @@ async def onboarding_plan(data: PlanRequest, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=404, detail="Topic not found")
     domain = topic.domain or DEFAULT_DOMAIN
     profile = study_onboarding.build_study_profile(data.answers, domain)
-    plan_md = await study_onboarding.generate_plan(app_settings, topic.name, profile)
+    plan_md = await study_onboarding.generate_plan(app_settings, topic.name, profile, lang=data.lang)
     # Persist the profile so chat (and a later session) can read it immediately.
     topic.strategy_config = profile
     await db.commit()

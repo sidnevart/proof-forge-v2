@@ -517,12 +517,14 @@ export const chat = {
     message: string,
     history: { role: string; content: string }[],
     files: File[] = [],
+    lang: string = 'auto',
   ): Promise<ChatTurn> => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('grasp_token') : null
     const form = new FormData()
     form.append('user_id', userId)
     form.append('message', message)
     form.append('history_json', JSON.stringify(history))
+    form.append('lang', lang)
     for (const file of files) form.append('files', file)
     const res = await fetch(`${BASE}/api/chat/sessions/${sessionId}/turn`, {
       method: 'POST',

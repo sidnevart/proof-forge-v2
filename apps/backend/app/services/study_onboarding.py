@@ -308,13 +308,14 @@ def _templated_plan(topic_name: str, profile: dict) -> str:
     return " ".join(parts)
 
 
-async def generate_plan(settings: Any, topic_name: str, profile: dict) -> str:
+async def generate_plan(settings: Any, topic_name: str, profile: dict, lang: str = "auto") -> str:
     """Short human-readable plan bubble. LLM-written when available, templated otherwise."""
     if not getattr(settings, "llm_api_key", ""):
         return _templated_plan(topic_name, profile)
     from app.services.llm_utils import http_post_with_retry
 
-    lang = _detect_lang(topic_name)
+    if lang == "auto":
+        lang = _detect_lang(topic_name)
     if lang == "en":
         prompt = (
             f'You are a learning mentor. Briefly (2-3 sentences, first person) describe your plan: '
