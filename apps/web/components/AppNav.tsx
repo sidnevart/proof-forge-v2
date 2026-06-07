@@ -71,17 +71,16 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
   // effect alone never refreshes after create → navigate.
   useEffect(() => {
     if (!storedUser) return
-    Promise.all([
+    Promise.allSettled([
       practice.listSessions(storedUser.user_id),
       topics.list(storedUser.user_id),
       folders.list(storedUser.user_id),
     ])
       .then(([sessions, topicList, folderList]) => {
-        setStudySessions(sessions)
-        setAllTopics(topicList)
-        setAllFolders(folderList)
+        if (sessions.status === 'fulfilled') setStudySessions(sessions.value)
+        if (topicList.status === 'fulfilled') setAllTopics(topicList.value)
+        if (folderList.status === 'fulfilled') setAllFolders(folderList.value)
       })
-      .catch(() => {})
       .finally(() => setSessionsLoading(false))
   }, [storedUser?.user_id, pathname])
 
