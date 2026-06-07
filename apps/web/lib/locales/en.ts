@@ -39,6 +39,8 @@ export const dict = {
   'cards.title': 'Review',
   'cards.back': '← back to home',
   'cards.allTopics': 'All topics',
+  'cards.searchTopics': 'Search topics…',
+  'cards.noTopicMatch': 'No topics match',
   // Learning strategy (new topic)
   'strategy.title': 'Learning strategy',
   'strategy.hint': 'how to study',
@@ -52,7 +54,7 @@ export const dict = {
   'strategy.gentle.desc': 'Easy start, more theory, relaxed pace',
   // Adaptive onboarding interview
   'onboarding.title': 'Tune this topic',
-  'onboarding.preparing': 'Preparing questions…',
+  'onboarding.preparing': 'Generating questions to tailor your learning…',
   'onboarding.planning': 'Putting together a plan…',
   'onboarding.skip': 'Skip',
   'onboarding.next': 'Next',
@@ -175,6 +177,10 @@ export const dict = {
   'topicNew.withoutMaterials': 'AI is preparing notes and first tasks for the topic.',
   'topicNew.errorFallback': 'Failed to create topic',
 
+  // Shared upload-limit messages (templated: {name}, {max})
+  'limit.fileTooBig': 'File "{name}" is larger than {max} MB — pick a smaller one',
+  'limit.tooManyFiles': 'You can add at most {max} files',
+
   // Topic detail page
   'topic.noMaterials': 'Add learning materials',
   'topic.notFound': 'Topic not found.',
@@ -197,10 +203,8 @@ export const dict = {
   'topic.startError': 'Failed to start learning',
   'topic.genError': 'Generation failed',
   'topic.generating': 'Creating capsule',
-  'topic.study.cta': 'Start learning →',
   'topic.study.launching': 'Launching...',
-  'topic.study.title': 'Learn with practice',
-  'topic.study.desc': 'Create notes and a mini-project. Submit from JetBrains without manual file uploads.',
+  'topic.addMaterials': 'Add materials',
   'topic.gen.step0': 'Reading uploaded materials',
   'topic.gen.step1': 'Analyzing key concepts',
   'topic.gen.step2': 'Writing structured capsule',
@@ -291,9 +295,6 @@ export const dict = {
   'chat.err.timeout': 'AI unavailable: provider did not respond in 45 seconds. Try again or check the LLM provider.',
   'chat.err.prefix': 'AI unavailable',
   'chat.attach': 'Attach file or image',
-  'chat.attach.tooMany': 'Too many attachments (max 5)',
-  'chat.attach.tooBig': 'File is too large (max 8 MB)',
-  'chat.attach.unsupported': 'Unsupported file type',
 
   // Admin (internal tool)
   'admin.loading': 'Loading metrics...',

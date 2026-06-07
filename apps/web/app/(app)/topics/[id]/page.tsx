@@ -9,6 +9,7 @@ import { OnboardingChat } from '@/components/OnboardingChat'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { track } from '@/lib/analytics'
 import { useT, useLocale, ruPlural } from '@/lib/i18n'
+import { LIMITS, validateFiles, limitErrorMessage } from '@/lib/upload-limits'
 
 const ACCEPT = '.md,.py,.java,.csv,.txt,.js,.ts,.go,.rs,.c,.cpp,.h,.json,.yaml,.yml,.toml,.sh,.sql,.rb,.php,.kt,.pdf'
 
@@ -25,15 +26,16 @@ export default function TopicPage() {
   const [loadingTopic, setLoadingTopic] = useState(true)
 
   const [uploadingFile, setUploadingFile] = useState(false)
+  const [materialError, setMaterialError] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
   const [addingLink, setAddingLink] = useState(false)
   const [showLinkInput, setShowLinkInput] = useState(false)
 
   const [dragOver, setDragOver] = useState(false)
+  const [showMaterials, setShowMaterials] = useState(false)
 
   const [startingStudy, setStartingStudy] = useState(false)
   const [studyError, setStudyError] = useState('')
-  const [interviewing, setInterviewing] = useState(false)
 
   const loadTopic = useCallback(async () => {
     if (!user) return
@@ -53,35 +55,42 @@ export default function TopicPage() {
 
   useEffect(() => { loadTopic() }, [loadTopic])
 
-  const handleFileUpload = async (file: File) => {
-    if (!user) return
+  const handleFiles = async (incoming: File[]) => {
+    if (!user || incoming.length === 0) return
+    setMaterialError('')
+    const res = validateFiles(incoming, materials.length, LIMITS.material)
+    if (!res.ok) {
+      setMaterialError(limitErrorMessage(t, res, LIMITS.material))
+      return
+    }
     setUploadingFile(true)
     try {
-      const mat = await topics.uploadFile(topicId, user.user_id, file)
-      setMaterials((prev) => [...prev, mat])
+      for (const file of res.accepted) {
+        const mat = await topics.uploadFile(topicId, user.user_id, file)
+        setMaterials((prev) => [...prev, mat])
+      }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : t('topic.uploadError'))
+      setMaterialError(err instanceof Error ? err.message : t('topic.uploadError'))
     } finally {
       setUploadingFile(false)
     }
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) handleFileUpload(file)
+    handleFiles(Array.from(e.target.files ?? []))
     e.target.value = ''
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleFileUpload(file)
+    handleFiles(Array.from(e.dataTransfer.files))
   }
 
   const handleAddLink = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!linkUrl.trim() || !user) return
+    setMaterialError('')
     setAddingLink(true)
     try {
       const mat = await topics.addLink(topicId, user.user_id, linkUrl.trim())
@@ -89,7 +98,7 @@ export default function TopicPage() {
       setLinkUrl('')
       setShowLinkInput(false)
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : t('topic.addLinkError'))
+      setMaterialError(err instanceof Error ? err.message : t('topic.addLinkError'))
     } finally {
       setAddingLink(false)
     }
@@ -148,110 +157,13 @@ export default function TopicPage() {
   return (
     <div className="max-w-2xl mx-auto px-5 py-8">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6">
         <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-xs text-mute hover:text-ink transition-colors mb-4 font-mono">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
           Dashboard
         </Link>
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-ink">{topic.name}</h1>
-        <p className="text-sm text-mute font-mono mt-1">
-          {materials.length === 0 ? t('topic.noMaterials') : materialsLabel}
-        </p>
       </div>
-
-      {/* Drop zone + add buttons */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-2xl p-6 mb-6 transition-all ${
-          dragOver
-            ? 'border-accent bg-accentsoft/30'
-            : 'border-line hover:border-mute/60'
-        }`}
-      >
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadingFile}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-sm font-medium text-ink hover:border-accent/40 hover:text-accent transition-colors disabled:opacity-50"
-          >
-            {uploadingFile ? (
-              <div className="w-4 h-4 rounded-full border-2 border-line border-t-accent animate-spin" />
-            ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            )}
-            {uploadingFile ? t('topic.uploading') : t('topic.uploadFile')}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowLinkInput((v) => !v)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-sm font-medium text-ink hover:border-accent/40 hover:text-accent transition-colors"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-            {t('topic.addLink')}
-          </button>
-
-          <p className="text-xs text-mute sm:ml-auto text-center sm:text-right">
-            .md .py .pdf .csv .java<br className="hidden sm:block" /><span className="sm:hidden"> </span>and more
-          </p>
-        </div>
-
-        {dragOver && (
-          <p className="text-center text-sm text-accent mt-3 font-medium">{t('topic.dropRelease')}</p>
-        )}
-
-        {showLinkInput && (
-          <form onSubmit={handleAddLink} className="mt-4 flex gap-2">
-            <input
-              type="url"
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              placeholder="https://..."
-              required
-              autoFocus
-              className="flex-1 px-3 py-2.5 rounded-xl border border-line bg-card text-ink text-sm placeholder:text-mute/50 focus:outline-none focus:border-accent/60 transition-colors"
-            />
-            <button
-              type="submit"
-              disabled={addingLink || !linkUrl.trim()}
-              className="px-4 py-2.5 rounded-xl bg-accent text-[#06140d] text-sm font-semibold hover:bg-accentdk transition-colors disabled:opacity-50"
-            >
-              {addingLink ? '...' : t('topic.add')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowLinkInput(false)}
-              className="px-3 py-2.5 rounded-xl border border-line text-mute hover:text-ink transition-colors text-sm"
-            >
-              ✕
-            </button>
-          </form>
-        )}
-
-        {materials.length === 0 && !showLinkInput && (
-          <p className="text-center text-sm text-mute mt-4">{t('topic.dropHint')}</p>
-        )}
-      </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept={ACCEPT}
-        className="hidden"
-        onChange={handleFileChange}
-      />
-
-      {/* Materials list */}
-      {materials.length > 0 && (
-        <div className="space-y-2 mb-8">
-          {materials.map((m) => (
-            <MaterialCard key={m.id} material={m} onDelete={() => handleDelete(m.id)} t={t} />
-          ))}
-        </div>
-      )}
 
       {/* Study error */}
       {studyError && (
@@ -260,33 +172,139 @@ export default function TopicPage() {
         </div>
       )}
 
-      <div className="surface rounded-2xl p-5 mb-6 border border-accent/20 bg-accentsoft/20">
-        <div className="text-xs font-mono text-accent mb-1">New flow</div>
-        <h2 className="font-display text-xl font-bold text-ink mb-2">{t('topic.study.title')}</h2>
-        <p className="text-sm text-mute mb-4">{t('topic.study.desc')}</p>
-
+      {/* Adaptive interview — the purpose of this screen; starts immediately */}
+      <div className="surface rounded-2xl p-5 mb-6">
         {startingStudy ? (
           <div className="flex items-center gap-2 py-4 justify-center">
             <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
             <span className="text-xs text-mute font-mono">{t('topic.study.launching')}</span>
           </div>
-        ) : interviewing ? (
+        ) : (
           <OnboardingChat
             userId={user!.user_id}
             topicId={topic.id}
             onConfirm={(profile) => handleStartStudy(profile)}
             onSkip={() => handleStartStudy()}
           />
-        ) : (
-          <button
-            onClick={() => setInterviewing(true)}
-            className="w-full py-3 rounded-xl bg-accent text-[#06140d] font-semibold text-sm hover:bg-accentdk transition-colors"
-          >
-            {t('topic.study.cta')}
-          </button>
         )}
       </div>
 
+      {/* Materials — chosen during creation; collapsed so the upload window isn't shown again */}
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={() => setShowMaterials((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-line bg-card text-sm font-medium hover:border-accent/40 transition-colors"
+        >
+          <span className="flex items-center gap-2 text-mute">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            {materials.length === 0 ? t('topic.addMaterials') : materialsLabel}
+          </span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`text-mute transition-transform ${showMaterials ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+
+        {showMaterials && (
+          <div className="mt-3 space-y-4">
+            {/* Drop zone + add buttons */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-2xl p-6 transition-all ${
+                dragOver
+                  ? 'border-accent bg-accentsoft/30'
+                  : 'border-line hover:border-mute/60'
+              }`}
+            >
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingFile}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-sm font-medium text-ink hover:border-accent/40 hover:text-accent transition-colors disabled:opacity-50"
+                >
+                  {uploadingFile ? (
+                    <div className="w-4 h-4 rounded-full border-2 border-line border-t-accent animate-spin" />
+                  ) : (
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  )}
+                  {uploadingFile ? t('topic.uploading') : t('topic.uploadFile')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowLinkInput((v) => !v)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-line bg-card text-sm font-medium text-ink hover:border-accent/40 hover:text-accent transition-colors"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+                  {t('topic.addLink')}
+                </button>
+
+                <p className="text-xs text-mute sm:ml-auto text-center sm:text-right">
+                  .md .py .pdf .csv .java<br className="hidden sm:block" /><span className="sm:hidden"> </span>and more
+                </p>
+              </div>
+
+              {dragOver && (
+                <p className="text-center text-sm text-accent mt-3 font-medium">{t('topic.dropRelease')}</p>
+              )}
+
+              {showLinkInput && (
+                <form onSubmit={handleAddLink} className="mt-4 flex gap-2">
+                  <input
+                    type="url"
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    placeholder="https://..."
+                    required
+                    autoFocus
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-line bg-card text-ink text-sm placeholder:text-mute/50 focus:outline-none focus:border-accent/60 transition-colors"
+                  />
+                  <button
+                    type="submit"
+                    disabled={addingLink || !linkUrl.trim()}
+                    className="px-4 py-2.5 rounded-xl bg-accent text-[#06140d] text-sm font-semibold hover:bg-accentdk transition-colors disabled:opacity-50"
+                  >
+                    {addingLink ? '...' : t('topic.add')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLinkInput(false)}
+                    className="px-3 py-2.5 rounded-xl border border-line text-mute hover:text-ink transition-colors text-sm"
+                  >
+                    ✕
+                  </button>
+                </form>
+              )}
+            </div>
+
+            {/* Material upload/limit error */}
+            {materialError && (
+              <div className="px-4 py-3 rounded-xl bg-danger/10 border border-danger/20 text-sm text-danger">
+                {materialError}
+              </div>
+            )}
+
+            {/* Materials list */}
+            {materials.length > 0 && (
+              <div className="space-y-2">
+                {materials.map((m) => (
+                  <MaterialCard key={m.id} material={m} onDelete={() => handleDelete(m.id)} t={t} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ACCEPT}
+        multiple
+        className="hidden"
+        onChange={handleFileChange}
+      />
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { getStoredUser } from '@/lib/auth'
-import { cards, topics, type DueCard, type Topic } from '@/lib/api'
+import { cards, type DueCard, type TopicDue } from '@/lib/api'
 import { FlipCard } from '@/components/FlipCard'
 import { StreakCounter } from '@/components/StreakCounter'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -21,16 +21,18 @@ export default function CardsPage() {
   const [done, setDone] = useState(false)
   const [streak, setStreak] = useState(0)
   const [session, setSession] = useState<SessionStats>({ reviewed: 0, again: 0, hard: 0, easy: 0 })
-  const [topicList, setTopicList] = useState<Topic[]>([])
+  const [dueTopics, setDueTopics] = useState<TopicDue[]>([])
   const [topicFilter, setTopicFilter] = useState<string>('') // '' = all topics
   const t = useT()
   const { locale } = useLocale()
 
-  // Load the user's topics once for the filter chips.
-  useEffect(() => {
+  // Load topics that actually have cards due (with per-topic counts) for the filter.
+  const loadDueTopics = useCallback(() => {
     if (!user) return
-    topics.list(user.user_id).then(setTopicList).catch(() => {})
+    cards.topicsWithDue(user.user_id).then(setDueTopics).catch(() => {})
   }, [user?.user_id])
+
+  useEffect(() => { loadDueTopics() }, [loadDueTopics])
 
   const loadCards = useCallback(async () => {
     if (!user) return
@@ -103,10 +105,10 @@ export default function CardsPage() {
     }
     return (
       <div className="max-w-md mx-auto px-5 pt-8">
-        {topicList.length > 1 && (
-          <TopicChips topics={topicList} value={topicFilter} onChange={setTopicFilter} t={t} />
+        {dueTopics.length > 1 && (
+          <TopicChips topics={dueTopics} value={topicFilter} onChange={setTopicFilter} t={t} />
         )}
-        <DoneScreen session={session} streak={streak} locale={locale} t={t} onRestart={() => { setDone(false); setCurrent(0); loadCards() }} />
+        <DoneScreen session={session} streak={streak} locale={locale} t={t} onRestart={() => { setDone(false); setCurrent(0); loadDueTopics(); loadCards() }} />
       </div>
     )
   }
@@ -128,8 +130,8 @@ export default function CardsPage() {
       </div>
 
       {/* Topic filter */}
-      {topicList.length > 1 && (
-        <TopicChips topics={topicList} value={topicFilter} onChange={setTopicFilter} t={t} />
+      {dueTopics.length > 1 && (
+        <TopicChips topics={dueTopics} value={topicFilter} onChange={setTopicFilter} t={t} />
       )}
 
       {/* Progress bar */}
@@ -216,33 +218,74 @@ function DoneScreen({ session, streak, locale, t, onRestart }: {
 }
 
 function TopicChips({ topics, value, onChange, t }: {
-  topics: Topic[]; value: string; onChange: (v: string) => void; t: (k: string) => string
+  topics: TopicDue[]; value: string; onChange: (v: string) => void; t: (k: string) => string
 }) {
+  const [query, setQuery] = useState('')
+  const showSearch = topics.length > 8
+
+  const q = query.trim().toLowerCase()
+  const matches = q ? topics.filter((tp) => tp.topic_name.toLowerCase().includes(q)) : topics
+  // Keep the selected topic visible even when it doesn't match the current query,
+  // so the active filter is never hidden.
+  const selected = value ? topics.find((tp) => tp.topic_id === value) : undefined
+  const visible = selected && !matches.some((m) => m.topic_id === value)
+    ? [selected, ...matches]
+    : matches
+
   return (
-    <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1">
-      <button
-        onClick={() => onChange('')}
-        className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-          value === ''
-            ? 'bg-accent text-[#06140d] border-accent'
-            : 'bg-card text-mute border-line hover:text-ink hover:border-accent/40'
-        }`}
-      >
-        {t('cards.allTopics')}
-      </button>
-      {topics.map((topic) => (
+    <div className="mb-4">
+      {showSearch && (
+        <div className="relative mb-2">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-mute pointer-events-none"
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          >
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t('cards.searchTopics')}
+            className="w-full pl-9 pr-3 py-2 rounded-xl border border-line bg-card text-ink text-sm placeholder:text-mute/50 focus:outline-none focus:border-accent/60 transition-colors"
+          />
+        </div>
+      )}
+
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
         <button
-          key={topic.id}
-          onClick={() => onChange(topic.id)}
-          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border max-w-[12rem] truncate ${
-            value === topic.id
+          onClick={() => onChange('')}
+          className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+            value === ''
               ? 'bg-accent text-[#06140d] border-accent'
               : 'bg-card text-mute border-line hover:text-ink hover:border-accent/40'
           }`}
         >
-          {topic.name}
+          {t('cards.allTopics')}
         </button>
-      ))}
+        {visible.map((topic) => {
+          const active = value === topic.topic_id
+          return (
+            <button
+              key={topic.topic_id}
+              onClick={() => onChange(topic.topic_id)}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border max-w-[14rem] ${
+                active
+                  ? 'bg-accent text-[#06140d] border-accent'
+                  : 'bg-card text-mute border-line hover:text-ink hover:border-accent/40'
+              }`}
+            >
+              <span className="truncate">{topic.topic_name}</span>
+              <span className={`font-mono ${active ? 'text-[#06140d]/70' : 'text-mute/60'}`}>
+                {topic.due_count}
+              </span>
+            </button>
+          )
+        })}
+        {q && matches.length === 0 && (
+          <span className="shrink-0 self-center px-2 text-xs text-mute">{t('cards.noTopicMatch')}</span>
+        )}
+      </div>
     </div>
   )
 }

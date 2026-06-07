@@ -41,6 +41,8 @@ export const dict: Dict = {
   'cards.title': 'Повторение',
   'cards.back': '← вернуться на главную',
   'cards.allTopics': 'Все темы',
+  'cards.searchTopics': 'Поиск тем…',
+  'cards.noTopicMatch': 'Ничего не найдено',
   // Стратегия обучения (новая тема)
   'strategy.title': 'Стратегия обучения',
   'strategy.hint': 'как изучать',
@@ -54,7 +56,7 @@ export const dict: Dict = {
   'strategy.gentle.desc': 'Лёгкое начало, больше теории, спокойный темп',
   // Адаптивное интервью перед темой
   'onboarding.title': 'Настрой тему',
-  'onboarding.preparing': 'Готовлю вопросы…',
+  'onboarding.preparing': 'Генерирую вопросы, чтобы собрать лучшие материалы для обучения…',
   'onboarding.planning': 'Собираю план…',
   'onboarding.skip': 'Пропустить',
   'onboarding.next': 'Дальше',
@@ -177,6 +179,10 @@ export const dict: Dict = {
   'topicNew.withoutMaterials': 'AI готовит конспект и первые задания по теме.',
   'topicNew.errorFallback': 'Ошибка создания темы',
 
+  // Shared upload-limit messages (templated: {name}, {max})
+  'limit.fileTooBig': 'Файл «{name}» больше {max} МБ — выбери файл поменьше',
+  'limit.tooManyFiles': 'Можно добавить не больше {max} файлов',
+
   // Topic detail page
   'topic.noMaterials': 'Добавь материалы для изучения',
   'topic.notFound': 'Тема не найдена.',
@@ -199,10 +205,8 @@ export const dict: Dict = {
   'topic.startError': 'Ошибка запуска обучения',
   'topic.genError': 'Ошибка генерации',
   'topic.generating': 'Создаю капсулу',
-  'topic.study.cta': 'Начать обучение →',
   'topic.study.launching': 'Запускаем...',
-  'topic.study.title': 'Учиться с практикой',
-  'topic.study.desc': 'Создай конспект и mini-project. Решение отправишь из JetBrains без ручной загрузки файлов.',
+  'topic.addMaterials': 'Добавить материалы',
   'topic.gen.step0': 'Читаю загруженные материалы',
   'topic.gen.step1': 'Анализирую ключевые концепции',
   'topic.gen.step2': 'Пишу структурированную капсулу',
@@ -293,9 +297,6 @@ export const dict: Dict = {
   'chat.err.timeout': 'AI недоступен: провайдер не ответил за 45 секунд. Попробуй еще раз или проверь LLM-провайдера.',
   'chat.err.prefix': 'AI недоступен',
   'chat.attach': 'Прикрепить файл или изображение',
-  'chat.attach.tooMany': 'Слишком много вложений (максимум 5)',
-  'chat.attach.tooBig': 'Файл слишком большой (максимум 8 МБ)',
-  'chat.attach.unsupported': 'Неподдерживаемый тип файла',
 
   // Admin (internal tool)
   'admin.loading': 'Загружаем метрики...',

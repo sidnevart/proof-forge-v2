@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.repositories import review_card_repo, streak_repo
-from app.schemas.card import CardFromCapsuleCreate, CardFromCapsuleOut, DueCardOut, CardAttemptCreate, CardAttemptOut
+from app.schemas.card import CardFromCapsuleCreate, CardFromCapsuleOut, DueCardOut, CardAttemptCreate, CardAttemptOut, TopicWithDueCountOut
 from app.schemas.streak import CardStatsOut, StreakOut
 
 router = APIRouter(tags=["cards"])
@@ -13,6 +13,16 @@ router = APIRouter(tags=["cards"])
 async def create_cards_from_capsule(data: CardFromCapsuleCreate, db: AsyncSession = Depends(get_db)):
     created = await review_card_repo.create_cards_from_capsule(db, data.user_id, data.capsule_id)
     return CardFromCapsuleOut(created=created)
+
+
+@router.get("/cards/topics", response_model=list[TopicWithDueCountOut])
+async def get_topics_with_due_cards(
+    userId: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Topics that currently have cards due for review, with per-topic counts."""
+    rows = await review_card_repo.get_due_cards_by_topic(db, userId)
+    return [TopicWithDueCountOut(**r) for r in rows]
 
 
 @router.get("/cards/due", response_model=list[DueCardOut])

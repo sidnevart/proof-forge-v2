@@ -10,9 +10,7 @@ import { chat, topics, type Topic, type ChatMessage, type ChatSession } from '@/
 import { useT } from '@/lib/i18n'
 import { useDrawer } from '@/lib/drawer-context'
 import { CHAT_ACCEPT, PendingChip, MessageAttachment } from '@/app/(app)/_components/file-chip'
-
-const MAX_CHAT_FILES = 5
-const MAX_CHAT_FILE_BYTES = 8_000_000
+import { LIMITS, validateFiles, limitErrorMessage } from '@/lib/upload-limits'
 
 export default function LearnPage({ params }: { params: Promise<{ topic_id: string }> }) {
   const { topic_id } = use(params)
@@ -95,13 +93,10 @@ export default function LearnPage({ params }: { params: Promise<{ topic_id: stri
   const handleChatFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files ?? [])
     if (chatFileRef.current) chatFileRef.current.value = ''
-    const oversized = picked.filter((f) => f.size > MAX_CHAT_FILE_BYTES)
-    if (oversized.length) { setChatError(t('chat.attach.tooBig')); return }
-    setChatFiles((prev) => {
-      const next = [...prev, ...picked]
-      if (next.length > MAX_CHAT_FILES) { setChatError(t('chat.attach.tooMany')); return prev }
-      return next
-    })
+    if (picked.length === 0) return
+    const res = validateFiles(picked, chatFiles.length, LIMITS.chatAttachment)
+    if (!res.ok) { setChatError(limitErrorMessage(t, res, LIMITS.chatAttachment)); return }
+    setChatFiles((prev) => [...prev, ...res.accepted])
   }
 
   return (

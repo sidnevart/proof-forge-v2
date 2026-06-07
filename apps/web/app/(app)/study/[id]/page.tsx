@@ -13,9 +13,7 @@ import { useDrawer } from '@/lib/drawer-context'
 import { CHAT_ACCEPT, PendingChip, MessageAttachment } from '@/app/(app)/_components/file-chip'
 import { ConspectToc, extractHeadings } from '@/app/(app)/_components/toc'
 import { SelectionBubble } from '@/app/(app)/_components/selection-bubble'
-
-const MAX_CHAT_FILES = 5
-const MAX_CHAT_FILE_BYTES = 8_000_000
+import { LIMITS, validateFiles, limitErrorMessage } from '@/lib/upload-limits'
 
 type Tab = 'chat' | 'theory' | 'practice' | 'capsule'
 
@@ -271,13 +269,10 @@ export default function StudySessionPage() {
   const handleChatFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files ?? [])
     if (chatFileRef.current) chatFileRef.current.value = ''
-    const oversized = picked.filter((f) => f.size > MAX_CHAT_FILE_BYTES)
-    if (oversized.length) { setChatError(t('chat.attach.tooBig')); return }
-    setChatFiles((prev) => {
-      const next = [...prev, ...picked]
-      if (next.length > MAX_CHAT_FILES) { setChatError(t('chat.attach.tooMany')); return prev }
-      return next
-    })
+    if (picked.length === 0) return
+    const res = validateFiles(picked, chatFiles.length, LIMITS.chatAttachment)
+    if (!res.ok) { setChatError(limitErrorMessage(t, res, LIMITS.chatAttachment)); return }
+    setChatFiles((prev) => [...prev, ...res.accepted])
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -679,8 +674,12 @@ export default function StudySessionPage() {
                       className="hidden"
                       onChange={(e) => {
                         const picked = Array.from(e.target.files ?? [])
-                        if (picked.length) setAttachFiles((prev) => [...prev, ...picked])
                         if (fileInputRef.current) fileInputRef.current.value = ''
+                        if (picked.length === 0) return
+                        const res = validateFiles(picked, attachFiles.length, LIMITS.practiceAttachment)
+                        if (!res.ok) { setSubmitError(limitErrorMessage(t, res, LIMITS.practiceAttachment)); return }
+                        setSubmitError('')
+                        setAttachFiles((prev) => [...prev, ...res.accepted])
                       }}
                     />
                     <div className="mt-3 flex items-center gap-2 flex-wrap">

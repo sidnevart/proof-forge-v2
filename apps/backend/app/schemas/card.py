@@ -11,6 +11,12 @@ class CardFromCapsuleOut(BaseModel):
     created: int
 
 
+class TopicWithDueCountOut(BaseModel):
+    topic_id: str
+    topic_name: str
+    due_count: int
+
+
 class DueCardOut(BaseModel):
     source: str
     card_type: str

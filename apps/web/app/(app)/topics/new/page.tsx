@@ -7,6 +7,7 @@ import { getStoredUser } from '@/lib/auth'
 import { topics } from '@/lib/api'
 import { track } from '@/lib/analytics'
 import { useT } from '@/lib/i18n'
+import { LIMITS, validateFiles, limitErrorMessage } from '@/lib/upload-limits'
 
 const ACCEPT = '.md,.py,.java,.csv,.txt,.js,.ts,.go,.rs,.c,.cpp,.h,.json,.yaml,.yml,.toml,.sh,.sql,.rb,.php,.kt,.pdf'
 
@@ -62,23 +63,31 @@ export default function NewTopicPage() {
 
   const totalMaterials = pending.files.length + pending.links.length
 
-  // ── Add pending file ──────────────────────────────────────────────────────
-  const addFile = useCallback((file: File) => {
+  // ── Add pending files (size + count validated) ────────────────────────────
+  const addFiles = useCallback((incoming: File[]) => {
+    if (incoming.length === 0) return
+    const res = validateFiles(incoming, pending.files.length, LIMITS.material)
+    if (!res.ok) {
+      setError(limitErrorMessage(t, res, LIMITS.material))
+      return
+    }
     setPending((p) => ({
       ...p,
-      files: [...p.files, { id: crypto.randomUUID(), file, name: file.name }],
+      files: [...p.files, ...res.accepted.map((file) => ({ id: crypto.randomUUID(), file, name: file.name }))],
     }))
-  }, [])
+  }, [t, pending.files.length])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    Array.from(e.target.files ?? []).forEach(addFile)
+    setError('')
+    addFiles(Array.from(e.target.files ?? []))
     e.target.value = ''
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
-    Array.from(e.dataTransfer.files).forEach(addFile)
+    setError('')
+    addFiles(Array.from(e.dataTransfer.files))
   }
 
   const removeFile = (id: string) =>

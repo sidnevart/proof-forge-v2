@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Capsule, ReviewCard, ReviewQuestion, Topic, TopicCard
@@ -29,6 +29,48 @@ async def create_cards_from_capsule(db: AsyncSession, user_id: str, capsule_id: 
 
     await db.commit()
     return created
+
+
+async def get_due_cards_by_topic(db: AsyncSession, user_id: str) -> list[dict]:
+    """Topics that currently have at least one card due, with per-topic due counts.
+
+    Unions both card sources (ReviewCard via capsule join, TopicCard direct) using
+    the same ``next_review_at <= now`` predicate as :func:`get_due_cards`. Returns
+    ``[{topic_id, topic_name, due_count}]`` for topics with due_count > 0, sorted by
+    topic name — the data the review page's topic filter needs.
+    """
+    now = datetime.now(timezone.utc)
+
+    rc_query = (
+        select(Topic.id, Topic.name, func.count(ReviewCard.id))
+        .join(ReviewQuestion, ReviewCard.question_id == ReviewQuestion.id)
+        .join(Capsule, ReviewQuestion.capsule_id == Capsule.id)
+        .join(Topic, Capsule.topic_id == Topic.id)
+        .where(ReviewCard.user_id == user_id, ReviewCard.next_review_at <= now)
+        .group_by(Topic.id, Topic.name)
+    )
+    tc_query = (
+        select(Topic.id, Topic.name, func.count(TopicCard.id))
+        .join(Topic, TopicCard.topic_id == Topic.id)
+        .where(TopicCard.user_id == user_id, TopicCard.next_review_at <= now)
+        .group_by(Topic.id, Topic.name)
+    )
+
+    counts: dict[str, int] = {}
+    names: dict[str, str] = {}
+    for query in (rc_query, tc_query):
+        for topic_id, topic_name, count in (await db.execute(query)).all():
+            counts[topic_id] = counts.get(topic_id, 0) + count
+            names[topic_id] = topic_name
+
+    return sorted(
+        (
+            {"topic_id": tid, "topic_name": names[tid], "due_count": n}
+            for tid, n in counts.items()
+            if n > 0
+        ),
+        key=lambda r: r["topic_name"].lower(),
+    )
 
 
 async def get_due_cards(

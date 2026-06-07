@@ -52,6 +52,10 @@ from app.services.study_completion import forge_capsule_from_session
 
 router = APIRouter(tags=["practice"])
 
+# Practice answer attachment limits — mirror chat (app/routers/chat.py).
+_MAX_ATTACHMENTS = 5
+_MAX_ATTACHMENT_BYTES = 8_000_000  # 8 MB per file
+
 
 def _format_card_context_from_materials(topic_name: str, materials_list: list[dict]) -> str:
     if not materials_list:
@@ -457,12 +461,21 @@ async def submit_answer(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    for upload in files:
-        if not upload or not upload.filename:
-            continue
+    real_files = [f for f in files if f and f.filename]
+    if len(real_files) > _MAX_ATTACHMENTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Слишком много вложений (максимум {_MAX_ATTACHMENTS})",
+        )
+    for upload in real_files:
         data = await upload.read()
         if not data:
             continue
+        if len(data) > _MAX_ATTACHMENT_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Файл слишком большой: {upload.filename} (максимум 8 МБ)",
+            )
         if is_image(upload.filename):
             attachment = SubmissionAttachment(
                 submission_id=submission.id,

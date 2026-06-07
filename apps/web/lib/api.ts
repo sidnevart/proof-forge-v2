@@ -80,11 +80,19 @@ export type CardStats = {
   next_due_at: string | null
 }
 
+export type TopicDue = {
+  topic_id: string
+  topic_name: string
+  due_count: number
+}
+
 export const cards = {
   due: (userId: string, limit = 20, topicId?: string) =>
     req<DueCard[]>(
       `/api/cards/due?userId=${userId}&limit=${limit}${topicId ? `&topicId=${topicId}` : ''}`,
     ),
+  topicsWithDue: (userId: string) =>
+    req<TopicDue[]>(`/api/cards/topics?userId=${userId}`),
   attempt: (
     cardId: string,
     userId: string,
