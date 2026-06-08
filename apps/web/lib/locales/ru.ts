@@ -17,6 +17,7 @@ export const dict: Dict = {
   'nav.folderName': 'Имя папки',
   'nav.deleteFolder': 'Удалить папку',
   'nav.deleteFolderConfirm': 'Удалить папку? Уроки из неё вернутся в общий список.',
+  'nav.createFolderError': 'Не удалось создать',
 
   // Dashboard
   'dash.morning': 'Доброе утро',

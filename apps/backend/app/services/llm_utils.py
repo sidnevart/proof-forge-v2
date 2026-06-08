@@ -26,6 +26,12 @@ def extract_json(text: str, *, container: str = "{") -> Any:
 
     container selects which bracket to anchor on first: "{" (object, default) or
     "[" (array). Whichever of '{'/'[' appears earliest from the preferred kind is used.
+
+    strict=False: LLM-generated markdown/code fields routinely contain RAW newlines
+    and tabs inside JSON string values (the model writes a multi-line `instructions_md`
+    without escaping every \n). Standard json rejects control chars in strings; the
+    lenient decoder accepts them, which is the single biggest cause of "valid-looking
+    output that won't parse" from these models.
     """
     first_obj = text.find("{")
     first_arr = text.find("[")
@@ -35,7 +41,7 @@ def extract_json(text: str, *, container: str = "{") -> Any:
         raise ValueError(f"No JSON value found in LLM response (len={len(text)})")
     start = min(candidates)
     try:
-        value, _ = json.JSONDecoder().raw_decode(text, start)
+        value, _ = json.JSONDecoder(strict=False).raw_decode(text, start)
     except json.JSONDecodeError as exc:
         raise ValueError(f"Invalid JSON in LLM response: {exc}") from None
     return value

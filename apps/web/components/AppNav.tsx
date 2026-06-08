@@ -211,7 +211,7 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
                 <button onClick={handleCreateFolder} className="text-accent text-xs px-1">✓</button>
                 <button onClick={() => { setCreatingFolder(false); setFolderError(false) }} className="text-mute text-xs px-1">✕</button>
               </div>
-              {folderError && <p className="text-[10px] text-danger mt-0.5">Не удалось создать</p>}
+              {folderError && <p className="text-[10px] text-danger mt-0.5">{t('nav.createFolderError')}</p>}
             </div>
           )}
 

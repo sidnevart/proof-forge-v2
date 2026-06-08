@@ -15,6 +15,7 @@ export const dict = {
   'nav.folderName': 'Folder name',
   'nav.deleteFolder': 'Delete folder',
   'nav.deleteFolderConfirm': 'Delete this folder? Lessons inside will move back to the list.',
+  'nav.createFolderError': 'Could not create',
 
   // Dashboard
   'dash.morning': 'Good morning',

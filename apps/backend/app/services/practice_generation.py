@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import re
 from collections.abc import AsyncGenerator
@@ -555,6 +556,59 @@ def _build_practice_task_creates(topic, practice_spec, items: list) -> list[Prac
     return out
 
 
+def _salvage_tasks_json(raw: str) -> dict:
+    """Best-effort recovery from malformed/truncated task JSON.
+
+    A reasoning model routinely TRUNCATES the big task JSON mid-array (5 tasks ×
+    full worked solutions is a lot of tokens). A strict whole-object parse then
+    loses EVERYTHING — including the complete theory_task and the first practice
+    tasks that came before the cut — and the learner drops to useless templates.
+
+    Recover each top-level field independently, and pull complete objects out of
+    the practice_tasks array one by one, so a truncation costs only the tail.
+    """
+    dec = json.JSONDecoder(strict=False)
+    result: dict = {}
+
+    def _value_after(key: str):
+        m = re.search(r'"' + re.escape(key) + r'"\s*:\s*', raw)
+        if not m:
+            return None
+        try:
+            value, _ = dec.raw_decode(raw, m.end())
+            return value
+        except json.JSONDecodeError:
+            return None
+
+    theory = _value_after("theory_task")
+    if isinstance(theory, dict):
+        result["theory_task"] = theory
+    goals = _value_after("learning_goals")
+    if isinstance(goals, list):
+        result["learning_goals"] = goals
+
+    m = re.search(r'"practice_tasks"\s*:\s*\[', raw)
+    if m:
+        items: list = []
+        i, n = m.end(), len(raw)
+        while True:
+            while i < n and raw[i] in " \t\r\n,":
+                i += 1
+            if i >= n or raw[i] != "{":
+                break
+            try:
+                obj, end = dec.raw_decode(raw, i)
+            except json.JSONDecodeError:
+                break  # incomplete (truncated) object — keep what came before
+            if isinstance(obj, dict):
+                items.append(obj)
+            i = end
+        if items:
+            result["practice_tasks"] = items
+
+    return result
+
+
 async def generate_tasks_from_conspect(
     settings: Any,
     topic: TopicInfo,
@@ -588,7 +642,7 @@ async def generate_tasks_from_conspect(
     # rate-limited), and a reasoning model can also truncate the JSON. On ANY failure —
     # rate limit, timeout, malformed/truncated JSON — fall back to {} so the per-field
     # defaults below still build domain-appropriate template tasks.
-    parsed: dict = {}
+    raw: str | None = None
     try:
         async with httpx.AsyncClient(timeout=180.0) as client:
             raw = await _llm_call(
@@ -601,13 +655,22 @@ async def generate_tasks_from_conspect(
                 temperature=0.1,
                 system="You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations.",
             )
-        parsed = _extract_json(raw)
-    except Exception as exc:  # noqa: BLE001 — task gen must degrade to templates, never to zero tasks
-        logger.warning(
-            "Task generation failed for topic %s (%s) — using template tasks.",
-            topic.id, exc,
-        )
-        parsed = {}
+    except Exception as exc:  # noqa: BLE001 — network/429/timeout: nothing to salvage, use templates
+        logger.warning("Task LLM call failed for topic %s (%s) — using template tasks.", topic.id, exc)
+
+    # Distinguish "the call failed" (no raw → templates) from "the call returned but the
+    # JSON is imperfect" (have raw → salvage as much as possible). Truncated/partial JSON
+    # must NOT collapse the whole batch to templates when real tasks are recoverable.
+    parsed: dict = {}
+    if raw:
+        try:
+            parsed = _extract_json(raw)
+        except Exception as exc:  # noqa: BLE001
+            parsed = _salvage_tasks_json(raw)
+            logger.warning(
+                "Task JSON parse failed for topic %s (%s); salvaged theory=%s practice=%d (raw_len=%d)",
+                topic.id, exc, "theory_task" in parsed, len(parsed.get("practice_tasks", [])), len(raw),
+            )
 
     theory_raw = parsed.get("theory_task", {})
     # New schema: an array of discrete, separately-gradable practice tasks. Fall back to

@@ -10,6 +10,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # Real Postgres so the migration check below exercises the SAME engine as prod.
+    # The test suite itself uses create_all() on SQLite and would NOT catch a
+    # Postgres-incompatible migration (e.g. an ALTER ... ADD FOREIGN KEY that SQLite
+    # silently differs on); this service makes `alembic upgrade head` the gate.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: proofforge_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -23,6 +41,15 @@ jobs:
 
       - name: Install backend dependencies
         run: cd apps/backend && uv pip install --system -e ".[test]"
+
+      - name: Verify migrations apply on Postgres
+        run: |
+          cd apps/backend
+          uv run alembic upgrade head
+          echo "Migrations reached head:"
+          uv run alembic current
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/proofforge_ci
 
       - name: Run backend tests
         run: |
