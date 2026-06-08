@@ -18,6 +18,17 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /opt/proof-forge
+            echo "===== OpenRouter direct probe (shows daily-vs-minute limit) ====="
+            KEY=$(grep -E '^LLM_API_KEY=' .env | cut -d= -f2-)
+            curl -s -D /tmp/h -o /tmp/b -X POST https://openrouter.ai/api/v1/chat/completions \
+              -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+              -d '{"model":"moonshotai/kimi-k2.6:free","messages":[{"role":"user","content":"hi"}],"max_tokens":5}'
+            echo "--- status + rate headers ---"
+            grep -iE "^HTTP/|x-ratelimit|retry-after" /tmp/h || true
+            echo "--- body (error message states the limit type) ---"
+            cat /tmp/b | head -c 600 ; echo
+            echo "===== /api/auth/key credits (OpenRouter account) ====="
+            curl -s https://openrouter.ai/api/v1/auth/key -H "Authorization: Bearer $KEY" | head -c 400 ; echo
             echo "===== RAW last 80 backend log lines ====="
             docker compose -f docker-compose.prod.yml logs --tail 80 backend 2>&1 | tail -80 || true
             echo "===== TASK GENERATION lines ====="
