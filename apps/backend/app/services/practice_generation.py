@@ -87,12 +87,17 @@ async def _llm_stream_tokens(
     system: str | None = None,
     temperature: float = 0.5,
     model: str | None = None,
+    retries: int = 4,
+    fallback_model: str | None = ...,  # type: ignore[assignment]
 ) -> AsyncGenerator[str, None]:
     """Stream tokens from the LLM using SSE (OpenAI-compatible)."""
     messages: list[dict[str, str]] = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
+
+    if fallback_model is ...:
+        fallback_model = getattr(settings, "llm_fallback_model", None)
 
     from app.services.llm_utils import http_stream_with_retry
     async for token in http_stream_with_retry(
@@ -111,9 +116,34 @@ async def _llm_stream_tokens(
             "max_tokens": max_tokens,
             "temperature": temperature,
         },
-        fallback_model=getattr(settings, "llm_fallback_model", None),
+        retries=retries,
+        fallback_model=fallback_model,
     ):
         yield token
+
+
+# Free-tier rate limits on OpenRouter are per-minute AND per-account, shared across all
+# models. The conspect call(s) saturate the window, so the tasks call — last and largest —
+# gets 429'd on every model. Spacing the tasks call into a FRESH minute window is far more
+# effective than burst-retrying inside the exhausted one. Tunable via env if needed.
+_TASKS_COOLDOWN_S = 60
+_TASKS_MAX_ROUNDS = 2
+
+
+async def _cooldown_with_heartbeat(q: asyncio.Queue, seconds: int, label: str) -> None:
+    """Sleep `seconds`, emitting a periodic heartbeat so the SSE stream stays alive and the
+    UI shows a countdown instead of freezing (and proxies don't drop an idle connection)."""
+    step = 10
+    elapsed = 0
+    while elapsed < seconds:
+        await asyncio.sleep(min(step, seconds - elapsed))
+        elapsed += step
+        remaining = max(0, seconds - elapsed)
+        await q.put(("progress", {
+            "phase": "tasks",
+            "label": f"{label} ({remaining}с)" if remaining else label,
+            "current": elapsed, "total": seconds,
+        }))
 
 
 def _extract_json(text: str) -> dict:
@@ -653,23 +683,16 @@ async def generate_tasks_from_conspect(
     practice_spec = profile.task_recipe[1] if len(profile.task_recipe) > 1 else profile.task_recipe[0]
 
     # Brief pause to avoid hitting rate limits immediately after conspect streaming
-    await asyncio.sleep(4)
     await q.put(("phase_change", {"phase": "tasks", "label": "Создаю задания..."}))
 
     lang = _resolve_lang(topic.lang, topic.name, conspect_md[:400])
     prompt_tasks = _build_tasks_prompt(topic.name, conspect_md, profile, strategy, lang=lang)
 
-    # Nothing here may leave the learner with zero tasks. The free tier frequently 429s
-    # (the tasks call is the last/largest LLM call of the run, so it's the first to be
-    # rate-limited), and a reasoning model can also truncate the JSON. On ANY failure —
-    # rate limit, timeout, malformed/truncated JSON — fall back to {} so the per-field
-    # defaults below still build domain-appropriate template tasks.
-    # STREAM the tasks (the conspect streams and works; the old non-streaming tasks
-    # call silently produced templates). For a reasoning model like Kimi, streaming
-    # yields `delta.content` — the actual answer — instead of an empty non-streamed
-    # `content`. If the primary STILL yields nothing (Kimi frequently returns no
-    # content for this big JSON, separate from 429s), retry once on the non-reasoning
-    # fallback model, which emits content normally. JSON-only system prompt + low temp.
+    # STREAM the tasks (the conspect streams and works; the old non-streaming tasks call
+    # silently produced templates). For a reasoning model like Kimi, streaming yields
+    # `delta.content` — the actual answer — instead of an empty non-streamed `content`.
+    # Use LOW internal retries (2) so a single attempt doesn't burst-hammer the rate-limit
+    # window; the real anti-429 strategy is the cooldown + spaced rounds below.
     system_json = "You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations."
 
     async def _stream_tasks(model: str | None) -> str:
@@ -678,23 +701,37 @@ async def generate_tasks_from_conspect(
             async for token in _llm_stream_tokens(
                 client, settings, prompt_tasks,
                 max_tokens=11000, temperature=0.1, system=system_json, model=model,
+                retries=2, fallback_model=None,
             ):
                 collected.append(token)
         return "".join(collected)
 
-    raw: str | None = None
-    try:
-        raw = await _stream_tasks(None)
-    except Exception as exc:  # noqa: BLE001 — network/429/timeout: nothing to salvage, use templates
-        logger.warning("Task LLM call failed for topic %s (%s).", topic.id, exc)
-
+    # The tasks call is the LAST and LARGEST LLM call of the run, so the conspect call(s)
+    # have just saturated the free-tier per-minute window and every model 429s. Rather than
+    # burst-retry inside the exhausted window, wait it out so the tasks call lands in a FRESH
+    # window, and do up to _TASKS_MAX_ROUNDS widely-spaced rounds (primary then non-reasoning
+    # fallback each round). On ANY failure the per-field defaults below still build template
+    # tasks, so the learner is never left with zero.
     fallback = getattr(settings, "llm_fallback_model", None)
-    if not (raw and raw.strip()) and fallback:
-        logger.warning("Task primary model returned empty for %s — retrying on fallback %s.", topic.id, fallback)
-        try:
-            raw = await _stream_tasks(fallback)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Task fallback model failed for topic %s (%s).", topic.id, exc)
+    models_to_try = [None] + ([fallback] if fallback else [])
+    has_key = bool(getattr(settings, "llm_api_key", ""))
+    rounds = _TASKS_MAX_ROUNDS if has_key else 1  # no key (tests/dev) → no rate limit, no cooldown
+    raw: str | None = None
+    for round_i in range(rounds):
+        if has_key:
+            await _cooldown_with_heartbeat(q, _TASKS_COOLDOWN_S, "Создаю задания")
+        for model in models_to_try:
+            try:
+                raw = await _stream_tasks(model)
+            except Exception as exc:  # noqa: BLE001 — 429/timeout: try next model / next round
+                logger.warning("Task stream failed for %s [model=%s] (%s).", topic.id, model or settings.llm_model, exc)
+                raw = None
+            if raw and raw.strip():
+                break
+        if raw and raw.strip():
+            break
+        if has_key:
+            logger.warning("Task round %d/%d empty for %s — waiting a fresh window.", round_i + 1, rounds, topic.id)
 
     # Distinguish "the call failed" (no raw → templates) from "the call returned but the
     # JSON is imperfect" (have raw → salvage as much as possible). Truncated/partial JSON
