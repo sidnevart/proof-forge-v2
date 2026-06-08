@@ -63,8 +63,20 @@ async def _llm_call(
         fallback_model=getattr(settings, "llm_fallback_model", None),
     )
     data = response.json()
-    msg = data["choices"][0]["message"]
-    return msg.get("content") or msg.get("reasoning") or ""
+    choice = data["choices"][0]
+    msg = choice.get("message", {})
+    content = msg.get("content") or ""
+    if not content:
+        # Reasoning models (e.g. Kimi) can return the answer only in `reasoning`, or
+        # nothing at all when `max_tokens` was spent on the reasoning trace
+        # (finish_reason="length"). Log it — this is otherwise an invisible failure.
+        reasoning = msg.get("reasoning") or ""
+        logger.warning(
+            "LLM empty content [model=%s finish=%s reasoning_len=%d max_tokens=%d]",
+            settings.llm_model, choice.get("finish_reason"), len(reasoning), max_tokens,
+        )
+        return reasoning
+    return content
 
 
 async def _llm_stream_tokens(
@@ -73,6 +85,7 @@ async def _llm_stream_tokens(
     prompt: str,
     max_tokens: int = 4000,
     system: str | None = None,
+    temperature: float = 0.5,
 ) -> AsyncGenerator[str, None]:
     """Stream tokens from the LLM using SSE (OpenAI-compatible)."""
     messages: list[dict[str, str]] = []
@@ -95,7 +108,7 @@ async def _llm_stream_tokens(
             "messages": messages,
             "stream": True,
             "max_tokens": max_tokens,
-            "temperature": 0.5,
+            "temperature": temperature,
         },
         fallback_model=getattr(settings, "llm_fallback_model", None),
     ):
@@ -642,10 +655,17 @@ async def generate_tasks_from_conspect(
     # rate-limited), and a reasoning model can also truncate the JSON. On ANY failure —
     # rate limit, timeout, malformed/truncated JSON — fall back to {} so the per-field
     # defaults below still build domain-appropriate template tasks.
+    # STREAM the tasks instead of a single non-streaming call. The conspect (which
+    # works) streams; the tasks call (which silently produced templates) did not. For
+    # a reasoning model like Kimi, a non-streaming completion can come back with an
+    # EMPTY `content` (the answer ends up in the separate `reasoning` field, or the
+    # token budget is spent thinking). Streaming yields `delta.content` — the actual
+    # answer — exactly like the conspect path, so the JSON we collect is the real one.
     raw: str | None = None
     try:
-        async with httpx.AsyncClient(timeout=180.0) as client:
-            raw = await _llm_call(
+        collected: list[str] = []
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
+            async for token in _llm_stream_tokens(
                 client,
                 settings,
                 prompt_tasks,
@@ -654,7 +674,9 @@ async def generate_tasks_from_conspect(
                 max_tokens=11000,
                 temperature=0.1,
                 system="You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations.",
-            )
+            ):
+                collected.append(token)
+        raw = "".join(collected)
     except Exception as exc:  # noqa: BLE001 — network/429/timeout: nothing to salvage, use templates
         logger.warning("Task LLM call failed for topic %s (%s) — using template tasks.", topic.id, exc)
 
@@ -668,9 +690,12 @@ async def generate_tasks_from_conspect(
         except Exception as exc:  # noqa: BLE001
             parsed = _salvage_tasks_json(raw)
             logger.warning(
-                "Task JSON parse failed for topic %s (%s); salvaged theory=%s practice=%d (raw_len=%d)",
-                topic.id, exc, "theory_task" in parsed, len(parsed.get("practice_tasks", [])), len(raw),
+                "Task JSON parse failed for topic %s (%s); salvaged theory=%s practice=%d (raw_len=%d) head=%r tail=%r",
+                topic.id, exc, "theory_task" in parsed, len(parsed.get("practice_tasks", [])),
+                len(raw), raw[:300], raw[-300:],
             )
+    else:
+        logger.warning("Task LLM returned EMPTY content for topic %s — using template tasks.", topic.id)
 
     theory_raw = parsed.get("theory_task", {})
     # New schema: an array of discrete, separately-gradable practice tasks. Fall back to
