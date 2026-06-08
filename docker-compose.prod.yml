@@ -32,9 +32,19 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-}
       SMTP_SSL: ${SMTP_SSL:-false}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openrouter}
       LLM_API_KEY: ${LLM_API_KEY:-}
-      LLM_BASE_URL: ${LLM_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
-      LLM_MODEL: ${LLM_MODEL:-glm-4-flash}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://openrouter.ai/api/v1}
+      LLM_MODEL: ${LLM_MODEL:-moonshotai/kimi-k2.6:free}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-google/gemma-4-31b-it:free}
+      # Ollama backend (set LLM_PROVIDER=ollama to use). host.docker.internal lets the
+      # container reach an Ollama daemon running on the host; override for Ollama Cloud.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-glm-5:cloud}
+      OLLAMA_FALLBACK_MODEL: ${OLLAMA_FALLBACK_MODEL:-kimi-k2.6:cloud}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy

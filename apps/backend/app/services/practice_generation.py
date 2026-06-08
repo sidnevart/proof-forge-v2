@@ -45,22 +45,19 @@ async def _llm_call(
     messages.append({"role": "user", "content": prompt})
 
     from app.services.llm_utils import http_post_with_retry
+    from app.services.llm_providers import get_provider
+    provider = get_provider(settings)
     response = await http_post_with_retry(
         client,
-        f"{settings.llm_base_url}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {settings.llm_api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://proof-forge.ru",
-            "X-Title": "Grasp",
-        },
+        provider.chat_url(),
+        headers=provider.headers(),
         json_body={
-            "model": settings.llm_model,
+            "model": provider.model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
         },
-        fallback_model=getattr(settings, "llm_fallback_model", None),
+        fallback_model=provider.fallback_model,
     )
     data = response.json()
     choice = data["choices"][0]
@@ -73,7 +70,7 @@ async def _llm_call(
         reasoning = msg.get("reasoning") or ""
         logger.warning(
             "LLM empty content [model=%s finish=%s reasoning_len=%d max_tokens=%d]",
-            settings.llm_model, choice.get("finish_reason"), len(reasoning), max_tokens,
+            provider.model, choice.get("finish_reason"), len(reasoning), max_tokens,
         )
         return reasoning
     return content
@@ -96,21 +93,18 @@ async def _llm_stream_tokens(
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
-    if fallback_model is ...:
-        fallback_model = getattr(settings, "llm_fallback_model", None)
-
     from app.services.llm_utils import http_stream_with_retry
+    from app.services.llm_providers import get_provider
+    provider = get_provider(settings)
+    if fallback_model is ...:
+        fallback_model = provider.fallback_model
+
     async for token in http_stream_with_retry(
         client,
-        f"{settings.llm_base_url}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {settings.llm_api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://proof-forge.ru",
-            "X-Title": "Grasp",
-        },
+        provider.chat_url(),
+        headers=provider.headers(),
         json_body={
-            "model": model or settings.llm_model,
+            "model": model or provider.model,
             "messages": messages,
             "stream": True,
             "max_tokens": max_tokens,
@@ -712,25 +706,30 @@ async def generate_tasks_from_conspect(
     # window, and do up to _TASKS_MAX_ROUNDS widely-spaced rounds (primary then non-reasoning
     # fallback each round). On ANY failure the per-field defaults below still build template
     # tasks, so the learner is never left with zero.
-    fallback = getattr(settings, "llm_fallback_model", None)
+    #
+    # Only shared/rate-limited backends (OpenRouter's :free pool) need this cooldown; a
+    # self-hosted / own-quota backend (Ollama) makes the tasks call immediately.
+    from app.services.llm_providers import get_provider
+    provider = get_provider(settings)
+    fallback = provider.fallback_model
     models_to_try = [None] + ([fallback] if fallback else [])
-    has_key = bool(getattr(settings, "llm_api_key", ""))
-    rounds = _TASKS_MAX_ROUNDS if has_key else 1  # no key (tests/dev) → no rate limit, no cooldown
+    cooldown = provider.shared_rate_limited and bool(provider.api_key)
+    rounds = _TASKS_MAX_ROUNDS if cooldown else 1
     raw: str | None = None
     for round_i in range(rounds):
-        if has_key:
+        if cooldown:
             await _cooldown_with_heartbeat(q, _TASKS_COOLDOWN_S, "Создаю задания")
         for model in models_to_try:
             try:
                 raw = await _stream_tasks(model)
             except Exception as exc:  # noqa: BLE001 — 429/timeout: try next model / next round
-                logger.warning("Task stream failed for %s [model=%s] (%s).", topic.id, model or settings.llm_model, exc)
+                logger.warning("Task stream failed for %s [model=%s] (%s).", topic.id, model or provider.model, exc)
                 raw = None
             if raw and raw.strip():
                 break
         if raw and raw.strip():
             break
-        if has_key:
+        if cooldown:
             logger.warning("Task round %d/%d empty for %s — waiting a fresh window.", round_i + 1, rounds, topic.id)
 
     # Distinguish "the call failed" (no raw → templates) from "the call returned but the
