@@ -86,6 +86,7 @@ async def _llm_stream_tokens(
     max_tokens: int = 4000,
     system: str | None = None,
     temperature: float = 0.5,
+    model: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream tokens from the LLM using SSE (OpenAI-compatible)."""
     messages: list[dict[str, str]] = []
@@ -104,7 +105,7 @@ async def _llm_stream_tokens(
             "X-Title": "Grasp",
         },
         json_body={
-            "model": settings.llm_model,
+            "model": model or settings.llm_model,
             "messages": messages,
             "stream": True,
             "max_tokens": max_tokens,
@@ -490,16 +491,24 @@ async def stream_conspect_to_queue(
     prompt_conspect = _build_conspect_prompt(topic.name, materials_block, profile, strategy, lang=lang)
     system_prompt = build_conspect_system(profile, strategy, lang=lang)
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
-        async for token in _llm_stream_tokens(
-            client,
-            settings,
-            prompt_conspect,
-            max_tokens=8000,
-            system=system_prompt,
-        ):
-            conspect_md += token
-            await q.put(("token", {"content": token}))
+    async def _stream_conspect(model: str | None) -> str:
+        acc = ""
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
+            async for token in _llm_stream_tokens(
+                client, settings, prompt_conspect, max_tokens=8000, system=system_prompt, model=model,
+            ):
+                acc += token
+                await q.put(("token", {"content": token}))
+        return acc
+
+    conspect_md = await _stream_conspect(None)
+
+    # Same empty-content guard as tasks: a reasoning model can stream only its thinking
+    # and emit no answer content. Retry once on the non-reasoning fallback before giving up.
+    fallback = getattr(settings, "llm_fallback_model", None)
+    if not conspect_md.strip() and fallback:
+        logger.warning("Conspect primary model returned empty for %s — retrying on fallback %s.", topic.name, fallback)
+        conspect_md = await _stream_conspect(fallback)
 
     if not conspect_md.strip():
         raise ValueError("LLM вернул пустой конспект")
@@ -655,30 +664,37 @@ async def generate_tasks_from_conspect(
     # rate-limited), and a reasoning model can also truncate the JSON. On ANY failure —
     # rate limit, timeout, malformed/truncated JSON — fall back to {} so the per-field
     # defaults below still build domain-appropriate template tasks.
-    # STREAM the tasks instead of a single non-streaming call. The conspect (which
-    # works) streams; the tasks call (which silently produced templates) did not. For
-    # a reasoning model like Kimi, a non-streaming completion can come back with an
-    # EMPTY `content` (the answer ends up in the separate `reasoning` field, or the
-    # token budget is spent thinking). Streaming yields `delta.content` — the actual
-    # answer — exactly like the conspect path, so the JSON we collect is the real one.
-    raw: str | None = None
-    try:
+    # STREAM the tasks (the conspect streams and works; the old non-streaming tasks
+    # call silently produced templates). For a reasoning model like Kimi, streaming
+    # yields `delta.content` — the actual answer — instead of an empty non-streamed
+    # `content`. If the primary STILL yields nothing (Kimi frequently returns no
+    # content for this big JSON, separate from 429s), retry once on the non-reasoning
+    # fallback model, which emits content normally. JSON-only system prompt + low temp.
+    system_json = "You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations."
+
+    async def _stream_tasks(model: str | None) -> str:
         collected: list[str] = []
         async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client:
             async for token in _llm_stream_tokens(
-                client,
-                settings,
-                prompt_tasks,
-                # 8-12 theory questions + 5 DISCRETE practice tasks, each with a full worked
-                # solution in <details>, needs substantial room — avoid truncating the JSON.
-                max_tokens=11000,
-                temperature=0.1,
-                system="You are a JSON-only API. Output ONLY the JSON object, no preamble, no markdown fences, no explanations.",
+                client, settings, prompt_tasks,
+                max_tokens=11000, temperature=0.1, system=system_json, model=model,
             ):
                 collected.append(token)
-        raw = "".join(collected)
+        return "".join(collected)
+
+    raw: str | None = None
+    try:
+        raw = await _stream_tasks(None)
     except Exception as exc:  # noqa: BLE001 — network/429/timeout: nothing to salvage, use templates
-        logger.warning("Task LLM call failed for topic %s (%s) — using template tasks.", topic.id, exc)
+        logger.warning("Task LLM call failed for topic %s (%s).", topic.id, exc)
+
+    fallback = getattr(settings, "llm_fallback_model", None)
+    if not (raw and raw.strip()) and fallback:
+        logger.warning("Task primary model returned empty for %s — retrying on fallback %s.", topic.id, fallback)
+        try:
+            raw = await _stream_tasks(fallback)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Task fallback model failed for topic %s (%s).", topic.id, exc)
 
     # Distinguish "the call failed" (no raw → templates) from "the call returned but the
     # JSON is imperfect" (have raw → salvage as much as possible). Truncated/partial JSON
