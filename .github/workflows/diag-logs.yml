@@ -1,0 +1,28 @@
+name: Diag Logs
+
+# Manual-only: dumps recent backend logs so we can see WHY task generation
+# degrades to templates (LLM call failure reason). No secrets are printed —
+# the app never logs the API key.
+on:
+  workflow_dispatch:
+
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch backend logs
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /opt/proof-forge
+            echo "===== TASK GENERATION lines ====="
+            docker compose -f docker-compose.prod.yml logs --tail 4000 backend 2>&1 \
+              | grep -iE "task (llm|json|generation)|salvage|using template" | tail -40 || true
+            echo "===== 4xx/5xx / max_tokens / model errors ====="
+            docker compose -f docker-compose.prod.yml logs --tail 4000 backend 2>&1 \
+              | grep -iE "max_tokens|400 bad|status_code=4|status_code=5|httpstatuserror|invalid|unsupported|context length|too many tokens|reasoning" | tail -40 || true
+            echo "===== effective LLM config (key NOT printed) ====="
+            docker compose -f docker-compose.prod.yml exec -T backend sh -c 'echo MODEL=$LLM_MODEL ; echo BASE=$LLM_BASE_URL ; echo FALLBACK=$LLM_FALLBACK_MODEL' || true
