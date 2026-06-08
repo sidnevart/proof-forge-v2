@@ -13,6 +13,8 @@ export const dict = {
   'nav.sessionFallback': 'Lesson',
   'nav.newFolder': 'New folder',
   'nav.folderName': 'Folder name',
+  'nav.deleteFolder': 'Delete folder',
+  'nav.deleteFolderConfirm': 'Delete this folder? Lessons inside will move back to the list.',
 
   // Dashboard
   'dash.morning': 'Good morning',

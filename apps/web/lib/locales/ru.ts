@@ -15,6 +15,8 @@ export const dict: Dict = {
   'nav.sessionFallback': 'Урок',
   'nav.newFolder': 'Новая папка',
   'nav.folderName': 'Имя папки',
+  'nav.deleteFolder': 'Удалить папку',
+  'nav.deleteFolderConfirm': 'Удалить папку? Уроки из неё вернутся в общий список.',
 
   // Dashboard
   'dash.morning': 'Доброе утро',

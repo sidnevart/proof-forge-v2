@@ -105,6 +105,17 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
     } catch { /* silent — sidebar stays consistent */ }
   }
 
+  const handleDeleteFolder = async (folderId: string) => {
+    // Topics inside are not deleted — the FK is ON DELETE SET NULL, so they
+    // just move back to the unfoldered list.
+    if (!confirm(t('nav.deleteFolderConfirm'))) return
+    try {
+      await folders.delete(folderId)
+      setAllFolders((prev) => prev.filter((f) => f.id !== folderId))
+      setAllTopics((prev) => prev.map((tp) => tp.folder_id === folderId ? { ...tp, folder_id: undefined } : tp))
+    } catch { /* silent */ }
+  }
+
   // Close move-menu when clicking outside
   useEffect(() => {
     if (!moveMenu) return
@@ -213,10 +224,10 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
                 const folderTopics = allTopics.filter((tp) => tp.folder_id === folder.id)
                 const isCollapsed = collapsed.has(folder.id)
                 return (
-                  <div key={folder.id}>
+                  <div key={folder.id} className="group/folder relative">
                     <button
                       onClick={() => toggleCollapse(folder.id)}
-                      className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg text-xs text-mute hover:text-ink hover:bg-card transition-colors"
+                      className="flex items-center gap-1.5 w-full px-2 pr-7 py-1.5 rounded-lg text-xs text-mute hover:text-ink hover:bg-card transition-colors"
                     >
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`shrink-0 transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>
                         <polyline points="9 18 15 12 9 6"/>
@@ -225,7 +236,14 @@ export function AppSidebar({ user }: { user: { display_name: string; email: stri
                         <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
                       </svg>
                       <span className="truncate font-medium">{folder.name}</span>
-                      <span className="ml-auto text-[10px] opacity-50">{folderTopics.length}</span>
+                      <span className="ml-auto text-[10px] opacity-50 group-hover/folder:opacity-0 transition-opacity">{folderTopics.length}</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteFolder(folder.id)}
+                      title={t('nav.deleteFolder')}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/folder:opacity-100 transition-opacity p-0.5 rounded text-mute hover:text-danger"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                     </button>
                     {!isCollapsed && folderTopics.map((tp) => {
                       const s = sessionByTopic[tp.id]
