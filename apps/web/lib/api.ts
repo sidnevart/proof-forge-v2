@@ -23,7 +23,13 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(err.detail ?? 'API error')
   }
-  return res.json()
+  // 204 No Content (e.g. DELETE) and other empty bodies have no JSON to parse —
+  // calling res.json() on them throws "Unexpected end of JSON input", which made
+  // a successful DELETE reject and the caller's catch swallow it (the folder was
+  // deleted on the server but the UI never updated, then a retry hit a real 404).
+  if (res.status === 204) return undefined as T
+  const text = await res.text()
+  return (text ? JSON.parse(text) : undefined) as T
 }
 
 // ── Auth ──
