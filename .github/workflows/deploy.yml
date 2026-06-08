@@ -84,11 +84,14 @@ jobs:
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script_stop: true
+          envs: OLLAMA_API_KEY
           script: |
             set -euo pipefail
             APP_DIR=/opt/proof-forge
@@ -105,6 +108,18 @@ jobs:
               exit 1
             fi
             echo ".env OK ($(wc -l < $APP_DIR/.env) lines)"
+
+            echo "==> Configuring Ollama provider in .env (idempotent)..."
+            ensure_env() {
+              if grep -q "^$1=" "$APP_DIR/.env"; then
+                sed -i "s|^$1=.*|$1=$2|" "$APP_DIR/.env"
+              else
+                echo "$1=$2" >> "$APP_DIR/.env"
+              fi
+            }
+            ensure_env LLM_PROVIDER ollama
+            if [ -n "${OLLAMA_API_KEY:-}" ]; then ensure_env OLLAMA_API_KEY "$OLLAMA_API_KEY"; fi
+            echo "LLM_PROVIDER set to: $(grep '^LLM_PROVIDER=' $APP_DIR/.env | cut -d= -f2)"
 
             echo "==> Deploying landing page..."
             cp $APP_DIR/apps/landing/index.html /var/www/proof-forge-landing/index.html
