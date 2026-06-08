@@ -110,16 +110,18 @@ jobs:
             echo ".env OK ($(wc -l < $APP_DIR/.env) lines)"
 
             echo "==> Configuring Ollama provider in .env (idempotent)..."
-            ensure_env() {
-              if grep -q "^$1=" "$APP_DIR/.env"; then
-                sed -i "s|^$1=.*|$1=$2|" "$APP_DIR/.env"
-              else
-                echo "$1=$2" >> "$APP_DIR/.env"
-              fi
-            }
-            ensure_env LLM_PROVIDER ollama
-            if [ -n "${OLLAMA_API_KEY:-}" ]; then ensure_env OLLAMA_API_KEY "$OLLAMA_API_KEY"; fi
-            echo "LLM_PROVIDER set to: $(grep '^LLM_PROVIDER=' $APP_DIR/.env | cut -d= -f2)"
+            grep -v '^LLM_PROVIDER=' "$APP_DIR/.env" > "$APP_DIR/.env.tmp" || true
+            mv "$APP_DIR/.env.tmp" "$APP_DIR/.env"
+            echo "LLM_PROVIDER=ollama" >> "$APP_DIR/.env"
+            if [ -n "${OLLAMA_API_KEY:-}" ]; then
+              grep -v '^OLLAMA_API_KEY=' "$APP_DIR/.env" > "$APP_DIR/.env.tmp" || true
+              mv "$APP_DIR/.env.tmp" "$APP_DIR/.env"
+              echo "OLLAMA_API_KEY=$OLLAMA_API_KEY" >> "$APP_DIR/.env"
+              echo "OLLAMA_API_KEY written (len ${#OLLAMA_API_KEY})"
+            else
+              echo "WARNING: OLLAMA_API_KEY not forwarded — provider will lack a key"
+            fi
+            echo "LLM_PROVIDER now: $(grep '^LLM_PROVIDER=' $APP_DIR/.env | cut -d= -f2)"
 
             echo "==> Deploying landing page..."
             cp $APP_DIR/apps/landing/index.html /var/www/proof-forge-landing/index.html
