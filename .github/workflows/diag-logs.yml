@@ -18,6 +18,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /opt/proof-forge
+            echo "===== RAW last 80 backend log lines ====="
+            docker compose -f docker-compose.prod.yml logs --tail 80 backend 2>&1 | tail -80 || true
             echo "===== TASK GENERATION lines ====="
             docker compose -f docker-compose.prod.yml logs --tail 4000 backend 2>&1 \
               | grep -iE "task (llm|json|generation)|salvage|using template" | tail -40 || true
